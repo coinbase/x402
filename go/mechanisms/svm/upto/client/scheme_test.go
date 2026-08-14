@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -281,6 +282,35 @@ func TestCreatePaymentPayloadUsesChallengeHintsWithoutRPC(t *testing.T) {
 	transaction, err := svm.DecodeTransaction(decoded.OpenTransaction)
 	require.NoError(t, err)
 	assert.Equal(t, solana.Hash(solana.SystemProgramID), transaction.Message.RecentBlockhash)
+}
+
+func TestCreatePaymentPayloadHonorsComputeBudgetOverrides(t *testing.T) {
+	signer := newTestSigner(t)
+	feePayer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
+	authorizer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
+	requirements := newRequirements(t, feePayer, authorizer, challengeOptions{})
+	limit := uint32(150_000)
+	price := uint64(3)
+	scheme := NewUptoSvmScheme(signer, &svm.ClientConfig{
+		ComputeUnitLimit:              &limit,
+		ComputeUnitPriceMicroLamports: &price,
+	})
+
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirements)
+	require.NoError(t, err)
+
+	decoded, err := svm.UptoPayloadFromMap(payload.Payload)
+	require.NoError(t, err)
+	transaction, err := svm.DecodeTransaction(decoded.OpenTransaction)
+	require.NoError(t, err)
+
+	instructions := transaction.Message.Instructions
+	require.GreaterOrEqual(t, len(instructions), 2)
+	program, err := transaction.Message.Program(instructions[0].ProgramIDIndex)
+	require.NoError(t, err)
+	assert.True(t, program.Equals(solana.ComputeBudget))
+	assert.Equal(t, limit, binary.LittleEndian.Uint32(instructions[0].Data[1:5]))
+	assert.Equal(t, price, binary.LittleEndian.Uint64(instructions[1].Data[1:9]))
 }
 
 func TestCreatePaymentPayloadRejectsInvalidChallenges(t *testing.T) {

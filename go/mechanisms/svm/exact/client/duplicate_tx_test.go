@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -494,6 +495,75 @@ func TestFixedBlockhashProducesDistinctTransactions(t *testing.T) {
 		t.Logf("\n=== CONCURRENT UNIQUENESS CHECK ===")
 		t.Logf("Concurrent requests: %d", numConcurrent)
 		t.Logf("Unique transactions: %d", len(unique))
+	})
+}
+
+// TestComputeBudgetConfiguration verifies ClientConfig's ComputeUnitLimit and
+// ComputeUnitPriceMicroLamports override the scheme's defaults. Unlike upto's
+// channel open, the ComputeBudget prefix is always present here, so 0 is a
+// literal price/limit rather than an instruction to omit.
+func TestComputeBudgetConfiguration(t *testing.T) {
+	requirementsFor := func(feePayer, payTo solana.PublicKey) types.PaymentRequirements {
+		return types.PaymentRequirements{
+			Scheme:            "exact",
+			Network:           "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+			Asset:             "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+			Amount:            "100000",
+			PayTo:             payTo.String(),
+			MaxTimeoutSeconds: 3600,
+			Extra:             map[string]interface{}{"feePayer": feePayer.String()},
+		}
+	}
+
+	t.Run("uses scheme defaults when config is unset", func(t *testing.T) {
+		server := httptest.NewServer(mockSolanaRPCHandler(t, func() string { return fixedBlockhash }))
+		defer server.Close()
+
+		signer := &mockClientSigner{keypair: solana.NewWallet().PrivateKey}
+		client := NewExactSvmScheme(signer, &svm.ClientConfig{RPCURL: server.URL})
+
+		requirements := requirementsFor(solana.NewWallet().PublicKey(), solana.NewWallet().PublicKey())
+		payload, err := client.CreatePaymentPayload(context.Background(), requirements)
+		require.NoError(t, err)
+
+		decoded, err := svm.DecodeTransaction(payload.Payload["transaction"].(string))
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(decoded.Message.Instructions), 2)
+
+		limitIx := decoded.Message.Instructions[0]
+		priceIx := decoded.Message.Instructions[1]
+		require.Equal(t, solana.ComputeBudget, decoded.Message.AccountKeys[limitIx.ProgramIDIndex])
+		require.Equal(t, solana.ComputeBudget, decoded.Message.AccountKeys[priceIx.ProgramIDIndex])
+
+		assert.Equal(t, svm.DefaultComputeUnitLimit, binary.LittleEndian.Uint32(limitIx.Data[1:5]))
+		assert.Equal(
+			t, uint64(svm.DefaultComputeUnitPriceMicrolamports), binary.LittleEndian.Uint64(priceIx.Data[1:9]),
+		)
+	})
+
+	t.Run("honors ClientConfig compute budget overrides", func(t *testing.T) {
+		server := httptest.NewServer(mockSolanaRPCHandler(t, func() string { return fixedBlockhash }))
+		defer server.Close()
+
+		signer := &mockClientSigner{keypair: solana.NewWallet().PrivateKey}
+		limit := uint32(120_000)
+		price := uint64(5)
+		client := NewExactSvmScheme(signer, &svm.ClientConfig{
+			RPCURL:                        server.URL,
+			ComputeUnitLimit:              &limit,
+			ComputeUnitPriceMicroLamports: &price,
+		})
+
+		requirements := requirementsFor(solana.NewWallet().PublicKey(), solana.NewWallet().PublicKey())
+		payload, err := client.CreatePaymentPayload(context.Background(), requirements)
+		require.NoError(t, err)
+
+		decoded, err := svm.DecodeTransaction(payload.Payload["transaction"].(string))
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(decoded.Message.Instructions), 2)
+
+		assert.Equal(t, limit, binary.LittleEndian.Uint32(decoded.Message.Instructions[0].Data[1:5]))
+		assert.Equal(t, price, binary.LittleEndian.Uint64(decoded.Message.Instructions[1].Data[1:9]))
 	})
 }
 

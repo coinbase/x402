@@ -69,6 +69,23 @@ type Config struct {
 	// open needs two. Unset means only the exact `{from, feePayer}` signer-set
 	// rule applies.
 	MaxRequiredSignatures *int
+
+	// ComputeUnitPriceMicroLamports is the SetComputeUnitPrice (microlamports
+	// per compute unit) attached to facilitator-submitted settlement
+	// transactions (claim, zero-charge cancel, and rent cleanup via
+	// NewRentCleanupManager). A value of 0 omits the instruction. Unset
+	// defaults to svm.DefaultComputeUnitPriceMicrolamports.
+	ComputeUnitPriceMicroLamports *uint64
+
+	// SettleComputeUnitLimit is the SetComputeUnitLimit for
+	// facilitator-submitted settlement transactions (claim, zero-charge
+	// cancel, and rent-cleanup close/distribute). The default
+	// (DefaultSettleComputeUnitLimit, 100k) assumes standard SPL Token
+	// settlement with a single-recipient distribution; raise it for
+	// compute-heavy Token-2022 extension mints or unusually large
+	// distributions. Reclaim batches size themselves per channel and are
+	// mint-independent, so they are unaffected by this cap.
+	SettleComputeUnitLimit *uint32
 }
 
 // UptoSvmScheme implements the SchemeNetworkFacilitator interface for SVM
@@ -114,6 +131,9 @@ func NewUptoSvmScheme(signer svm.FacilitatorSvmSigner, config *Config) *UptoSvmS
 	if cfg.MaxRequiredSignatures != nil {
 		assertLimit("maxRequiredSignatures", int64(*cfg.MaxRequiredSignatures), 1)
 	}
+	if cfg.SettleComputeUnitLimit != nil {
+		assertLimit("settleComputeUnitLimit", int64(*cfg.SettleComputeUnitLimit), 1)
+	}
 	storage := cfg.ChannelStorage
 	if storage == nil {
 		storage = NewInMemoryChannelStorage()
@@ -156,10 +176,12 @@ func (f *UptoSvmScheme) ChannelStorage() ChannelStorage {
 // Start or schedule Cleanup yourself.
 func (f *UptoSvmScheme) NewRentCleanupManager(network string) *RentCleanupManager {
 	return NewRentCleanupManager(RentCleanupConfig{
-		Signer:  f.signer,
-		Storage: f.channelStorage,
-		Network: network,
-		RPCURL:  f.config.RPCURL,
+		Signer:                        f.signer,
+		Storage:                       f.channelStorage,
+		Network:                       network,
+		RPCURL:                        f.config.RPCURL,
+		ComputeUnitPriceMicroLamports: f.config.ComputeUnitPriceMicroLamports,
+		SettleComputeUnitLimit:        f.config.SettleComputeUnitLimit,
 	})
 }
 
@@ -514,7 +536,10 @@ func (f *UptoSvmScheme) submitClaim(
 		return "", err
 	}
 
-	return submitInstructions(ctx, rpcClient, f.signer, feePayer, args.Network, instructions)
+	return submitSettle(ctx, rpcClient, f.signer, feePayer, args.Network, instructions, submitSettleOptions{
+		ComputeUnitLimit:              f.config.SettleComputeUnitLimit,
+		ComputeUnitPriceMicroLamports: f.config.ComputeUnitPriceMicroLamports,
+	})
 }
 
 // openAuthorization is the validated open-authorization context shared by

@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"testing"
 	"time"
@@ -129,16 +130,44 @@ func (h *cleanupHarness) exists(channelID string) bool {
 	return record != nil
 }
 
+// sentInstructionData returns the settlement instruction data for the
+// transaction at index, excluding the leading ComputeBudget prefix submitSettle
+// always attaches.
 func (h *cleanupHarness) sentInstructionData(index int) [][]byte {
 	h.t.Helper()
 	sent := h.signer.sentTransactions()
 	require.Greater(h.t, len(sent), index)
 
-	data := make([][]byte, 0, len(sent[index].Message.Instructions))
-	for _, instruction := range sent[index].Message.Instructions {
+	message := &sent[index].Message
+	data := make([][]byte, 0, len(message.Instructions))
+	for _, instruction := range message.Instructions {
+		program, err := message.Program(instruction.ProgramIDIndex)
+		require.NoError(h.t, err)
+		if program.Equals(solana.ComputeBudget) {
+			continue
+		}
 		data = append(data, instruction.Data)
 	}
 	return data
+}
+
+// sentComputeUnitLimit extracts the SetComputeUnitLimit value from the leading
+// ComputeBudget prefix of the transaction at index.
+func (h *cleanupHarness) sentComputeUnitLimit(index int) uint32 {
+	h.t.Helper()
+	sent := h.signer.sentTransactions()
+	require.Greater(h.t, len(sent), index)
+
+	message := &sent[index].Message
+	for _, instruction := range message.Instructions {
+		program, err := message.Program(instruction.ProgramIDIndex)
+		require.NoError(h.t, err)
+		if program.Equals(solana.ComputeBudget) && instruction.Data[0] == paymentchannels.ComputeBudgetSetUnitLimit {
+			return binary.LittleEndian.Uint32(instruction.Data[1:5])
+		}
+	}
+	h.t.Fatalf("transaction %d has no SetComputeUnitLimit instruction", index)
+	return 0
 }
 
 // closeAccountOnSend removes the channel account once the close lands, matching
@@ -303,8 +332,34 @@ func TestCleanupBatchReclaimsDistributedChannels(t *testing.T) {
 	for _, instruction := range data {
 		assert.Equal(t, paymentchannels.ReclaimDiscriminator, instruction[0])
 	}
+	// Reclaim batches carry a per-channel compute-unit limit (base + 2 x per-channel).
+	assert.Equal(t, ReclaimComputeUnitBase+2*ReclaimComputeUnitPerChannel, harness.sentComputeUnitLimit(0))
 	assert.False(t, harness.exists(first.ChannelID))
 	assert.False(t, harness.exists(second.ChannelID))
+}
+
+func TestCleanupUsesTheConfiguredSettleComputeBudget(t *testing.T) {
+	harness := newCleanupHarness(t)
+	settleLimit := uint32(222_222)
+	price := uint64(9)
+	harness.manager = NewRentCleanupManager(RentCleanupConfig{
+		Signer:                        harness.signer,
+		Storage:                       harness.storage,
+		Network:                       testNetwork,
+		RPCURL:                        harness.stub.url,
+		SettleComputeUnitLimit:        &settleLimit,
+		ComputeUnitPriceMicroLamports: &price,
+	})
+	record := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String(), ExpiresAt: time.Now().Unix() + 3600},
+		harness.channel(paymentchannels.StatusSealed, testSlot),
+	)
+	harness.closeAccountOnSend(record.ChannelID)
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+
+	require.Len(t, harness.closes, 1)
+	assert.Equal(t, settleLimit, harness.sentComputeUnitLimit(0))
 }
 
 func TestCleanupRespectsReclaimBatchCaps(t *testing.T) {

@@ -39,6 +39,18 @@ const (
 	// open transaction.
 	OpenMaxComputeUnitLimit uint32 = 400_000
 
+	// OpenDefaultComputeUnitLimit is the default SetComputeUnitLimit for a
+	// built open transaction. Without one the runtime reserves 200,000 CU per
+	// instruction (SIMD-0170) — 400,000 for the open + memo pair — while an
+	// observed open consumes ~51,000 CU. The default keeps ~1.8x headroom over
+	// that, and any SetComputeUnitPrice priority fee is charged on the
+	// requested limit, so right-sizing buys the same scheduling priority at a
+	// fraction of the fee. Assumes standard SPL Token (or Token-2022 without
+	// execution extensions) behavior — mints whose escrow transfer runs
+	// compute-heavy extensions (e.g. transfer hooks) need an explicit
+	// BuildOpenArgs.ComputeUnitLimit override, up to OpenMaxComputeUnitLimit.
+	OpenDefaultComputeUnitLimit uint32 = 90_000
+
 	// MaxComputeUnitPriceMicroLamports is the spec ceiling for SetComputeUnitPrice
 	// on an open transaction (5 lamports per compute unit).
 	MaxComputeUnitPriceMicroLamports uint64 = svm.MaxComputeUnitPriceMicrolamports

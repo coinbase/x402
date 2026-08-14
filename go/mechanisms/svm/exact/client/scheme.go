@@ -132,16 +132,27 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, err
 	}
 
-	// Build compute budget instructions
+	// Build compute budget instructions. Unlike upto's channel open, the
+	// transfer's ComputeBudget prefix is always present, so a configured 0 is
+	// a literal price/limit rather than an instruction to omit.
+	computeUnitLimit := svm.DefaultComputeUnitLimit
+	if c.config != nil && c.config.ComputeUnitLimit != nil {
+		computeUnitLimit = *c.config.ComputeUnitLimit
+	}
+	computeUnitPriceMicroLamports := uint64(svm.DefaultComputeUnitPriceMicrolamports)
+	if c.config != nil && c.config.ComputeUnitPriceMicroLamports != nil {
+		computeUnitPriceMicroLamports = *c.config.ComputeUnitPriceMicroLamports
+	}
+
 	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
-		SetUnits(svm.DefaultComputeUnitLimit).
+		SetUnits(computeUnitLimit).
 		ValidateAndBuild()
 	if err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildComputeLimitIx+": %w", err)
 	}
 
 	cuPrice, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
-		SetMicroLamports(svm.DefaultComputeUnitPriceMicrolamports).
+		SetMicroLamports(computeUnitPriceMicroLamports).
 		ValidateAndBuild()
 	if err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildComputePriceIx+": %w", err)

@@ -14,21 +14,6 @@ import {
   resolveUptoSvmPaymentChannelConfig,
 } from "../shared";
 
-/** Configuration for the upto SVM client. */
-export type UptoClientSvmConfig = ClientSvmConfig & {
-  /**
-   * `SetComputeUnitLimit` override for the open transaction. Defaults to
-   * `OPEN_DEFAULT_COMPUTE_UNIT_LIMIT`; `0` omits the instruction.
-   */
-  computeUnitLimit?: number;
-  /**
-   * `SetComputeUnitPrice` override in microlamports per compute unit (paid by
-   * the facilitator fee payer). Defaults to
-   * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS`; `0` omits the instruction.
-   */
-  computeUnitPriceMicroLamports?: number;
-};
-
 /**
  * SVM client implementation for the `upto` payment scheme.
  *
@@ -48,11 +33,13 @@ export class UptoSvmScheme implements SchemeNetworkClient {
    * Creates a new upto SVM client.
    *
    * @param signer - The payer's SVM signer
-   * @param config - Optional configuration with a custom RPC URL
+   * @param config - Optional configuration: custom RPC URL and ComputeBudget
+   *   overrides for the open transaction (see `ClientSvmConfig`; `0` omits
+   *   the corresponding instruction here, letting a wallet inject its own)
    */
   constructor(
     private readonly signer: ClientSvmSigner,
-    private readonly config?: UptoClientSvmConfig,
+    private readonly config?: ClientSvmConfig,
   ) {}
 
   /**

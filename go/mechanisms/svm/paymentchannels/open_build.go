@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	solana "github.com/gagliardetto/solana-go"
+	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
 )
@@ -36,6 +37,15 @@ type BuildOpenArgs struct {
 	// Memo is the seller-defined memo (extra.memo) when set, including the
 	// empty string. A random hex nonce is emitted when nil.
 	Memo *string
+	// ComputeUnitLimit overrides SetComputeUnitLimit units on the transaction.
+	// Defaults to OpenDefaultComputeUnitLimit when nil; 0 omits the
+	// instruction. Must not exceed OpenMaxComputeUnitLimit.
+	ComputeUnitLimit *uint32
+	// ComputeUnitPriceMicroLamports overrides SetComputeUnitPrice in
+	// microlamports per compute unit, paid by the facilitator fee payer.
+	// Defaults to svm.DefaultComputeUnitPriceMicrolamports when nil; 0 omits
+	// the instruction. Must not exceed svm.MaxComputeUnitPriceMicrolamports.
+	ComputeUnitPriceMicroLamports *uint64
 }
 
 // BuiltOpen is an unsigned `open` transaction plus the channel facts the
@@ -82,7 +92,16 @@ func BuildOpenTransaction(args BuildOpenArgs) (*BuiltOpen, error) {
 	}
 	memoIx := solana.NewInstruction(memoProgramID, solana.AccountMetaSlice{}, memoData)
 
-	tx, err := solana.NewTransactionBuilder().
+	computeBudgetIxs, err := resolveOpenComputeBudget(args.ComputeUnitLimit, args.ComputeUnitPriceMicroLamports)
+	if err != nil {
+		return nil, err
+	}
+
+	builder := solana.NewTransactionBuilder()
+	for _, ix := range computeBudgetIxs {
+		builder.AddInstruction(ix)
+	}
+	tx, err := builder.
 		AddInstruction(openIx).
 		AddInstruction(memoIx).
 		SetRecentBlockHash(args.Blockhash).
@@ -111,6 +130,53 @@ func resolveSalt(salt *uint64) (uint64, error) {
 		return 0, fmt.Errorf("failed to generate channel salt: %w", err)
 	}
 	return binary.LittleEndian.Uint64(buf), nil
+}
+
+// resolveOpenComputeBudget builds the optional ComputeBudget prefix for a
+// client open transaction: SetComputeUnitLimit (0 omits it) followed by
+// SetComputeUnitPrice (0 omits it), in that order per spec.
+func resolveOpenComputeBudget(computeUnitLimit *uint32, computeUnitPriceMicroLamports *uint64) ([]solana.Instruction, error) {
+	limit := OpenDefaultComputeUnitLimit
+	if computeUnitLimit != nil {
+		limit = *computeUnitLimit
+	}
+	if limit > OpenMaxComputeUnitLimit {
+		return nil, fmt.Errorf(
+			"computeUnitLimit must be in [0, %d], received %d", OpenMaxComputeUnitLimit, limit,
+		)
+	}
+
+	price := uint64(svm.DefaultComputeUnitPriceMicrolamports)
+	if computeUnitPriceMicroLamports != nil {
+		price = *computeUnitPriceMicroLamports
+	}
+	if price > svm.MaxComputeUnitPriceMicrolamports {
+		return nil, fmt.Errorf(
+			"computeUnitPriceMicroLamports must be in [0, %d], received %d",
+			svm.MaxComputeUnitPriceMicrolamports, price,
+		)
+	}
+
+	var instructions []solana.Instruction
+	if limit > 0 {
+		limitIx, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
+			SetUnits(limit).
+			ValidateAndBuild()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build compute limit instruction: %w", err)
+		}
+		instructions = append(instructions, limitIx)
+	}
+	if price > 0 {
+		priceIx, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
+			SetMicroLamports(price).
+			ValidateAndBuild()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build compute price instruction: %w", err)
+		}
+		instructions = append(instructions, priceIx)
+	}
+	return instructions, nil
 }
 
 func resolveMemoData(memo *string) ([]byte, error) {

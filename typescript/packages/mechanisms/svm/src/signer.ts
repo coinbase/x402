@@ -26,6 +26,21 @@ export type ClientSvmConfig = {
    * Optional custom RPC URL for the client to use
    */
   rpcUrl?: string;
+  /**
+   * `SetComputeUnitLimit` override for the transaction the client builds.
+   * Defaults to the scheme's own default limit; schemes that treat the
+   * ComputeBudget prefix as optional (e.g. `upto`'s channel open) treat `0`
+   * as "omit the instruction", letting a wallet inject its own.
+   */
+  computeUnitLimit?: number;
+  /**
+   * `SetComputeUnitPrice` override in microlamports per compute unit, paid by
+   * whichever party is the transaction's fee payer. Defaults to the scheme's
+   * own default price; schemes that treat the ComputeBudget prefix as
+   * optional (e.g. `upto`'s channel open) treat `0` as "omit the
+   * instruction", letting a wallet inject its own.
+   */
+  computeUnitPriceMicroLamports?: number;
 };
 
 /**

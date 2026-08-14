@@ -105,6 +105,18 @@ type RentCleanupConfig struct {
 	Network string
 	RPCURL  string
 
+	// ComputeUnitPriceMicroLamports is the SetComputeUnitPrice (microlamports
+	// per compute unit) attached to cleanup transactions; 0 omits the
+	// instruction. Unset defaults to svm.DefaultComputeUnitPriceMicrolamports.
+	ComputeUnitPriceMicroLamports *uint64
+
+	// SettleComputeUnitLimit is the SetComputeUnitLimit for close/distribute
+	// cleanup transactions. Unset defaults to DefaultSettleComputeUnitLimit
+	// (100k, standard SPL Token settlement); raise it for compute-heavy
+	// Token-2022 extension mints. Reclaim batches instead derive their limit
+	// per channel (ReclaimComputeUnitLimit) and are mint-independent.
+	SettleComputeUnitLimit *uint32
+
 	// EnableDiscovery adds a spec §6 getProgramAccounts sweep, per managed
 	// signer key, for Distributed channels missing from Storage. Discovery
 	// finds only chain-verifiable reclaim candidates: it never substitutes
@@ -120,11 +132,13 @@ type RentCleanupConfig struct {
 // refunds the unsettled remainder to the client, so cleanup only kicks in
 // after the voucher deadline plus a grace period.
 type RentCleanupManager struct {
-	signer          svm.FacilitatorSvmSigner
-	storage         ChannelStorage
-	network         string
-	rpcURL          string
-	enableDiscovery bool
+	signer                        svm.FacilitatorSvmSigner
+	storage                       ChannelStorage
+	network                       string
+	rpcURL                        string
+	computeUnitPriceMicroLamports *uint64
+	settleComputeUnitLimit        *uint32
+	enableDiscovery               bool
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -146,11 +160,13 @@ type RentCleanupManager struct {
 // automatically; the facilitator scheme never runs cleanup on its own.
 func NewRentCleanupManager(config RentCleanupConfig) *RentCleanupManager {
 	return &RentCleanupManager{
-		signer:          config.Signer,
-		storage:         config.Storage,
-		network:         config.Network,
-		rpcURL:          config.RPCURL,
-		enableDiscovery: config.EnableDiscovery,
+		signer:                        config.Signer,
+		storage:                       config.Storage,
+		network:                       config.Network,
+		rpcURL:                        config.RPCURL,
+		computeUnitPriceMicroLamports: config.ComputeUnitPriceMicroLamports,
+		settleComputeUnitLimit:        config.SettleComputeUnitLimit,
+		enableDiscovery:               config.EnableDiscovery,
 	}
 }
 
@@ -467,7 +483,10 @@ func (m *RentCleanupManager) submitCloseOrDistribute(
 		}
 	}
 
-	return submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
+	return submitSettle(ctx, rpcClient, m.signer, feePayer, m.network, instructions, submitSettleOptions{
+		ComputeUnitLimit:              m.settleComputeUnitLimit,
+		ComputeUnitPriceMicroLamports: m.computeUnitPriceMicroLamports,
+	})
 }
 
 // submitReclaimBatches groups candidates by rent payer and runs each group's
@@ -554,7 +573,11 @@ func (m *RentCleanupManager) submitReclaimGroup(
 			channelIDs = append(channelIDs, candidate.channelID.String())
 		}
 
-		signature, err := submitInstructions(ctx, rpcClient, m.signer, feePayer, m.network, instructions)
+		reclaimLimit := ReclaimComputeUnitLimit(len(batch))
+		signature, err := submitSettle(ctx, rpcClient, m.signer, feePayer, m.network, instructions, submitSettleOptions{
+			ComputeUnitLimit:              &reclaimLimit,
+			ComputeUnitPriceMicroLamports: m.computeUnitPriceMicroLamports,
+		})
 		if err != nil {
 			// Every channel in the batch is stuck, not just the first.
 			for _, channelID := range channelIDs {

@@ -9,7 +9,13 @@ import {
   getTransactionDecoder,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { MEMO_PROGRAM_ADDRESS, SOLANA_DEVNET_CAIP2 } from "../../src/constants";
+import {
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  DEFAULT_COMPUTE_UNIT_LIMIT,
+  DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  MEMO_PROGRAM_ADDRESS,
+  SOLANA_DEVNET_CAIP2,
+} from "../../src/constants";
 import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import { transactionMessageHash } from "../../src/utils";
 
@@ -670,5 +676,93 @@ describe("transactionMessageHash malleability resistance", () => {
 
     // Different blockhashes → different messages → different hashes
     expect(transactionMessageHash(tx1)).not.toBe(transactionMessageHash(tx2));
+  });
+});
+
+/** Reads the u32 LE units of a SetComputeUnitLimit instruction's data. */
+function readComputeLimitData(data: Uint8Array): number {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(1, true);
+}
+
+/** Reads the u64 LE microlamports of a SetComputeUnitPrice instruction's data. */
+function readComputePriceData(data: Uint8Array): bigint {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(1, true);
+}
+
+describe("ExactSvmScheme compute budget configuration", () => {
+  beforeEach(() => {
+    blockhashes = [];
+    blockhashIndex = 0;
+    mockAtaMap = {};
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  /**
+   * Builds a payment payload with the given client config and returns its
+   * decoded top-level ComputeBudget instructions.
+   *
+   * @param config - Optional ClientSvmConfig overrides
+   * @returns The SetComputeUnitLimit and SetComputeUnitPrice instruction data
+   */
+  async function buildAndDecodeComputeBudget(config?: {
+    computeUnitLimit?: number;
+    computeUnitPriceMicroLamports?: number;
+  }) {
+    blockhashes = [FIXED_BLOCKHASH];
+    const { ExactSvmScheme } = await import("../../src/exact/client/scheme");
+    const { decodeTransactionFromPayload } = await import("../../src/utils");
+
+    const clientSigner = await createSigner();
+    const feePayer = await createSigner();
+    const payTo = await createSigner();
+
+    const client = new ExactSvmScheme(clientSigner, config);
+    mockAtaMap = {
+      [clientSigner.address]: clientSigner.address as Address,
+      [payTo.address]: payTo.address as Address,
+    };
+
+    const requirements: PaymentRequirements = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "100000",
+      payTo: payTo.address,
+      maxTimeoutSeconds: 3600,
+      extra: { feePayer: feePayer.address },
+    };
+
+    const payload = await client.createPaymentPayload(2, requirements);
+    const txBase64 = (payload.payload as { transaction: string }).transaction;
+    const tx = decodeTransactionFromPayload({ transaction: txBase64 });
+    const compiled = getCompiledTransactionMessageDecoder().decode(tx.messageBytes);
+    const decompiled = decompileTransactionMessage(compiled);
+    const instructions = decompiled.instructions ?? [];
+
+    expect(instructions[0]!.programAddress.toString()).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+    expect(instructions[1]!.programAddress.toString()).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+
+    return {
+      limit: readComputeLimitData(new Uint8Array(instructions[0]!.data!)),
+      price: readComputePriceData(new Uint8Array(instructions[1]!.data!)),
+    };
+  }
+
+  it("uses the scheme defaults when no config is provided", async () => {
+    const { limit, price } = await buildAndDecodeComputeBudget();
+
+    expect(limit).toBe(DEFAULT_COMPUTE_UNIT_LIMIT);
+    expect(price).toBe(BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS));
+  });
+
+  it("honors ClientSvmConfig compute budget overrides", async () => {
+    const { limit, price } = await buildAndDecodeComputeBudget({
+      computeUnitLimit: 120_000,
+      computeUnitPriceMicroLamports: 5,
+    });
+
+    expect(limit).toBe(120_000);
+    expect(price).toBe(5n);
   });
 });

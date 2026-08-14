@@ -25,7 +25,39 @@ const (
 	// serves transaction status and account state from different replicas.
 	channelReadMaxAttempts    = 5
 	channelReadInitialBackoff = 200 * time.Millisecond
+
+	// DefaultSettleComputeUnitLimit is the default SetComputeUnitLimit for
+	// facilitator-submitted settlement transactions: claim (settle_and_seal +
+	// optional Ed25519 precompile + distribute), the zero-charge cancel, and
+	// rent-cleanup close/distribute. A measured claim with a warm recipient
+	// ATA consumes ~21.6k CU; a distribute that must recreate a closed
+	// recipient ATA adds ~25k. 100k keeps >2x headroom over that worst case.
+	// Assumes standard SPL Token (or Token-2022 without execution extensions)
+	// behavior — mints with transfer hooks or other compute-heavy extensions
+	// need an explicit submitSettleOptions.ComputeUnitLimit override.
+	DefaultSettleComputeUnitLimit uint32 = 100_000
+
+	// ReclaimComputeUnitBase is the base SetComputeUnitLimit for a reclaim
+	// batch transaction.
+	ReclaimComputeUnitBase uint32 = 25_000
+
+	// ReclaimComputeUnitPerChannel is the additional compute units budgeted
+	// per reclaim instruction in a batch. A measured reclaim consumes ~320 CU
+	// per channel and is mint-independent (the escrow ATA is already closed
+	// by that point — reclaim only closes the channel PDA and returns
+	// lamports), so 5k per channel is >15x margin.
+	ReclaimComputeUnitPerChannel uint32 = 5_000
 )
+
+// ReclaimComputeUnitLimit returns the SetComputeUnitLimit for a reclaim batch
+// of channelCount channels, clamped to the per-transaction maximum.
+func ReclaimComputeUnitLimit(channelCount int) uint32 {
+	limit := ReclaimComputeUnitBase + ReclaimComputeUnitPerChannel*uint32(channelCount)
+	if limit > simComputeUnitLimit {
+		return simComputeUnitLimit
+	}
+	return limit
+}
 
 // expectedOpenChannel are the challenge-bound terms a confirmed channel account
 // must match before the facilitator settles against it. They arrive as strings
@@ -435,16 +467,71 @@ func simulateInstructions(
 	return nil
 }
 
-// submitInstructions signs, broadcasts, and confirms an instruction list.
-func submitInstructions(
+// submitSettleOptions configures the ComputeBudget prefix submitSettle
+// attaches ahead of a settlement instruction list.
+type submitSettleOptions struct {
+	// ComputeUnitLimit overrides SetComputeUnitLimit. Defaults to
+	// DefaultSettleComputeUnitLimit. Unlike the open builder, this is always
+	// emitted (never omitted at 0): the transaction is facilitator-built, not
+	// wallet-injected, so there is no default-CU fallback worth preserving.
+	ComputeUnitLimit *uint32
+	// ComputeUnitPriceMicroLamports overrides SetComputeUnitPrice; 0 omits
+	// the instruction. Defaults to svm.DefaultComputeUnitPriceMicrolamports.
+	ComputeUnitPriceMicroLamports *uint64
+}
+
+// buildSettleComputeBudget builds the ComputeBudget prefix submitSettle
+// attaches: a SetComputeUnitLimit (always emitted) and an optional
+// SetComputeUnitPrice (omitted at 0).
+func buildSettleComputeBudget(opts submitSettleOptions) ([]solana.Instruction, error) {
+	computeUnitLimit := DefaultSettleComputeUnitLimit
+	if opts.ComputeUnitLimit != nil {
+		computeUnitLimit = *opts.ComputeUnitLimit
+	}
+	limitIx, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
+		SetUnits(computeUnitLimit).
+		ValidateAndBuild()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build compute limit instruction: %w", err)
+	}
+	instructions := []solana.Instruction{limitIx}
+
+	computeUnitPrice := uint64(svm.DefaultComputeUnitPriceMicrolamports)
+	if opts.ComputeUnitPriceMicroLamports != nil {
+		computeUnitPrice = *opts.ComputeUnitPriceMicroLamports
+	}
+	if computeUnitPrice > 0 {
+		priceIx, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
+			SetMicroLamports(computeUnitPrice).
+			ValidateAndBuild()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build compute price instruction: %w", err)
+		}
+		instructions = append(instructions, priceIx)
+	}
+	return instructions, nil
+}
+
+// submitSettle signs, broadcasts, and confirms a settlement instruction list
+// (settle_and_seal/distribute or a reclaim batch), prefixed with a
+// ComputeBudget SetComputeUnitLimit and optional SetComputeUnitPrice.
+func submitSettle(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	signer svm.FacilitatorSvmSigner,
 	feePayer solana.PublicKey,
 	network string,
 	instructions []solana.Instruction,
+	opts submitSettleOptions,
 ) (string, error) {
-	tx, err := buildSignedTransaction(ctx, rpcClient, signer, feePayer, network, instructions)
+	computeBudget, err := buildSettleComputeBudget(opts)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := buildSignedTransaction(
+		ctx, rpcClient, signer, feePayer, network, append(computeBudget, instructions...),
+	)
 	if err != nil {
 		return "", err
 	}

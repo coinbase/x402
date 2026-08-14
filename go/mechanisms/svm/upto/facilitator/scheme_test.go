@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"testing"
@@ -412,6 +413,7 @@ func TestNewUptoSvmSchemeRejectsUnusableLimits(t *testing.T) {
 	negative := -1
 	zeroUnits := uint32(0)
 	zeroSignatures := 0
+	zeroSettleLimit := uint32(0)
 
 	assert.PanicsWithValue(t, "upto svm facilitator: signer is required", func() {
 		NewUptoSvmScheme(nil, nil)
@@ -428,6 +430,9 @@ func TestNewUptoSvmSchemeRejectsUnusableLimits(t *testing.T) {
 	assert.Panics(t, func() {
 		NewUptoSvmScheme(signer, &Config{MaxRequiredSignatures: &zeroSignatures})
 	})
+	assert.Panics(t, func() {
+		NewUptoSvmScheme(signer, &Config{SettleComputeUnitLimit: &zeroSettleLimit})
+	}, "a zero settle compute-unit limit can never land a transaction")
 
 	assert.NotPanics(t, func() { NewUptoSvmScheme(signer, nil) }, "an unset config takes defaults")
 }
@@ -714,6 +719,7 @@ func TestClaimSettleDistributesTheMeteredAmount(t *testing.T) {
 	require.Len(t, sent, 1)
 	programs := instructionPrograms(t, sent[0])
 	assert.Equal(t, []solana.PublicKey{
+		solana.ComputeBudget, solana.ComputeBudget,
 		paymentchannels.Ed25519ProgramID, paymentchannels.ProgramID, paymentchannels.ProgramID,
 	}, programs, "the voucher precompile must immediately precede settle_and_seal")
 }
@@ -735,9 +741,69 @@ func TestClaimSettleSealsAZeroChargeWithoutAPrecompile(t *testing.T) {
 
 	sent := signer.sentTransactions()
 	require.Len(t, sent, 1)
-	assert.Equal(t, []solana.PublicKey{paymentchannels.ProgramID, paymentchannels.ProgramID},
-		instructionPrograms(t, sent[0]),
+	assert.Equal(t, []solana.PublicKey{
+		solana.ComputeBudget, solana.ComputeBudget, paymentchannels.ProgramID, paymentchannels.ProgramID,
+	}, instructionPrograms(t, sent[0]),
 		"a zero charge seals at the watermark, which the program rejects with a voucher")
+}
+
+// computeBudgetData extracts the SetComputeUnitLimit/SetComputeUnitPrice
+// instruction data from a sent transaction's leading ComputeBudget prefix.
+func computeBudgetData(t *testing.T, tx *solana.Transaction) (limit uint32, price uint64) {
+	t.Helper()
+	for _, instruction := range tx.Message.Instructions {
+		program, err := tx.Message.Program(instruction.ProgramIDIndex)
+		require.NoError(t, err)
+		if !program.Equals(solana.ComputeBudget) {
+			continue
+		}
+		switch instruction.Data[0] {
+		case paymentchannels.ComputeBudgetSetUnitLimit:
+			limit = binary.LittleEndian.Uint32(instruction.Data[1:5])
+		case paymentchannels.ComputeBudgetSetUnitPrice:
+			price = binary.LittleEndian.Uint64(instruction.Data[1:9])
+		}
+	}
+	return limit, price
+}
+
+func TestClaimSettleUsesTheConfiguredComputeBudget(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	stub := newStubRPC(t)
+	fixture := newPaymentFixture(t, signer)
+	settleLimit := uint32(123_456)
+	price := uint64(7)
+	scheme := newScheme(signer, stub, &Config{
+		SettleComputeUnitLimit:        &settleLimit,
+		ComputeUnitPriceMicroLamports: &price,
+	})
+	stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
+
+	_, err := scheme.Settle(context.Background(), fixture.claimPayload(t, 0), fixture.claimRequirements(0), nil)
+	require.NoError(t, err)
+
+	sent := signer.sentTransactions()
+	require.Len(t, sent, 1)
+	limit, gotPrice := computeBudgetData(t, sent[0])
+	assert.Equal(t, settleLimit, limit)
+	assert.Equal(t, price, gotPrice)
+}
+
+func TestClaimSettleOmitsComputeUnitPriceWhenZero(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	stub := newStubRPC(t)
+	fixture := newPaymentFixture(t, signer)
+	price := uint64(0)
+	scheme := newScheme(signer, stub, &Config{ComputeUnitPriceMicroLamports: &price})
+	stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
+
+	_, err := scheme.Settle(context.Background(), fixture.claimPayload(t, 0), fixture.claimRequirements(0), nil)
+	require.NoError(t, err)
+
+	sent := signer.sentTransactions()
+	require.Len(t, sent, 1)
+	assert.Equal(t, []solana.PublicKey{solana.ComputeBudget, paymentchannels.ProgramID, paymentchannels.ProgramID},
+		instructionPrograms(t, sent[0]), "a zero price omits SetComputeUnitPrice but SetComputeUnitLimit is always emitted")
 }
 
 // Rent cleanup only sees channels the settle path indexed, so the claim must
