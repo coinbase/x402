@@ -1,7 +1,7 @@
 import { address } from "@solana/kit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { USDC_DEVNET_ADDRESS, USDC_MAINNET_ADDRESS } from "../../src/constants";
+import { USDC_DEVNET_ADDRESS, USDC_MAINNET_ADDRESS } from "../../src/defaultAssets";
 import type { Channel } from "../../src/payment-channels/generated/accounts/channel";
 import type { ChannelSplit } from "../../src/payment-channels/open";
 
