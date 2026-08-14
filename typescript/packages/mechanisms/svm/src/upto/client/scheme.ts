@@ -3,6 +3,7 @@ import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { type Address } from "@solana/kit";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
 
+import { findDefaultAsset } from "../../defaultAssets";
 import { buildOpenPaymentChannelTransaction } from "../../payment-channels/open";
 import type { ClientSvmConfig, ClientSvmSigner } from "../../signer";
 import { type UptoSvmPayloadV2 } from "../../types";
@@ -39,6 +40,9 @@ export type UptoClientSvmConfig = ClientSvmConfig & {
  */
 export class UptoSvmScheme implements SchemeNetworkClient {
   readonly scheme = "upto";
+
+  /** Lets client spend controls recognize the network's default stablecoins. */
+  findDefaultAsset = findDefaultAsset;
 
   /**
    * Creates a new upto SVM client.

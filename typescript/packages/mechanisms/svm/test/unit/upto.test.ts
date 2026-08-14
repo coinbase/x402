@@ -1769,6 +1769,17 @@ describe("upto SVM scheme", () => {
   });
 
   describe("client.createPaymentPayload", () => {
+    it("reports the devnet/mainnet USDC mints as default assets for spend controls", async () => {
+      const payer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      expect(client.findDefaultAsset?.(USDC_DEVNET_ADDRESS, SOLANA_DEVNET_CAIP2)?.asset).toBe(
+        USDC_DEVNET_ADDRESS,
+      );
+      expect(client.findDefaultAsset?.(USDC_MAINNET_ADDRESS, SOLANA_MAINNET_CAIP2)?.asset).toBe(
+        USDC_MAINNET_ADDRESS,
+      );
+    });
+
     it("builds a delegated open with the payTo split and decimal salt nonce", async () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
