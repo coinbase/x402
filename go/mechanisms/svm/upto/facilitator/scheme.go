@@ -123,16 +123,16 @@ func NewUptoSvmScheme(signer svm.FacilitatorSvmSigner, config *Config) *UptoSvmS
 		cfg = *config
 	}
 	if cfg.MaxChannelLifetimeSecs != nil {
-		assertLimit("maxChannelLifetimeSecs", int64(*cfg.MaxChannelLifetimeSecs), 1)
+		assertPositive("maxChannelLifetimeSecs", int64(*cfg.MaxChannelLifetimeSecs))
 	}
 	if cfg.MaxComputeUnits != nil {
-		assertLimit("maxComputeUnits", int64(*cfg.MaxComputeUnits), 1)
+		assertPositive("maxComputeUnits", int64(*cfg.MaxComputeUnits))
 	}
 	if cfg.MaxRequiredSignatures != nil {
-		assertLimit("maxRequiredSignatures", int64(*cfg.MaxRequiredSignatures), 1)
+		assertPositive("maxRequiredSignatures", int64(*cfg.MaxRequiredSignatures))
 	}
 	if cfg.SettleComputeUnitLimit != nil {
-		assertLimit("settleComputeUnitLimit", int64(*cfg.SettleComputeUnitLimit), 1)
+		assertPositive("settleComputeUnitLimit", int64(*cfg.SettleComputeUnitLimit))
 	}
 	storage := cfg.ChannelStorage
 	if storage == nil {
@@ -146,12 +146,12 @@ func NewUptoSvmScheme(signer svm.FacilitatorSvmSigner, config *Config) *UptoSvmS
 	}
 }
 
-// assertLimit rejects a configured limit below its floor. Unsigned config types
+// assertPositive rejects a configured limit below 1. Unsigned config types
 // already make negative priority fees unrepresentable, so only the limits that
-// can hold an unusable value are checked.
-func assertLimit(name string, value int64, min int64) {
-	if value < min {
-		panic(fmt.Sprintf("upto svm facilitator: %s must be >= %d, received %d", name, min, value))
+// can hold an unusable value (zero) are checked.
+func assertPositive(name string, value int64) {
+	if value < 1 {
+		panic(fmt.Sprintf("upto svm facilitator: %s must be >= 1, received %d", name, value))
 	}
 }
 
