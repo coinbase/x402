@@ -9,6 +9,21 @@ import { type UptoSvmPayloadV2 } from "../../types";
 import { createRpcClient, resolveBlockhash, resolveOpenSlot } from "../../utils";
 import { resolveUptoSvmPaymentChannelConfig } from "../shared";
 
+/** Configuration for the upto SVM client. */
+export type UptoClientSvmConfig = ClientSvmConfig & {
+  /**
+   * `SetComputeUnitLimit` override for the open transaction. Defaults to
+   * `OPEN_DEFAULT_COMPUTE_UNIT_LIMIT`; `0` omits the instruction.
+   */
+  computeUnitLimit?: number;
+  /**
+   * `SetComputeUnitPrice` override in microlamports per compute unit (paid by
+   * the facilitator fee payer). Defaults to
+   * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS`; `0` omits the instruction.
+   */
+  computeUnitPriceMicroLamports?: number;
+};
+
 /**
  * SVM client implementation for the `upto` payment scheme.
  *
@@ -29,7 +44,7 @@ export class UptoSvmScheme implements SchemeNetworkClient {
    */
   constructor(
     private readonly signer: ClientSvmSigner,
-    private readonly config?: ClientSvmConfig,
+    private readonly config?: UptoClientSvmConfig,
   ) {}
 
   /**
@@ -72,6 +87,8 @@ export class UptoSvmScheme implements SchemeNetworkClient {
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
       },
+      computeUnitLimit: this.config?.computeUnitLimit,
+      computeUnitPriceMicroLamports: this.config?.computeUnitPriceMicroLamports,
       deposit: maxAmount,
       feePayer: channelConfig.feePayer,
       gracePeriod: channelConfig.withdrawDelay,

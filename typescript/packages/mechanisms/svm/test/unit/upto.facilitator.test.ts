@@ -161,6 +161,36 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     expect(channelMocks.submitSettle).toHaveBeenCalledTimes(1);
   });
 
+  it("passes the configured settle compute budget through to submitSettle", async () => {
+    const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
+      await buildFixture({
+        computeUnitPriceMicroLamports: 7,
+        settleComputeUnitLimit: 123_456,
+      });
+
+    const voucherSignature = await signVoucher(receiverAuthorizer, {
+      channelId: uptoPayload.channelId,
+      cumulativeAmount: 0n,
+      expiresAt: BigInt(uptoPayload.expiresAt),
+    });
+    await expect(
+      facilitator.settle(
+        {
+          ...payload,
+          payload: { ...uptoPayload, voucherSignature },
+        },
+        { ...requirements, amount: "0" },
+      ),
+    ).resolves.toMatchObject({ success: true });
+
+    expect(channelMocks.submitSettle).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { computeUnitLimit: 123_456, computeUnitPriceMicroLamports: 7 },
+    );
+  });
+
   it("rejects settlement that exceeds the signed ceiling without touching the chain", async () => {
     const { facilitator, payload, requirements } = await buildFixture();
 

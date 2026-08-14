@@ -16,6 +16,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
   LIGHTHOUSE_PROGRAM_ADDRESS,
   MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
   MAX_MEMO_BYTES,
@@ -29,6 +30,7 @@ import { getPaymentChannelsTreasuryOwner } from "../../src/payment-channels/onch
 import {
   buildOpenPaymentChannelTransaction,
   findPaymentChannelPda,
+  OPEN_DEFAULT_COMPUTE_UNIT_LIMIT,
   OPEN_MAX_COMPUTE_UNIT_LIMIT,
   verifyOpenTransaction,
 } from "../../src/payment-channels/open";
@@ -36,8 +38,11 @@ import { encodeVoucherMessageBytes, VOUCHER_MAGIC } from "../../src/payment-chan
 import { UptoSvmScheme as UptoClientScheme } from "../../src/upto/client/scheme";
 import { UptoSvmScheme as UptoServerScheme } from "../../src/upto/server/scheme";
 import {
+  DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT,
   getChannelDistributionHash,
+  reclaimComputeUnitLimit,
   simulateOpenSettleDistribute,
+  submitSettle,
   verifyOpenChannelAccount,
 } from "../../src/upto/facilitator/channel";
 import {
@@ -129,6 +134,31 @@ function makeComputePriceData(microLamports: bigint): Uint8Array {
   view.setUint8(0, 3);
   view.setBigUint64(1, microLamports, true);
   return new Uint8Array(buf);
+}
+
+/** Decodes a wire transaction's top-level instructions to (program, data) pairs. */
+function decodeTopLevelInstructions(txBase64: string): { program: string; data: Uint8Array }[] {
+  const compiled = getCompiledTransactionMessageDecoder().decode(
+    getTransactionDecoder().decode(getBase64Codec().encode(txBase64)).messageBytes,
+  );
+  return compiled.instructions.map(ix => ({
+    program: compiled.staticAccounts[ix.programAddressIndex]!,
+    data: new Uint8Array(ix.data ?? []),
+  }));
+}
+
+/** Reads the u32 LE units of a SetComputeUnitLimit instruction data. */
+function readComputeLimitData(data: Uint8Array): number {
+  expect(data[0]).toBe(2);
+  expect(data).toHaveLength(5);
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(1, true);
+}
+
+/** Reads the u64 LE microlamports of a SetComputeUnitPrice instruction data. */
+function readComputePriceData(data: Uint8Array): bigint {
+  expect(data[0]).toBe(3);
+  expect(data).toHaveLength(9);
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(1, true);
 }
 
 /**
@@ -485,9 +515,13 @@ describe("upto SVM scheme", () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
       const receiverAuthorizer = await generateKeyPairSigner();
+      // Opt out of the built-in ComputeBudget prefix: this exercises a wallet
+      // injecting its own prefix onto a bare open.
       const open = await buildOpenPaymentChannelTransaction({
         authorizedSigner: receiverAuthorizer.address,
         blockhash: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 0n },
+        computeUnitLimit: 0,
+        computeUnitPriceMicroLamports: 0,
         deposit: 1_000_000n,
         feePayer: feePayer.address,
         gracePeriod: WITHDRAW_DELAY,
@@ -1036,6 +1070,100 @@ describe("upto SVM scheme", () => {
       ).rejects.toThrow(/extra\.memo exceeds maximum/);
     });
 
+    it("buildOpenPaymentChannelTransaction emits a right-sized ComputeBudget prefix by default", async () => {
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const open = await buildOpenPaymentChannelTransaction({
+        authorizedSigner: receiverAuthorizer.address,
+        blockhash: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 0n },
+        deposit: 1_000_000n,
+        feePayer: feePayer.address,
+        gracePeriod: WITHDRAW_DELAY,
+        mint: MINT,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      });
+
+      // SetComputeUnitLimit then SetComputeUnitPrice, both before the open.
+      const instructions = decodeTopLevelInstructions(open.transaction);
+      expect(instructions[0]!.program).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+      expect(readComputeLimitData(instructions[0]!.data)).toBe(OPEN_DEFAULT_COMPUTE_UNIT_LIMIT);
+      expect(instructions[1]!.program).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+      expect(readComputePriceData(instructions[1]!.data)).toBe(
+        BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS),
+      );
+      expect(instructions.filter(ix => ix.program === COMPUTE_BUDGET_PROGRAM_ADDRESS)).toHaveLength(
+        2,
+      );
+
+      // The default-built prefix passes verification under the default caps.
+      const result = await verifyOpenTransaction(open.transaction, {
+        authorizedSigner: receiverAuthorizer.address,
+        feePayer: feePayer.address,
+        from: payer.address,
+        maxCap: 1_000_000n,
+        mint: MINT,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+        withdrawDelay: WITHDRAW_DELAY,
+      });
+      expect(result.channelId).toBe(open.channelId);
+    });
+
+    it("buildOpenPaymentChannelTransaction honors compute budget overrides and opt-out", async () => {
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const baseArgs = {
+        authorizedSigner: receiverAuthorizer.address,
+        blockhash: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 0n },
+        deposit: 1_000_000n,
+        feePayer: feePayer.address,
+        gracePeriod: WITHDRAW_DELAY,
+        mint: MINT,
+        openSlot: OPEN_SLOT,
+        payee: feePayer.address,
+        payer,
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      };
+
+      const overridden = await buildOpenPaymentChannelTransaction({
+        ...baseArgs,
+        computeUnitLimit: 120_000,
+        computeUnitPriceMicroLamports: 5,
+      });
+      const overriddenIxs = decodeTopLevelInstructions(overridden.transaction);
+      expect(readComputeLimitData(overriddenIxs[0]!.data)).toBe(120_000);
+      expect(readComputePriceData(overriddenIxs[1]!.data)).toBe(5n);
+
+      // 0 omits each instruction (a wallet may inject its own prefix).
+      const bare = await buildOpenPaymentChannelTransaction({
+        ...baseArgs,
+        computeUnitLimit: 0,
+        computeUnitPriceMicroLamports: 0,
+      });
+      const bareIxs = decodeTopLevelInstructions(bare.transaction);
+      expect(bareIxs.filter(ix => ix.program === COMPUTE_BUDGET_PROGRAM_ADDRESS)).toHaveLength(0);
+
+      // The spec ceilings are enforced at build time.
+      await expect(
+        buildOpenPaymentChannelTransaction({
+          ...baseArgs,
+          computeUnitLimit: OPEN_MAX_COMPUTE_UNIT_LIMIT + 1,
+        }),
+      ).rejects.toThrow(/computeUnitLimit/);
+      await expect(
+        buildOpenPaymentChannelTransaction({
+          ...baseArgs,
+          computeUnitPriceMicroLamports: MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS + 1,
+        }),
+      ).rejects.toThrow(/computeUnitPriceMicroLamports/);
+    });
+
     it("UptoSvmFacilitatorConfig rejects invalid limit options", () => {
       const feePayer = address(USDC_MAINNET_ADDRESS);
       const mockSigner = {
@@ -1069,10 +1197,24 @@ describe("upto SVM scheme", () => {
       expect(
         () =>
           new UptoFacilitatorScheme(mockSigner as never, {
+            settleComputeUnitLimit: 0,
+          }),
+      ).toThrow(/settleComputeUnitLimit/);
+      expect(
+        () =>
+          new UptoFacilitatorScheme(mockSigner as never, {
+            computeUnitPriceMicroLamports: -1,
+          }),
+      ).toThrow(/computeUnitPriceMicroLamports/);
+      expect(
+        () =>
+          new UptoFacilitatorScheme(mockSigner as never, {
             maxPriorityFeeMicroLamports: 0,
             maxComputeUnits: 1,
             maxRequiredSignatures: 1,
             maxChannelLifetimeSecs: 1,
+            computeUnitPriceMicroLamports: 0,
+            settleComputeUnitLimit: 1,
           }),
       ).not.toThrow();
     });
@@ -1125,7 +1267,10 @@ describe("upto SVM scheme", () => {
         tokenProgram: TOKEN_PROGRAM_ADDRESS,
       });
       const tampered = await resignMutatedOpen(payer, open.transaction, compiled => {
-        const ix = compiled.instructions[0];
+        // The open follows the built ComputeBudget prefix; find it by accounts.
+        const ix = compiled.instructions.find(
+          candidate => (candidate.accountIndices?.length ?? 0) > 0,
+        );
         if (!ix?.accountIndices || ix.accountIndices.length === 0) {
           throw new Error("expected open account indices");
         }
@@ -1530,6 +1675,99 @@ describe("upto SVM scheme", () => {
     });
   });
 
+  describe("facilitator.submitSettle compute budget", () => {
+    const SIG =
+      "5VERYvERYVeryvERYVERYVeryVeryVeRYvERYveRYVeRYVerYVERYveryVERYVERYVeryVERYVERYVeryv";
+
+    /** Minimal instruction submitted through settle in these tests. */
+    const memoIx = {
+      programAddress: MEMO_PROGRAM_ADDRESS as never,
+      accounts: [] as const,
+      data: new TextEncoder().encode("settle"),
+    };
+
+    /**
+     * RPC mock capturing sent wire transactions.
+     *
+     * @returns Mock rpc plus the simulate/send spies
+     */
+    function makeSettleRpc() {
+      const simulateTransaction = vi.fn();
+      const sendSend = vi.fn().mockResolvedValue(SIG);
+      const sendTransaction = vi.fn().mockReturnValue({ send: sendSend });
+      const rpc = {
+        getLatestBlockhash: () => ({
+          send: async () => ({
+            value: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 1n },
+          }),
+        }),
+        getSignatureStatuses: () => ({
+          send: async () => ({ value: [{ err: null, confirmationStatus: "confirmed" }] }),
+        }),
+        sendTransaction,
+        simulateTransaction,
+      };
+      return { rpc, sendTransaction, simulateTransaction };
+    }
+
+    it("applies the static default limit and price without simulating", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const { rpc, sendTransaction, simulateTransaction } = makeSettleRpc();
+
+      const signature = await submitSettle(feePayer, rpc as never, [memoIx]);
+      expect(signature).toBe(SIG);
+      expect(simulateTransaction).not.toHaveBeenCalled();
+
+      // Broadcast: static limit + default price, then the payload ix.
+      const wire = sendTransaction.mock.calls[0]![0] as string;
+      const instructions = decodeTopLevelInstructions(wire);
+      expect(instructions[0]!.program).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+      expect(readComputeLimitData(instructions[0]!.data)).toBe(DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT);
+      expect(instructions[1]!.program).toBe(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+      expect(readComputePriceData(instructions[1]!.data)).toBe(
+        BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS),
+      );
+      expect(instructions[2]!.program).toBe(MEMO_PROGRAM_ADDRESS);
+    });
+
+    it("honors the compute-unit limit override", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const { rpc, sendTransaction } = makeSettleRpc();
+
+      await submitSettle(feePayer, rpc as never, [memoIx], { computeUnitLimit: 222_222 });
+
+      const wire = sendTransaction.mock.calls[0]![0] as string;
+      expect(readComputeLimitData(decodeTopLevelInstructions(wire)[0]!.data)).toBe(222_222);
+    });
+
+    it("honors the compute-unit price option, omitting the instruction at 0", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const priced = makeSettleRpc();
+      await submitSettle(feePayer, priced.rpc as never, [memoIx], {
+        computeUnitPriceMicroLamports: 250,
+      });
+      const pricedIxs = decodeTopLevelInstructions(priced.sendTransaction.mock.calls[0]![0]);
+      expect(readComputePriceData(pricedIxs[1]!.data)).toBe(250n);
+
+      const unpriced = makeSettleRpc();
+      await submitSettle(feePayer, unpriced.rpc as never, [memoIx], {
+        computeUnitPriceMicroLamports: 0,
+      });
+      const unpricedIxs = decodeTopLevelInstructions(unpriced.sendTransaction.mock.calls[0]![0]);
+      expect(unpricedIxs.filter(ix => ix.program === COMPUTE_BUDGET_PROGRAM_ADDRESS)).toHaveLength(
+        1,
+      );
+      expect(readComputeLimitData(unpricedIxs[0]!.data)).toBe(DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT);
+    });
+
+    it("reclaimComputeUnitLimit scales with batch size and clamps to the tx max", () => {
+      expect(reclaimComputeUnitLimit(1)).toBe(30_000);
+      expect(reclaimComputeUnitLimit(2)).toBe(35_000);
+      expect(reclaimComputeUnitLimit(8)).toBe(65_000);
+      expect(reclaimComputeUnitLimit(1_000_000)).toBe(1_400_000);
+    });
+  });
+
   describe("client.createPaymentPayload", () => {
     it("builds a delegated open with the payTo split and decimal salt nonce", async () => {
       const payer = await generateKeyPairSigner();
@@ -1574,6 +1812,38 @@ describe("upto SVM scheme", () => {
       expect(payload.openSlot).toBe(OPEN_SLOT.toString());
       expect(open.openSlot).toBe(OPEN_SLOT); // challenge slot, not a client-fetched one
       expect(payload).not.toHaveProperty("profile");
+    });
+
+    it("passes compute budget overrides through to the open transaction", async () => {
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer, {
+        computeUnitLimit: 150_000,
+        computeUnitPriceMicroLamports: 3,
+      });
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: MINT,
+        amount: "1000000",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          recentBlockhash: DUMMY_BLOCKHASH,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+      const payload = result.payload as unknown as UptoSvmPayloadV2;
+      const instructions = decodeTopLevelInstructions(payload.openTransaction);
+      expect(readComputeLimitData(instructions[0]!.data)).toBe(150_000);
+      expect(readComputePriceData(instructions[1]!.data)).toBe(3n);
     });
 
     it("resolveOpenSlot falls back to rpc.getSlot when extra.recentSlot is omitted", async () => {

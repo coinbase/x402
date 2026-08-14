@@ -8,6 +8,7 @@
 export { ExactSvmScheme } from "./exact";
 export type { ExactSvmSchemeOptions } from "./exact/facilitator/scheme";
 export { UptoSvmScheme } from "./upto";
+export type { UptoClientSvmConfig } from "./upto";
 
 // Export smart wallet verification helpers
 export {

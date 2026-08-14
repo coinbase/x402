@@ -306,6 +306,8 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     const instructions = submitSettleMock.mock.calls[0]![2] as { data: Uint8Array }[];
     expect(instructions).toHaveLength(2);
     expect(instructions.every(ix => ix.data[0] === RECLAIM_DISCRIMINATOR)).toBe(true);
+    // Reclaim batches carry a per-channel compute-unit limit (base + 2 × per-channel).
+    expect(submitSettleMock.mock.calls[0]![3]).toMatchObject({ computeUnitLimit: 35_000 });
     expect(await storage.get(a.channelId)).toBeUndefined();
     expect(await storage.get(b.channelId)).toBeUndefined();
   });

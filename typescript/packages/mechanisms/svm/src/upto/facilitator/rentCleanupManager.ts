@@ -29,7 +29,7 @@ import { OPEN_SLOT_WINDOW } from "../../payment-channels/open";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { createRpcClient } from "../../utils";
 import type { ChannelRpc, UptoSvmSigner } from "./channel";
-import { submitSettle } from "./channel";
+import { reclaimComputeUnitLimit, submitSettle } from "./channel";
 import type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";
 
 /** Reclaim work item: storage key plus live rent_payer from the channel account. */
@@ -89,6 +89,20 @@ export interface UptoSvmRentCleanupManagerConfig {
   storage: UptoChannelStorage;
   network: Network;
   rpcUrl?: string;
+  /**
+   * `SetComputeUnitPrice` (microlamports per compute unit) attached to cleanup
+   * transactions; `0` omits the instruction. Defaults to
+   * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS` (1).
+   */
+  computeUnitPriceMicroLamports?: number;
+  /**
+   * `SetComputeUnitLimit` for close/distribute cleanup transactions. Defaults
+   * to `DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT` (100k, standard SPL Token
+   * settlement); raise it for compute-heavy Token-2022 extension mints.
+   * Reclaim batches instead derive their limit per channel
+   * (`reclaimComputeUnitLimit`) and are mint-independent.
+   */
+  settleComputeUnitLimit?: number;
 }
 
 /**
@@ -103,6 +117,8 @@ export class UptoSvmRentCleanupManager {
   private readonly storage: UptoChannelStorage;
   private readonly network: Network;
   private readonly rpcUrl: string | undefined;
+  private readonly computeUnitPriceMicroLamports: number | undefined;
+  private readonly settleComputeUnitLimit: number | undefined;
 
   private timer: ReturnType<typeof setInterval> | undefined;
   private running = false;
@@ -126,6 +142,8 @@ export class UptoSvmRentCleanupManager {
     this.storage = config.storage;
     this.network = config.network;
     this.rpcUrl = config.rpcUrl;
+    this.computeUnitPriceMicroLamports = config.computeUnitPriceMicroLamports;
+    this.settleComputeUnitLimit = config.settleComputeUnitLimit;
   }
 
   /**
@@ -318,7 +336,10 @@ export class UptoSvmRentCleanupManager {
           ]
         : [distribute];
 
-    return submitSettle(feePayerSigner, rpc, instructions);
+    return submitSettle(feePayerSigner, rpc, instructions, {
+      computeUnitLimit: this.settleComputeUnitLimit,
+      computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
+    });
   }
 
   /**
@@ -406,7 +427,10 @@ export class UptoSvmRentCleanupManager {
               rentPayer: candidate.rentPayer,
             }),
           );
-          const signature = await submitSettle(feePayerSigner, rpc, instructions);
+          const signature = await submitSettle(feePayerSigner, rpc, instructions, {
+            computeUnitLimit: reclaimComputeUnitLimit(liveBatch.length),
+            computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
+          });
           txsUsed += 1;
           opts.onReclaim?.({
             channelIds: liveBatch.map(c => c.channelId),

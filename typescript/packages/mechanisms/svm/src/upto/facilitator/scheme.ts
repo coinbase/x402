@@ -120,6 +120,28 @@ export interface UptoSvmFacilitatorConfig {
    * Default: unset (no additional ceiling beyond the exact signer-set rule)
    */
   maxRequiredSignatures?: number;
+  /**
+   * `SetComputeUnitPrice` (microlamports per compute unit) attached to
+   * facilitator-submitted settlement transactions (claim, zero-charge cancel,
+   * and rent cleanup via {@link UptoSvmScheme.createRentCleanupManager}).
+   * `0` omits the instruction. The priority fee is charged on the requested
+   * compute-unit limit, which these transactions size statically.
+   *
+   * Default: `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS` (1)
+   */
+  computeUnitPriceMicroLamports?: number;
+  /**
+   * `SetComputeUnitLimit` for facilitator-submitted settlement transactions
+   * (claim, zero-charge cancel, and rent-cleanup close/distribute). The
+   * default (`DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT` = 100k) assumes standard SPL
+   * Token settlement with a single-recipient distribution; raise it for
+   * compute-heavy Token-2022 extension mints (e.g. transfer hooks) or
+   * unusually large distributions. Reclaim batches size themselves per
+   * channel and are mint-independent, so they are not affected by this cap.
+   *
+   * Default: `DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT` (100,000)
+   */
+  settleComputeUnitLimit?: number;
 }
 
 type OpenAuthFailure = {
@@ -190,6 +212,8 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     assertLimit("maxPriorityFeeMicroLamports", config.maxPriorityFeeMicroLamports, 0);
     assertLimit("maxComputeUnits", config.maxComputeUnits, 1);
     assertLimit("maxRequiredSignatures", config.maxRequiredSignatures, 1);
+    assertLimit("computeUnitPriceMicroLamports", config.computeUnitPriceMicroLamports, 0);
+    assertLimit("settleComputeUnitLimit", config.settleComputeUnitLimit, 1);
     this.config = config;
     this.channelStorage = config.channelStorage ?? new InMemoryUptoChannelStorage();
   }
@@ -213,8 +237,10 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
    */
   createRentCleanupManager(network: Network): UptoSvmRentCleanupManager {
     return new UptoSvmRentCleanupManager({
+      computeUnitPriceMicroLamports: this.config.computeUnitPriceMicroLamports,
       network,
       rpcUrl: this.config.rpcUrl,
+      settleComputeUnitLimit: this.config.settleComputeUnitLimit,
       signer: this.signer,
       storage: this.channelStorage,
     });
@@ -596,7 +622,10 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       });
 
       const instructions: ServerInstruction[] = [...settle, distribute];
-      const signature = await submitSettle(feePayerSigner, rpc, instructions);
+      const signature = await submitSettle(feePayerSigner, rpc, instructions, {
+        computeUnitLimit: this.config.settleComputeUnitLimit,
+        computeUnitPriceMicroLamports: this.config.computeUnitPriceMicroLamports,
+      });
 
       // Settlement is confirmed onchain past this point; storage is cleanup
       // bookkeeping and must never turn a charged payment into a failure.

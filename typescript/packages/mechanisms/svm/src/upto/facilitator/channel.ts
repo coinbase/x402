@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import {
   getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
   parseSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
 import {
@@ -37,7 +38,10 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 
-import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "../../constants";
+import {
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+} from "../../constants";
 import { fetchChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
 import {
   buildDistributeInstruction,
@@ -51,8 +55,49 @@ import { createRpcClient } from "../../utils";
 /** Payment-channels `AccountDiscriminator::Channel` (byte 0 is reserved for uninitialized accounts). */
 const CHANNEL_ACCOUNT_DISCRIMINATOR = 1;
 const CHANNEL_STATUS_OPEN = 0;
-/** Solana per-transaction compute-unit max; used only for facilitator-built sims. */
-const SIM_COMPUTE_UNIT_LIMIT = 1_400_000;
+/** Solana per-transaction compute-unit maximum. */
+const MAX_TRANSACTION_COMPUTE_UNITS = 1_400_000;
+/** Compute-unit limit for facilitator-built sims; sims raise the limit to the
+ *  per-transaction max because the composite (open + settle + distribute) can
+ *  exceed the client open's 400k ceiling. */
+const SIM_COMPUTE_UNIT_LIMIT = MAX_TRANSACTION_COMPUTE_UNITS;
+
+/**
+ * Default `SetComputeUnitLimit` for facilitator-submitted settlement
+ * transactions: claim (`settle_and_seal` + optional Ed25519 precompile +
+ * `distribute`), the zero-charge cancel, and rent-cleanup close/distribute.
+ * A measured claim with a warm recipient ATA consumes ~21.6k CU; a distribute
+ * that must recreate a closed recipient ATA adds ~25k. 100k keeps >2x
+ * headroom over that worst case. Assumes standard SPL Token (or Token-2022
+ * without execution extensions) behavior — mints with transfer hooks or other
+ * compute-heavy extensions need an explicit
+ * {@link SubmitSettleOptions.computeUnitLimit} override.
+ */
+export const DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT = 100_000;
+
+/** Base `SetComputeUnitLimit` for a reclaim batch transaction. */
+export const RECLAIM_COMPUTE_UNIT_BASE = 25_000;
+/**
+ * Additional compute units budgeted per `reclaim` instruction in a batch. A
+ * measured reclaim consumes ~320 CU per channel and is mint-independent (the
+ * escrow ATA is already closed by that point — `reclaim` only closes the
+ * channel PDA and returns lamports), so 5k per channel is >15x margin.
+ */
+export const RECLAIM_COMPUTE_UNIT_PER_CHANNEL = 5_000;
+
+/**
+ * `SetComputeUnitLimit` for a reclaim batch of `channelCount` channels,
+ * clamped to the per-transaction maximum.
+ *
+ * @param channelCount - Number of `reclaim` instructions in the batch
+ * @returns The compute-unit limit for the batch transaction
+ */
+export function reclaimComputeUnitLimit(channelCount: number): number {
+  return Math.min(
+    RECLAIM_COMPUTE_UNIT_BASE + RECLAIM_COMPUTE_UNIT_PER_CHANNEL * channelCount,
+    MAX_TRANSACTION_COMPUTE_UNITS,
+  );
+}
 
 /** Signer capable of signing Solana transactions and raw Ed25519 messages. */
 export type UptoSvmSigner = TransactionSigner & MessagePartialSigner;
@@ -320,21 +365,55 @@ export async function simulateZeroChargeSettle(
   await simulateInstructions(feePayer, rpc, [...settle, distribute]);
 }
 
+/** Options for {@link submitSettle}. */
+export interface SubmitSettleOptions {
+  /**
+   * `SetComputeUnitLimit` for the settlement transaction. Defaults to
+   * {@link DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT} (100k), sized for standard SPL
+   * Token settlement; raise it for compute-heavy Token-2022 extension mints
+   * or unusually large distributions.
+   */
+  computeUnitLimit?: number | undefined;
+  /**
+   * `SetComputeUnitPrice` in microlamports per compute unit attached to the
+   * settlement transaction; `0` omits the instruction. Defaults to
+   * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS` (1).
+   */
+  computeUnitPriceMicroLamports?: number | undefined;
+}
+
 /**
  * Compile the settle+distribute instructions into a transaction signed by the
  * fee payer, broadcast it, and confirm. Other signers, such as the channel
  * payee on `settle_and_seal`, are carried by the instruction list.
  *
+ * The transaction is prefixed with a statically sized `SetComputeUnitLimit`
+ * and an optional `SetComputeUnitPrice`. Static sizing keeps the time-critical
+ * claim free of extra RPC round-trips and failure modes; the limit is
+ * operator-overridable for deployments outside the documented assumptions.
+ *
  * @param feePayer - The fee-payer signer
  * @param rpc - The RPC client
  * @param instructions - settle_and_seal (+ optional Ed25519 precompile) then distribute
+ * @param options - Compute-budget options
  * @returns The broadcast signature
  */
 export async function submitSettle(
   feePayer: UptoSvmSigner,
   rpc: ChannelRpc,
   instructions: readonly ServerInstruction[],
+  options: SubmitSettleOptions = {},
 ): Promise<Signature> {
+  const computeUnitLimit = options.computeUnitLimit ?? DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT;
+  const computeUnitPrice =
+    options.computeUnitPriceMicroLamports ?? DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS;
+  const computeBudgetIxs: Instruction[] = [
+    getSetComputeUnitLimitInstruction({ units: computeUnitLimit }),
+    ...(computeUnitPrice > 0
+      ? [getSetComputeUnitPriceInstruction({ microLamports: computeUnitPrice })]
+      : []),
+  ];
+
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
@@ -347,7 +426,7 @@ export async function submitSettle(
         },
         m,
       ),
-    m => appendTransactionMessageInstructions(instructions, m),
+    m => appendTransactionMessageInstructions([...computeBudgetIxs, ...instructions], m),
   );
   const signed = await signTransactionMessageWithSigners(message);
   const wire = getBase64EncodedWireTransaction(signed);
