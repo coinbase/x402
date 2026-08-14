@@ -1,3 +1,0 @@
-kind: Fixed
-body: Retry confirmed SVM `upto` channel reads when a freshly opened account is temporarily missing from an RPC replica, while continuing to reject existing channels with invalid state immediately
-time: 2026-08-13T10:49:00.000000-04:00
