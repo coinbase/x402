@@ -1,0 +1,7 @@
+{
+  "name": "Prism Network",
+  "description": "Prism sells GPU compute and LLM inference over x402 on Robinhood Chain: an unpaid request answers 402 with a USDG price, a paid one returns the generation or the job output, and every lease settles on-chain with a public receipt.",
+  "logoUrl": "/logos/prism-network.png",
+  "websiteUrl": "https://github.com/prismnetworkdottech/prism/tree/main/inference",
+  "category": "Services/Endpoints"
+}
