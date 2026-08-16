@@ -1,0 +1,7 @@
+{
+  "name": "Aeon",
+  "description": "Autonomous agent framework that runs unattended on GitHub Actions. Scheduled skills settle x402 payments in USDC through Bankr agent wallets on Base and deploy Uniswap v4 hooks, with no human in the loop.",
+  "logoUrl": "/logos/aeon-framework.png",
+  "websiteUrl": "https://github.com/aeonfun/aeon",
+  "category": "Infrastructure & Tooling"
+}
