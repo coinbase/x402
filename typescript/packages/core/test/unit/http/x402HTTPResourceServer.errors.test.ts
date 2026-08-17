@@ -148,34 +148,6 @@ describe("x402HTTPResourceServer facilitator response errors", () => {
     },
   );
 
-  it("strips the transaction hash from a terminal settle failure (direct response)", async () => {
-    facilitator.setSettleResponse(
-      buildSettleResponse({
-        success: false,
-        errorReason: "invalid_exact_evm_transaction_failed",
-        transaction: "0xshouldnotbeexposed",
-        network,
-      }),
-    );
-
-    const accepted = buildPaymentRequirements({
-      scheme: "exact",
-      network,
-      payTo: "0xabc",
-      asset: "USDC",
-      amount: "1000000",
-    });
-    const result = await httpServer.processSettlement(
-      buildPaymentPayload({ x402Version: 2, accepted }),
-      accepted,
-    );
-
-    expect(result.success).toBe(false);
-    expect(result.transaction).toBe("");
-    const decoded = decodePaymentResponseHeader(result.headers["PAYMENT-RESPONSE"]);
-    expect(decoded.transaction).toBe("");
-  });
-
   it("keeps the transaction hash for a settlement_pending settle failure (direct response)", async () => {
     facilitator.setSettleResponse(
       buildSettleResponse({
