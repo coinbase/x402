@@ -689,7 +689,7 @@ function readComputePriceData(data: Uint8Array): bigint {
   return new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(1, true);
 }
 
-describe("ExactSvmScheme compute budget configuration", () => {
+describe("ExactSvmScheme compute budget", () => {
   beforeEach(() => {
     blockhashes = [];
     blockhashIndex = 0;
@@ -699,16 +699,12 @@ describe("ExactSvmScheme compute budget configuration", () => {
   });
 
   /**
-   * Builds a payment payload with the given client config and returns its
-   * decoded top-level ComputeBudget instructions.
+   * Builds a payment payload and returns its decoded top-level ComputeBudget
+   * instructions.
    *
-   * @param config - Optional ClientSvmConfig overrides
    * @returns The SetComputeUnitLimit and SetComputeUnitPrice instruction data
    */
-  async function buildAndDecodeComputeBudget(config?: {
-    computeUnitLimit?: number;
-    computeUnitPriceMicroLamports?: number;
-  }) {
+  async function buildAndDecodeComputeBudget() {
     blockhashes = [FIXED_BLOCKHASH];
     const { ExactSvmScheme } = await import("../../src/exact/client/scheme");
     const { decodeTransactionFromPayload } = await import("../../src/utils");
@@ -717,7 +713,7 @@ describe("ExactSvmScheme compute budget configuration", () => {
     const feePayer = await createSigner();
     const payTo = await createSigner();
 
-    const client = new ExactSvmScheme(clientSigner, config);
+    const client = new ExactSvmScheme(clientSigner);
     mockAtaMap = {
       [clientSigner.address]: clientSigner.address as Address,
       [payTo.address]: payTo.address as Address,
@@ -749,20 +745,12 @@ describe("ExactSvmScheme compute budget configuration", () => {
     };
   }
 
-  it("uses the scheme defaults when no config is provided", async () => {
+  // The prefix is fixed by the scheme, not the caller: the facilitator
+  // verifies instruction shape and priority fee against exactly these two.
+  it("always emits the scheme's ComputeBudget defaults", async () => {
     const { limit, price } = await buildAndDecodeComputeBudget();
 
     expect(limit).toBe(DEFAULT_COMPUTE_UNIT_LIMIT);
     expect(price).toBe(BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS));
-  });
-
-  it("honors ClientSvmConfig compute budget overrides", async () => {
-    const { limit, price } = await buildAndDecodeComputeBudget({
-      computeUnitLimit: 120_000,
-      computeUnitPriceMicroLamports: 5,
-    });
-
-    expect(limit).toBe(120_000);
-    expect(price).toBe(5n);
   });
 });

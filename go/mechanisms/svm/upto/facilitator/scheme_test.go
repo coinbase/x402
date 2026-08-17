@@ -1258,6 +1258,38 @@ func TestNewRentCleanupManagerSharesTheSchemeStorage(t *testing.T) {
 	assert.Same(t, storage, injected.NewRentCleanupManager(testNetwork).storage)
 }
 
+// An injected client is how a facilitator routes sends through its own paced
+// or instrumented transport, so it has to win over RPCURL everywhere, not just
+// on the settle path.
+func TestAnInjectedRPCClientIsPreferredOverTheURL(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	stub := newStubRPC(t)
+	fixture := newPaymentFixture(t, signer)
+	scheme := NewUptoSvmScheme(signer, &Config{
+		RPCURL: "http://127.0.0.1:1/unreachable",
+		RPC:    rpc.New(stub.url),
+	})
+	signer.onSend = func(*solana.Transaction) {
+		stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
+	}
+
+	response, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
+	require.NoError(t, err)
+	assert.True(t, response.Success, "the settle reached the stub, so the unreachable URL was never dialed")
+
+	assert.Same(t, scheme.config.RPC, scheme.NewRentCleanupManager(testNetwork).rpc,
+		"the manager inherits the scheme's client")
+}
+
+func TestTheSchemeBuildsAClientFromTheURLWhenNoneIsInjected(t *testing.T) {
+	scheme := newScheme(newMockSigner(t, 1), newStubRPC(t), nil)
+
+	client, err := scheme.rpcClient(testNetwork)
+	require.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.Nil(t, scheme.NewRentCleanupManager(testNetwork).rpc)
+}
+
 // failingStorage rejects every write so storage-failure paths can be exercised.
 type failingStorage struct{}
 

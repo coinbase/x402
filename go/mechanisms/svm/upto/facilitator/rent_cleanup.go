@@ -2,7 +2,9 @@ package facilitator
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,8 +26,13 @@ const (
 	// one cleanup transaction.
 	DefaultMaxReclaimsPerTx = 8
 
-	// DefaultMaxTxsPerRun caps the cleanup transactions submitted per run.
+	// DefaultMaxTxsPerRun caps the close/distribute transactions the storage
+	// scan submits per run.
 	DefaultMaxTxsPerRun = 20
+
+	// DefaultMaxTxsPerSigner caps the reclaim transactions each rent payer
+	// submits per run.
+	DefaultMaxTxsPerSigner = 20
 
 	// DefaultMaxClosesPerRun caps the seal/distribute transactions per run.
 	DefaultMaxClosesPerRun = 10
@@ -61,8 +68,15 @@ type CleanupOptions struct {
 	// Open channel. Defaults to DefaultAbandonGraceSecs.
 	AbandonGraceSecs int64
 	MaxReclaimsPerTx int
-	MaxTxsPerRun     int
-	MaxClosesPerRun  int
+	// MaxTxsPerRun caps the transactions the storage scan may submit before it
+	// stops and saves a resume cursor. It caps the scan, not the pass:
+	// reclaims are budgeted separately by MaxTxsPerSigner.
+	MaxTxsPerRun int
+	// MaxTxsPerSigner caps the reclaim transactions each rent payer may submit
+	// per pass. Budgeted per signer because rent-payer groups are independent:
+	// adding managed keys adds throughput rather than dividing a fixed pool.
+	MaxTxsPerSigner int
+	MaxClosesPerRun int
 
 	OnClose   func(result CloseResult)
 	OnReclaim func(result ReclaimResult)
@@ -79,6 +93,9 @@ func (o CleanupOptions) withDefaults() CleanupOptions {
 	if o.MaxTxsPerRun <= 0 {
 		o.MaxTxsPerRun = DefaultMaxTxsPerRun
 	}
+	if o.MaxTxsPerSigner <= 0 {
+		o.MaxTxsPerSigner = DefaultMaxTxsPerSigner
+	}
 	if o.MaxClosesPerRun <= 0 {
 		o.MaxClosesPerRun = DefaultMaxClosesPerRun
 	}
@@ -86,16 +103,53 @@ func (o CleanupOptions) withDefaults() CleanupOptions {
 }
 
 func (o CleanupOptions) reportError(err error, channelID string) {
-	if o.OnError != nil {
-		o.OnError(err, channelID)
+	// Stop cancels the pass context mid-flight, so every call still in the
+	// unwinding pass fails with context.Canceled. That is a requested
+	// shutdown, not something the operator needs paged about.
+	if o.OnError == nil || errors.Is(err, context.Canceled) {
+		return
 	}
+	o.OnError(err, channelID)
 }
 
-// StartConfig configures the interval runner.
+// DiscoveryResult reports the channels one discovery sweep added to Storage.
+type DiscoveryResult struct {
+	ChannelIDs []string
+}
+
+// DiscoveryOptions receive the results of one discovery sweep.
+type DiscoveryOptions struct {
+	OnDiscover func(result DiscoveryResult)
+	OnError    func(err error, channelID string)
+}
+
+func (o DiscoveryOptions) reportError(err error, channelID string) {
+	// See CleanupOptions.reportError: a canceled sweep is a shutdown, not a
+	// failure.
+	if o.OnError == nil || errors.Is(err, context.Canceled) {
+		return
+	}
+	o.OnError(err, channelID)
+}
+
+// StartConfig configures the interval runners.
 type StartConfig struct {
 	CleanupOptions
 	// Interval is the delay between cleanup passes and is required.
 	Interval time.Duration
+
+	// DiscoveryInterval is the delay between Discover sweeps. Zero leaves
+	// discovery off. A sweep is a getProgramAccounts scan per managed signer,
+	// so it belongs on a far longer interval than cleanup: daily is typical.
+	DiscoveryInterval time.Duration
+
+	// OnDiscover receives each interval sweep's result.
+	OnDiscover func(result DiscoveryResult)
+}
+
+// discoveryOptions is the discovery half of the interval runner's config.
+func (c StartConfig) discoveryOptions() DiscoveryOptions {
+	return DiscoveryOptions{OnDiscover: c.OnDiscover, OnError: c.OnError}
 }
 
 // RentCleanupConfig configures a rent cleanup manager for one network.
@@ -104,6 +158,10 @@ type RentCleanupConfig struct {
 	Storage ChannelStorage
 	Network string
 	RPCURL  string
+
+	// RPC is a prebuilt client used instead of building one from RPCURL, for
+	// callers that need custom headers, transport, or rate limiting.
+	RPC *rpc.Client
 
 	// ComputeUnitPriceMicroLamports is the SetComputeUnitPrice (microlamports
 	// per compute unit) attached to cleanup transactions; 0 omits the
@@ -116,12 +174,6 @@ type RentCleanupConfig struct {
 	// Token-2022 extension mints. Reclaim batches instead derive their limit
 	// per channel (ReclaimComputeUnitLimit) and are mint-independent.
 	SettleComputeUnitLimit *uint32
-
-	// EnableDiscovery adds a spec §6 getProgramAccounts sweep, per managed
-	// signer key, for Distributed channels missing from Storage. Discovery
-	// finds only chain-verifiable reclaim candidates: it never substitutes
-	// for the payTo/tokenProgram metadata Open/Sealed actions require.
-	EnableDiscovery bool
 }
 
 // RentCleanupManager recovers the rent a facilitator fronts for payment
@@ -136,17 +188,18 @@ type RentCleanupManager struct {
 	storage                       ChannelStorage
 	network                       string
 	rpcURL                        string
+	rpc                           *rpc.Client
 	computeUnitPriceMicroLamports *uint64
 	settleComputeUnitLimit        *uint32
-	enableDiscovery               bool
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
 
 	// passMu serializes passes so a manual Cleanup cannot race the interval
-	// loop into submitting the same close or reclaim twice. It also guards
-	// scanCursor, since only one pass ever reads or writes it.
+	// loop into submitting the same close or reclaim twice, and so a Discover
+	// sweep cannot upsert a record Cleanup is mid-way through deleting. It
+	// also guards scanCursor, since only one pass ever reads or writes it.
 	passMu sync.Mutex
 
 	// scanCursor resumes scanning where the previous pass's budget ran out,
@@ -164,14 +217,24 @@ func NewRentCleanupManager(config RentCleanupConfig) *RentCleanupManager {
 		storage:                       config.Storage,
 		network:                       config.Network,
 		rpcURL:                        config.RPCURL,
+		rpc:                           config.RPC,
 		computeUnitPriceMicroLamports: config.ComputeUnitPriceMicroLamports,
 		settleComputeUnitLimit:        config.SettleComputeUnitLimit,
-		enableDiscovery:               config.EnableDiscovery,
 	}
 }
 
-// Start runs Cleanup on an interval until Stop is called or the context is
-// canceled. Calling Start on a running manager is a no-op.
+// rpcClient returns the injected client when there is one, otherwise builds
+// one for the network.
+func (m *RentCleanupManager) rpcClient() (*rpc.Client, error) {
+	if m.rpc != nil {
+		return m.rpc, nil
+	}
+	return upto.NewRPCClient(m.network, m.rpcURL)
+}
+
+// Start runs Cleanup on an interval, and Discover on its own longer interval
+// when one is configured, until Stop is called or the context is canceled.
+// Calling Start on a running manager is a no-op.
 func (m *RentCleanupManager) Start(ctx context.Context, config StartConfig) {
 	if config.Interval <= 0 {
 		return
@@ -187,26 +250,56 @@ func (m *RentCleanupManager) Start(ctx context.Context, config StartConfig) {
 	m.cancel = cancel
 	m.done = make(chan struct{})
 
+	var runners sync.WaitGroup
+	runners.Add(1)
+	go func() {
+		defer runners.Done()
+		m.runTicker(runCtx, config.Interval, func() error {
+			// Passes run serially, so a slow pass delays the next tick rather
+			// than racing it.
+			return m.Cleanup(runCtx, config.CleanupOptions)
+		}, config.reportError)
+	}()
+
+	if config.DiscoveryInterval > 0 {
+		runners.Add(1)
+		go func() {
+			defer runners.Done()
+			discovery := config.discoveryOptions()
+			m.runTicker(runCtx, config.DiscoveryInterval, func() error {
+				return m.Discover(runCtx, discovery)
+			}, discovery.reportError)
+		}()
+	}
+
 	go func(done chan struct{}) {
 		defer close(done)
-		ticker := time.NewTicker(config.Interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-ticker.C:
-				// Passes run serially, so a slow pass delays the next tick
-				// rather than racing it.
-				if err := m.Cleanup(runCtx, config.CleanupOptions); err != nil {
-					config.reportError(err, "")
-				}
-			}
-		}
+		runners.Wait()
 	}(m.done)
 }
 
-// Stop halts the interval loop and waits for an in-flight pass to finish.
+// runTicker calls run on every tick until ctx ends, reporting failures.
+func (m *RentCleanupManager) runTicker(
+	ctx context.Context,
+	interval time.Duration,
+	run func() error,
+	reportError func(err error, channelID string),
+) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := run(); err != nil {
+				reportError(err, "")
+			}
+		}
+	}
+}
+
+// Stop halts the interval runners and waits for an in-flight pass to finish.
 func (m *RentCleanupManager) Stop() {
 	m.mu.Lock()
 	cancel, done := m.cancel, m.done
@@ -229,7 +322,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 
 	opts = opts.withDefaults()
 
-	rpcClient, err := upto.NewRPCClient(m.network, m.rpcURL)
+	rpcClient, err := m.rpcClient()
 	if err != nil {
 		return err
 	}
@@ -237,14 +330,13 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 	if err != nil {
 		return fmt.Errorf("failed to list stored channels: %w", err)
 	}
-	records = rotateFromCursor(records, m.scanCursor)
+	records = orderForScan(records, m.scanCursor)
 	m.scanCursor = ""
 
 	now := time.Now().Unix()
 	var currentSlot *uint64
 	txsUsed, closesUsed := 0, 0
 	var reclaimCandidates []reclaimCandidate
-	seen := make(map[string]struct{}, len(records))
 
 	for _, record := range records {
 		// Stop, not skip: the budget is spent, so nothing further in this pass
@@ -260,7 +352,6 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		if record.Network != m.network {
 			continue
 		}
-		seen[record.ChannelID] = struct{}{}
 
 		channelID, err := solana.PublicKeyFromBase58(record.ChannelID)
 		if err != nil {
@@ -342,16 +433,87 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		}
 	}
 
-	if m.enableDiscovery {
-		discovered, err := m.discoverReclaimCandidates(ctx, rpcClient, &currentSlot, seen, opts)
+	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts)
+	return nil
+}
+
+// Discover finds Distributed channels this facilitator paid rent for that
+// Storage does not know about and adds them, so Cleanup reclaims them on a
+// later pass. It is the spec §6 recovery path for a lost or incomplete work
+// index.
+//
+// A sweep is a getProgramAccounts scan per managed signer key, far more
+// expensive than a cleanup pass: run it rarely (see StartConfig's
+// DiscoveryInterval), not on the cleanup interval.
+//
+// Discovered records carry only what the chain proves: PayTo, TokenProgram,
+// and ExpiresAt are empty. That is safe because only the Open and Sealed
+// cleanup branches read them, and a Distributed channel never returns to those
+// states. Channel IDs already in Storage are left alone so a full record is
+// never overwritten with a partial one.
+func (m *RentCleanupManager) Discover(ctx context.Context, opts DiscoveryOptions) error {
+	m.passMu.Lock()
+	defer m.passMu.Unlock()
+
+	rpcClient, err := m.rpcClient()
+	if err != nil {
+		return err
+	}
+	records, err := m.storage.List(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list stored channels: %w", err)
+	}
+	known := make(map[string]struct{}, len(records))
+	for _, record := range records {
+		known[record.ChannelID] = struct{}{}
+	}
+
+	var (
+		currentSlot *uint64
+		discovered  []string
+	)
+	for _, managed := range m.signer.GetAddresses(ctx, m.network) {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		found, err := paymentchannels.DiscoverChannelsByRentPayer(ctx, rpcClient, managed)
 		if err != nil {
-			opts.reportError(err, "")
-		} else {
-			reclaimCandidates = append(reclaimCandidates, discovered...)
+			opts.reportError(fmt.Errorf("discovery failed for rent payer %s: %w", managed, err), "")
+			continue
+		}
+		slot, err := m.currentSlot(ctx, rpcClient, &currentSlot)
+		if err != nil {
+			return err
+		}
+
+		for _, channel := range found {
+			id := channel.ChannelID.String()
+			if _, exists := known[id]; exists {
+				continue
+			}
+			known[id] = struct{}{}
+			if channel.Channel.Status != paymentchannels.StatusDistributed {
+				continue
+			}
+			if slot <= channel.Channel.OpenSlot+paymentchannels.OpenSlotWindow {
+				continue
+			}
+
+			if err := m.storage.Upsert(ctx, ChannelRecord{
+				ChannelID:   id,
+				FirstSeenAt: time.Now(),
+				Network:     m.network,
+			}); err != nil {
+				opts.reportError(err, id)
+				continue
+			}
+			discovered = append(discovered, id)
 		}
 	}
 
-	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts)
+	if len(discovered) > 0 && opts.OnDiscover != nil {
+		opts.OnDiscover(DiscoveryResult{ChannelIDs: discovered})
+	}
 	return nil
 }
 
@@ -369,74 +531,38 @@ func (m *RentCleanupManager) currentSlot(ctx context.Context, rpcClient *rpc.Cli
 	return slot, nil
 }
 
-// discoverReclaimCandidates runs the spec §6 onchain sweep for every managed
-// signer key and returns Distributed, slot-gated channels absent from
-// Storage. It is the recovery path for a lost or incomplete work index and
-// only ever proposes the reclaim action, which needs no offchain metadata.
-func (m *RentCleanupManager) discoverReclaimCandidates(
-	ctx context.Context,
-	rpcClient *rpc.Client,
-	currentSlotCache **uint64,
-	seen map[string]struct{},
-	opts CleanupOptions,
-) ([]reclaimCandidate, error) {
-	var candidates []reclaimCandidate
-	for _, managed := range m.signer.GetAddresses(ctx, m.network) {
-		if ctx.Err() != nil {
-			return candidates, ctx.Err()
-		}
-		found, err := paymentchannels.DiscoverChannelsByRentPayer(ctx, rpcClient, managed)
-		if err != nil {
-			opts.reportError(fmt.Errorf("discovery failed for rent payer %s: %w", managed, err), "")
-			continue
-		}
-		slot, err := m.currentSlot(ctx, rpcClient, currentSlotCache)
-		if err != nil {
-			return candidates, err
-		}
-		for _, channel := range found {
-			id := channel.ChannelID.String()
-			if _, exists := seen[id]; exists {
-				continue
-			}
-			seen[id] = struct{}{}
-			if channel.Channel.Status != paymentchannels.StatusDistributed {
-				continue
-			}
-			if slot <= channel.Channel.OpenSlot+paymentchannels.OpenSlotWindow {
-				continue
-			}
-			candidates = append(candidates, reclaimCandidate{
-				channelID: channel.ChannelID,
-				rentPayer: channel.Channel.RentPayer,
-			})
-		}
-	}
-	return candidates, nil
-}
-
 // reclaimCandidate is a Distributed channel ready to have its rent reclaimed.
 type reclaimCandidate struct {
 	channelID solana.PublicKey
 	rentPayer solana.PublicKey
 }
 
-// rotateFromCursor reorders records to start right after the channel ID a
-// prior pass stopped at, wrapping around. An unknown or empty cursor (a
-// closed channel, or the first pass) scans from the beginning.
-func rotateFromCursor(records []ChannelRecord, cursor string) []ChannelRecord {
+// orderForScan puts records in scan order, resuming where the previous pass
+// stopped.
+//
+// ChannelStorage.List promises no ordering, so the manager imposes one:
+// without it the resume cursor would mean something different on every storage
+// implementation, and a backlog larger than the budget could revisit the same
+// records forever. Records are sorted by channel ID, then rotated so cursor
+// comes first. An unknown or empty cursor (a closed channel, or the first
+// pass) scans from the beginning.
+func orderForScan(records []ChannelRecord, cursor string) []ChannelRecord {
+	sorted := make([]ChannelRecord, len(records))
+	copy(sorted, records)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].ChannelID < sorted[j].ChannelID })
+
 	if cursor == "" {
-		return records
+		return sorted
 	}
-	for i, record := range records {
+	for i, record := range sorted {
 		if record.ChannelID == cursor {
-			rotated := make([]ChannelRecord, 0, len(records))
-			rotated = append(rotated, records[i:]...)
-			rotated = append(rotated, records[:i]...)
+			rotated := make([]ChannelRecord, 0, len(sorted))
+			rotated = append(rotated, sorted[i:]...)
+			rotated = append(rotated, sorted[:i]...)
 			return rotated
 		}
 	}
-	return records
+	return sorted
 }
 
 // submitCloseOrDistribute seals and distributes an abandoned Open channel, or
@@ -491,18 +617,19 @@ func (m *RentCleanupManager) submitCloseOrDistribute(
 
 // submitReclaimBatches groups candidates by rent payer and runs each group's
 // batched reclaim transactions concurrently, each against its own
-// MaxTxsPerRun budget. Submissions within a group stay sequential (each batch
-// refetches live state, so a group depends on its own prior submissions to
-// avoid double-reclaiming), but independent rent-payer groups do not share a
-// budget or depend on one another: adding managed signer keys adds
-// MaxTxsPerRun more reclaim throughput per pass, not a share of a fixed pool.
+// MaxTxsPerSigner budget. Submissions within a group stay sequential (each
+// batch refetches live state, so a group depends on its own prior submissions
+// to avoid double-reclaiming), but independent rent-payer groups do not share
+// a budget or depend on one another: adding managed signer keys adds
+// MaxTxsPerSigner more reclaim throughput per pass, not a share of a fixed
+// pool.
 func (m *RentCleanupManager) submitReclaimBatches(
 	ctx context.Context,
 	rpcClient *rpc.Client,
 	candidates []reclaimCandidate,
 	opts CleanupOptions,
 ) {
-	if opts.MaxTxsPerRun <= 0 || len(candidates) == 0 {
+	if opts.MaxTxsPerSigner <= 0 || len(candidates) == 0 {
 		return
 	}
 
@@ -521,7 +648,7 @@ func (m *RentCleanupManager) submitReclaimBatches(
 		wg.Add(1)
 		go func(rentPayer solana.PublicKey, group []reclaimCandidate) {
 			defer wg.Done()
-			budget := int64(opts.MaxTxsPerRun)
+			budget := int64(opts.MaxTxsPerSigner)
 			m.submitReclaimGroup(ctx, rpcClient, rentPayer, group, opts, &budget)
 		}(rentPayer, group)
 	}

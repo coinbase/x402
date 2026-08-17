@@ -36,6 +36,7 @@ import {
 } from "../../src/payment-channels/open";
 import { encodeVoucherMessageBytes, VOUCHER_MAGIC } from "../../src/payment-channels/voucher";
 import { UptoSvmScheme as UptoClientScheme } from "../../src/upto/client/scheme";
+import { resolveUptoSvmMemo } from "../../src/upto/shared";
 import { UptoSvmScheme as UptoServerScheme } from "../../src/upto/server/scheme";
 import {
   DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT,
@@ -1825,14 +1826,14 @@ describe("upto SVM scheme", () => {
       expect(payload).not.toHaveProperty("profile");
     });
 
-    it("passes compute budget overrides through to the open transaction", async () => {
+    // The open's ComputeBudget prefix is fixed by the scheme, not the caller:
+    // the facilitator's compute-unit and priority-fee caps are verified
+    // against it.
+    it("emits the open compute budget defaults", async () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
       const receiverAuthorizer = await generateKeyPairSigner();
-      const client = new UptoClientScheme(payer, {
-        computeUnitLimit: 150_000,
-        computeUnitPriceMicroLamports: 3,
-      });
+      const client = new UptoClientScheme(payer);
       const requirements: PaymentRequirements = {
         scheme: "upto",
         network: SOLANA_DEVNET_CAIP2,
@@ -1853,8 +1854,48 @@ describe("upto SVM scheme", () => {
       const result = await client.createPaymentPayload(2, requirements);
       const payload = result.payload as unknown as UptoSvmPayloadV2;
       const instructions = decodeTopLevelInstructions(payload.openTransaction);
-      expect(readComputeLimitData(instructions[0]!.data)).toBe(150_000);
-      expect(readComputePriceData(instructions[1]!.data)).toBe(3n);
+      expect(readComputeLimitData(instructions[0]!.data)).toBe(OPEN_DEFAULT_COMPUTE_UNIT_LIMIT);
+      expect(readComputePriceData(instructions[1]!.data)).toBe(
+        BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS),
+      );
+    });
+
+    // An empty extra.memo is a seller that set no memo, not a demand for an
+    // empty one. Client and facilitator resolve through the same helper, so
+    // neither side can decide a memo was requested when the other did not.
+    it("treats an empty extra.memo as unset and emits a nonce instead", async () => {
+      expect(resolveUptoSvmMemo({ memo: "" })).toBeUndefined();
+      expect(resolveUptoSvmMemo({ memo: "order-42" })).toBe("order-42");
+      expect(resolveUptoSvmMemo({})).toBeUndefined();
+
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: MINT,
+        amount: "1000000",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          memo: "",
+          recentBlockhash: DUMMY_BLOCKHASH,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+      const payload = result.payload as unknown as UptoSvmPayloadV2;
+      const memoIx = decodeTopLevelInstructions(payload.openTransaction).find(
+        ix => ix.program === MEMO_PROGRAM_ADDRESS,
+      );
+      expect(new TextDecoder().decode(memoIx!.data)).toMatch(/^[0-9a-f]{32}$/);
     });
 
     // The facilitator rejects an unsupported token program too, but the client

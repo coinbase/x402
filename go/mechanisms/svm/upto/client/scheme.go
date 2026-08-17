@@ -109,13 +109,6 @@ func (c *UptoSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, err
 	}
 
-	var computeUnitLimit *uint32
-	var computeUnitPriceMicroLamports *uint64
-	if c.config != nil {
-		computeUnitLimit = c.config.ComputeUnitLimit
-		computeUnitPriceMicroLamports = c.config.ComputeUnitPriceMicroLamports
-	}
-
 	open, err := paymentchannels.BuildOpenTransaction(paymentchannels.BuildOpenArgs{
 		Payer:                         c.signer.Address(),
 		Payee:                         feePayer,
@@ -129,8 +122,6 @@ func (c *UptoSvmScheme) CreatePaymentPayload(
 		GracePeriod:                   channelConfig.WithdrawDelay,
 		Recipients:                    channelConfig.Splits,
 		Memo:                          upto.ParseExtraMemo(requirements.Extra[upto.ExtraMemo]),
-		ComputeUnitLimit:              computeUnitLimit,
-		ComputeUnitPriceMicroLamports: computeUnitPriceMicroLamports,
 	})
 	if err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildOpen+": %w", err)

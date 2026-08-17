@@ -16,6 +16,7 @@ export {
   DEFAULT_MAX_CLOSES_PER_RUN,
   DEFAULT_MAX_RECLAIMS_PER_TX,
   DEFAULT_MAX_TXS_PER_RUN,
+  DEFAULT_MAX_TXS_PER_SIGNER,
   UptoSvmRentCleanupManager,
 } from "./rentCleanupManager";
 export type {
@@ -23,5 +24,7 @@ export type {
   RentCleanupOptions,
   RentCleanupReclaimResult,
   RentCleanupStartConfig,
+  RentDiscoveryOptions,
+  RentDiscoveryResult,
   UptoSvmRentCleanupManagerConfig,
 } from "./rentCleanupManager";

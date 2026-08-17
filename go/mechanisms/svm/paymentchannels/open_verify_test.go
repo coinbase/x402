@@ -247,8 +247,9 @@ func TestVerifyOpenTransactionEnforcesMemoBinding(t *testing.T) {
 	require.ErrorContains(t, err, "expected exactly one Memo instruction")
 }
 
-// An empty required memo binds exactly like a non-empty one: it is a demand for
-// an empty memo, not an absent requirement.
+// At this layer an explicit empty Memo is still a demand for an empty memo,
+// not an absent requirement. Callers no longer reach it through extra.memo:
+// upto.ParseExtraMemo resolves "" to unset before it gets here.
 func TestVerifyOpenTransactionBindsAnEmptyMemo(t *testing.T) {
 	fixture := newOpenFixture(t)
 	empty := ""

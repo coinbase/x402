@@ -43,6 +43,11 @@ type Config struct {
 	// RPCURL overrides the per-network default RPC endpoint.
 	RPCURL string
 
+	// RPC is a prebuilt client used instead of building one from RPCURL, for
+	// callers that need custom headers, transport, or rate limiting. It is
+	// also threaded into the manager NewRentCleanupManager returns.
+	RPC *rpc.Client
+
 	// ChannelStorage indexes sponsored channels for rent cleanup. Defaults to
 	// in-memory storage; inject a durable one for multi-process facilitators.
 	ChannelStorage ChannelStorage
@@ -172,17 +177,28 @@ func (f *UptoSvmScheme) ChannelStorage() ChannelStorage {
 }
 
 // NewRentCleanupManager creates a rent cleanup manager for one network, wired
-// to this scheme's signer pool and channel storage. It does not start: call
-// Start or schedule Cleanup yourself.
+// to this scheme's signer pool, channel storage, and RPC client. It does not
+// start: call Start or schedule Cleanup yourself.
 func (f *UptoSvmScheme) NewRentCleanupManager(network string) *RentCleanupManager {
 	return NewRentCleanupManager(RentCleanupConfig{
 		Signer:                        f.signer,
 		Storage:                       f.channelStorage,
 		Network:                       network,
 		RPCURL:                        f.config.RPCURL,
+		RPC:                           f.config.RPC,
 		ComputeUnitPriceMicroLamports: f.config.ComputeUnitPriceMicroLamports,
 		SettleComputeUnitLimit:        f.config.SettleComputeUnitLimit,
 	})
+}
+
+// rpcClient returns the injected client when there is one, otherwise builds
+// one for the network. Every RPC entry point in the scheme goes through here
+// so an injected client is never bypassed.
+func (f *UptoSvmScheme) rpcClient(network string) (*rpc.Client, error) {
+	if f.config.RPC != nil {
+		return f.config.RPC, nil
+	}
+	return upto.NewRPCClient(network, f.config.RPCURL)
 }
 
 // GetExtra advertises a randomly selected fee payer for payment-channel opens.
@@ -293,7 +309,7 @@ func (f *UptoSvmScheme) settleDeposit(
 	}
 
 	uptoPayload := auth.payload
-	rpcClient, err := upto.NewRPCClient(string(requirements.Network), f.config.RPCURL)
+	rpcClient, err := f.rpcClient(string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
 	}
@@ -441,7 +457,7 @@ func (f *UptoSvmScheme) settleClaim(
 	if err != nil {
 		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
 	}
-	rpcClient, err := upto.NewRPCClient(string(requirements.Network), f.config.RPCURL)
+	rpcClient, err := f.rpcClient(string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
 	}
@@ -774,7 +790,7 @@ func (f *UptoSvmScheme) resolveRecentSlot(
 		return slot, nil
 	}
 
-	rpcClient, err := upto.NewRPCClient(string(requirements.Network), f.config.RPCURL)
+	rpcClient, err := f.rpcClient(string(requirements.Network))
 	if err != nil {
 		return 0, err
 	}

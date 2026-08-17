@@ -165,12 +165,15 @@ func ParseWithdrawDelay(value interface{}) (uint32, error) {
 	return uint32(seconds), nil
 }
 
-// ParseExtraMemo reads the optional seller memo (extra.memo). A string value is
-// a requirement even when empty, so the client emits the memo the facilitator
-// will demand instead of a random nonce; any other type is treated as absent.
+// ParseExtraMemo reads the optional seller memo (extra.memo). A non-empty
+// string is a requirement: the client emits exactly that memo and the
+// facilitator demands a match. Missing, empty, or non-string is unset, so the
+// client falls back to a random nonce and the facilitator does not check it.
+// Both roles resolve through here, which keeps them from disagreeing on
+// whether a memo was requested.
 func ParseExtraMemo(value interface{}) *string {
 	memo, ok := value.(string)
-	if !ok {
+	if !ok || memo == "" {
 		return nil
 	}
 	return &memo

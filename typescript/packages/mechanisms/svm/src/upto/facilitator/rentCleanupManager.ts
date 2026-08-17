@@ -41,19 +41,77 @@ interface ReclaimCandidate {
 }
 
 /**
- * Reorders records to start right after the channel id a prior pass stopped
- * at, wrapping around. An unknown or empty cursor (a closed channel, or the
- * first pass) scans from the beginning.
+ * Ascending channel id, the scan's total order.
  *
- * @param records - Stored channel records in storage order
- * @param cursor - Channel id to resume from, or "" to scan from the start
- * @returns Records rotated so `cursor` (if present) comes first
+ * @param a - First record
+ * @param b - Second record
+ * @returns Negative, zero, or positive per `Array.prototype.sort`
  */
-function rotateFromCursor(records: UptoChannelRecord[], cursor: string): UptoChannelRecord[] {
-  if (!cursor) return records;
-  const index = records.findIndex(record => record.channelId === cursor);
-  if (index === -1) return records;
-  return [...records.slice(index), ...records.slice(0, index)];
+function compareChannelId(a: UptoChannelRecord, b: UptoChannelRecord): number {
+  if (a.channelId < b.channelId) return -1;
+  if (a.channelId > b.channelId) return 1;
+  return 0;
+}
+
+/**
+ * Put records in scan order, resuming where the previous pass stopped.
+ *
+ * `UptoChannelStorage.list()` promises no ordering, so the manager imposes
+ * one: without it the resume cursor would mean something different on every
+ * storage implementation, and a backlog larger than the budget could revisit
+ * the same records forever. Sorts by channel id, then rotates so `cursor`
+ * comes first. An unknown or empty cursor (a closed channel, or the first
+ * pass) scans from the beginning.
+ *
+ * @param records - Stored channel records in any order
+ * @param cursor - Channel id to resume from, or "" to scan from the start
+ * @returns Records sorted, then rotated so `cursor` (if present) comes first
+ */
+function orderForScan(records: UptoChannelRecord[], cursor: string): UptoChannelRecord[] {
+  const sorted = [...records].sort(compareChannelId);
+  if (!cursor) return sorted;
+  const index = sorted.findIndex(record => record.channelId === cursor);
+  if (index === -1) return sorted;
+  return [...sorted.slice(index), ...sorted.slice(0, index)];
+}
+
+/**
+ * Cancellation for one pass: the manager's own stop signal plus whatever the
+ * caller passed. Mirrors the Go SDK, where `Stop` cancels the context that
+ * `Cleanup` runs under.
+ */
+interface PassAbort {
+  /** Throws the abort reason once any signal has fired. */
+  throwIfAborted(): void;
+  /** Reports whether any signal has fired. */
+  aborted(): boolean;
+}
+
+/**
+ * Combine the signals that can cancel a pass.
+ *
+ * @param signals - Manager and caller signals, either of which may be unset
+ * @returns Checks the pass calls at its cancellation points
+ */
+function passAbort(...signals: (AbortSignal | undefined)[]): PassAbort {
+  const active = signals.filter((signal): signal is AbortSignal => signal !== undefined);
+  return {
+    throwIfAborted: () => {
+      for (const signal of active) signal.throwIfAborted();
+    },
+    aborted: () => active.some(signal => signal.aborted),
+  };
+}
+
+/**
+ * Recognize the `AbortError` an aborted signal throws, so a requested stop is
+ * not reported to the operator as a cleanup failure.
+ *
+ * @param error - Error thrown by a pass
+ * @returns True when the pass ended because it was cancelled
+ */
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 /** Default grace after voucher expiry before abandon-closing an Open channel. */
@@ -62,8 +120,11 @@ export const DEFAULT_ABANDON_GRACE_SECS = 120;
 /** Default reclaim instructions per cleanup transaction. */
 export const DEFAULT_MAX_RECLAIMS_PER_TX = 8;
 
-/** Default total cleanup transactions submitted per `cleanup` call. */
+/** Default close/distribute transactions the storage scan may submit per call. */
 export const DEFAULT_MAX_TXS_PER_RUN = 20;
+
+/** Default reclaim transactions each rent payer may submit per call. */
+export const DEFAULT_MAX_TXS_PER_SIGNER = 20;
 
 /** Default abandon-close (settle+distribute) transactions per `cleanup` call. */
 export const DEFAULT_MAX_CLOSES_PER_RUN = 10;
@@ -87,12 +148,45 @@ export interface RentCleanupOptions {
   abandonGraceSecs?: number;
   /** Max `reclaim` instructions packed into one transaction. */
   maxReclaimsPerTx?: number;
-  /** Max cleanup transactions (closes + reclaim batches) per call. */
+  /**
+   * Transactions the storage scan may submit before it stops and saves a
+   * resume cursor. Caps the scan, not the pass: reclaims are budgeted
+   * separately by {@link maxTxsPerSigner}.
+   */
   maxTxsPerRun?: number;
+  /**
+   * Reclaim transactions each rent payer may submit per call. Budgeted per
+   * signer because rent-payer groups are independent: adding managed keys adds
+   * throughput rather than dividing a fixed pool.
+   */
+  maxTxsPerSigner?: number;
   /** Max abandon-close / Sealed-distribute transactions per call. */
   maxClosesPerRun?: number;
+  /**
+   * Cancels the pass at its next scan / discovery / reclaim checkpoint. The
+   * pass then rejects with an `AbortError`, matching the Go SDK's
+   * `Cleanup(ctx, …)` returning `ctx.Err()`.
+   */
+  signal?: AbortSignal;
   onClose?: (result: RentCleanupCloseResult) => void;
   onReclaim?: (result: RentCleanupReclaimResult) => void;
+  onError?: (error: unknown, context?: { channelId?: string }) => void;
+}
+
+/** Channels one discovery sweep added to storage. */
+export interface RentDiscoveryResult {
+  channelIds: string[];
+}
+
+/** Options for one-shot and interval discovery. */
+export interface RentDiscoveryOptions {
+  /**
+   * Cancels the sweep between managed signers. The sweep then rejects with an
+   * `AbortError`, matching the Go SDK's `Discover(ctx, …)` returning
+   * `ctx.Err()`.
+   */
+  signal?: AbortSignal;
+  onDiscover?: (result: RentDiscoveryResult) => void;
   onError?: (error: unknown, context?: { channelId?: string }) => void;
 }
 
@@ -100,6 +194,14 @@ export interface RentCleanupOptions {
 export interface RentCleanupStartConfig extends RentCleanupOptions {
   /** Seconds between `cleanup` ticks. Required to start the loop. */
   intervalSecs: number;
+  /**
+   * Seconds between {@link UptoSvmRentCleanupManager.discover} sweeps. Omit to
+   * leave discovery off. A sweep is a `getProgramAccounts` scan per managed
+   * signer, so it belongs on a far longer interval than cleanup — daily is
+   * typical.
+   */
+  discoveryIntervalSecs?: number;
+  onDiscover?: (result: RentDiscoveryResult) => void;
 }
 
 export interface UptoSvmRentCleanupManagerConfig {
@@ -123,13 +225,6 @@ export interface UptoSvmRentCleanupManagerConfig {
   settleComputeUnitLimit?: number;
   /** Injected RPC client used instead of building one from `rpcUrl`. */
   rpc?: ChannelRpc;
-  /**
-   * Add a spec §6 getProgramAccounts sweep, per managed signer key, for
-   * Distributed channels missing from storage. Discovery finds only
-   * chain-verifiable reclaim candidates; it never substitutes for the
-   * payTo/tokenProgram metadata Open/Sealed actions require.
-   */
-  enableDiscovery?: boolean;
 }
 
 /**
@@ -147,17 +242,26 @@ export class UptoSvmRentCleanupManager {
   private readonly computeUnitPriceMicroLamports: number | undefined;
   private readonly settleComputeUnitLimit: number | undefined;
   private readonly rpc: ChannelRpc | undefined;
-  private readonly enableDiscovery: boolean;
 
   private timer: ReturnType<typeof setInterval> | undefined;
+  private discoveryTimer: ReturnType<typeof setInterval> | undefined;
   private running = false;
   private tickInFlight = false;
+  private discoveryTickInFlight = false;
   private startConfig: RentCleanupStartConfig | undefined;
 
   /**
-   * Tail of the queued pass chain. Passes run one at a time so an operator's
-   * cron calling {@link cleanup} cannot race the interval loop into submitting
-   * the same close or reclaim twice.
+   * Cancels passes the interval loop owns. Created by {@link start} and fired
+   * by {@link stop}, which then waits for the pass to unwind.
+   */
+  private abortController: AbortController | undefined;
+
+  /**
+   * Tail of the queued pass chain. Cleanup and discovery passes run one at a
+   * time so an operator's cron calling {@link cleanup} cannot race the
+   * interval loop into submitting the same close or reclaim twice, and so a
+   * discovery sweep cannot upsert a record cleanup is mid-way through
+   * deleting.
    */
   private passQueue: Promise<void> = Promise.resolve();
 
@@ -189,7 +293,6 @@ export class UptoSvmRentCleanupManager {
     this.computeUnitPriceMicroLamports = config.computeUnitPriceMicroLamports;
     this.settleComputeUnitLimit = config.settleComputeUnitLimit;
     this.rpc = config.rpc;
-    this.enableDiscovery = config.enableDiscovery ?? false;
   }
 
   /**
@@ -201,37 +304,90 @@ export class UptoSvmRentCleanupManager {
    * @returns A promise that resolves when this pass completes
    */
   async cleanup(opts: RentCleanupOptions = {}): Promise<void> {
-    const pass = this.passQueue.then(() => this.runPass(opts));
-    // Swallow on the queue tail only: the caller still sees its own rejection.
-    this.passQueue = pass.catch(() => undefined);
-    return pass;
+    return this.enqueue(() => this.runPass(opts));
   }
 
   /**
-   * Start an interval loop that calls {@link cleanup}.
+   * Find Distributed channels this facilitator paid rent for that storage does
+   * not know about, and add them so {@link cleanup} reclaims them on a later
+   * pass. The spec §6 recovery path for a lost or incomplete work index.
    *
-   * @param config - Interval and cleanup policy
+   * A sweep is a `getProgramAccounts` scan per managed signer key, which is
+   * far more expensive than a cleanup pass — run it rarely (see
+   * `discoveryIntervalSecs`), not on the cleanup interval.
+   *
+   * Discovered records carry only what the chain proves: `payTo`,
+   * `tokenProgram`, and `expiresAt` are empty. That is safe because only the
+   * Open and Sealed cleanup branches read them, and a Distributed channel
+   * never returns to those states. Channel ids already in storage are left
+   * alone so a full record is never overwritten with a partial one.
+   *
+   * @param opts - Cancellation and callbacks
+   * @returns A promise that resolves when this sweep completes
+   */
+  async discover(opts: RentDiscoveryOptions = {}): Promise<void> {
+    return this.enqueue(() => this.runDiscovery(opts));
+  }
+
+  /**
+   * Start the interval loops: {@link cleanup} always, {@link discover} only
+   * when `discoveryIntervalSecs` is set.
+   *
+   * @param config - Intervals and cleanup policy
    */
   start(config: RentCleanupStartConfig): void {
     if (this.running) return;
     this.running = true;
     this.startConfig = config;
-    const intervalMs = config.intervalSecs * 1_000;
+    this.abortController = new AbortController();
     this.timer = setInterval(() => {
       void this.tick();
-    }, intervalMs);
+    }, config.intervalSecs * 1_000);
+    if (config.discoveryIntervalSecs !== undefined) {
+      this.discoveryTimer = setInterval(() => {
+        void this.discoveryTick();
+      }, config.discoveryIntervalSecs * 1_000);
+    }
   }
 
   /**
-   * Stop the interval loop.
+   * Stop the interval loops and wait for the pass they left in flight.
+   *
+   * Cancels at the pass's next scan / discovery / reclaim checkpoint rather
+   * than mid-transaction, so a submitted settle is always awaited to its
+   * signature and its storage entry updated. Resolves once nothing is running,
+   * which makes it safe to await during shutdown.
+   *
+   * @returns A promise that resolves when the in-flight pass has unwound
    */
-  stop(): void {
+  async stop(): Promise<void> {
     this.running = false;
     if (this.timer !== undefined) {
       clearInterval(this.timer);
       this.timer = undefined;
     }
+    if (this.discoveryTimer !== undefined) {
+      clearInterval(this.discoveryTimer);
+      this.discoveryTimer = undefined;
+    }
+    this.abortController?.abort();
+    // The tail already swallows rejections; this only waits for it to settle.
+    await this.passQueue;
+    this.abortController = undefined;
     this.startConfig = undefined;
+  }
+
+  /**
+   * Queue a pass behind whatever is already running.
+   *
+   * @param pass - The pass to run once the queue drains
+   * @returns The pass's own promise, rejection included
+   */
+  private enqueue(pass: () => Promise<void>): Promise<void> {
+    const queued = this.passQueue.then(pass);
+    // Swallow on the queue tail only: the caller still sees its own rejection.
+    this.passQueue = queued.catch(() => undefined);
+    return queued;
   }
 
   /**
@@ -244,17 +400,18 @@ export class UptoSvmRentCleanupManager {
     const abandonGraceSecs = opts.abandonGraceSecs ?? DEFAULT_ABANDON_GRACE_SECS;
     const maxReclaimsPerTx = opts.maxReclaimsPerTx ?? DEFAULT_MAX_RECLAIMS_PER_TX;
     const maxTxsPerRun = opts.maxTxsPerRun ?? DEFAULT_MAX_TXS_PER_RUN;
+    const maxTxsPerSigner = opts.maxTxsPerSigner ?? DEFAULT_MAX_TXS_PER_SIGNER;
     const maxClosesPerRun = opts.maxClosesPerRun ?? DEFAULT_MAX_CLOSES_PER_RUN;
+    const abort = passAbort(this.abortController?.signal, opts.signal);
 
     const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
-    const records = rotateFromCursor(await this.storage.list(), this.scanCursor);
+    const records = orderForScan(await this.storage.list(), this.scanCursor);
     this.scanCursor = "";
     const nowSecs = Math.floor(Date.now() / 1_000);
     let currentSlot: bigint | undefined;
     let txsUsed = 0;
     let closesUsed = 0;
     const reclaimCandidates: ReclaimCandidate[] = [];
-    const seen = new Set<string>();
     const getCurrentSlot = async (): Promise<bigint> => {
       currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
       return currentSlot;
@@ -268,8 +425,8 @@ export class UptoSvmRentCleanupManager {
         this.scanCursor = record.channelId;
         break;
       }
+      abort.throwIfAborted();
       if (record.network !== this.network) continue;
-      seen.add(record.channelId);
 
       try {
         const maybe = await fetchMaybeChannel(rpc, address(record.channelId), {
@@ -355,39 +512,31 @@ export class UptoSvmRentCleanupManager {
       }
     }
 
-    if (this.enableDiscovery) {
-      const discovered = await this.discoverReclaimCandidates(rpc, getCurrentSlot, seen, opts);
-      reclaimCandidates.push(...discovered);
-    }
-
     await this.submitReclaimBatches(rpc, reclaimCandidates, {
       maxReclaimsPerTx,
-      maxTxsPerRun,
+      maxTxsPerSigner,
+      abort,
       onReclaim: opts.onReclaim,
       onError: opts.onError,
     });
   }
 
   /**
-   * Run the spec §6 onchain sweep for every managed signer key and return
-   * Distributed, slot-gated channels absent from storage. Recovery path for
-   * a lost or incomplete work index; only ever proposes the reclaim action,
-   * which needs no offchain metadata.
+   * Run one discovery sweep. Callers go through {@link discover}, which
+   * serializes it against cleanup passes.
    *
-   * @param rpc - RPC client
-   * @param getCurrentSlot - Lazily-fetched, cached current slot
-   * @param seen - Channel ids already classified from stored records
-   * @param opts - Callbacks for reporting discovery failures
-   * @returns Discovered Distributed channels past the open-slot gate
+   * @param opts - Cancellation and callbacks
    */
-  private async discoverReclaimCandidates(
-    rpc: ChannelRpc,
-    getCurrentSlot: () => Promise<bigint>,
-    seen: Set<string>,
-    opts: RentCleanupOptions,
-  ): Promise<ReclaimCandidate[]> {
-    const candidates: ReclaimCandidate[] = [];
+  private async runDiscovery(opts: RentDiscoveryOptions): Promise<void> {
+    const abort = passAbort(this.abortController?.signal, opts.signal);
+    const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
+
+    const known = new Set((await this.storage.list()).map(record => record.channelId));
+    const discovered: string[] = [];
+    let currentSlot: bigint | undefined;
+
     for (const managed of this.signer.getAddresses()) {
+      abort.throwIfAborted();
       let found;
       try {
         found = await discoverChannelsByRentPayer(rpc, managed);
@@ -395,16 +544,31 @@ export class UptoSvmRentCleanupManager {
         opts.onError?.(error);
         continue;
       }
-      const slot = await getCurrentSlot();
+      currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
+
       for (const { channelId, channel } of found) {
-        if (seen.has(channelId)) continue;
-        seen.add(channelId);
+        if (known.has(channelId)) continue;
+        known.add(channelId);
         if (channel.status !== ChannelStatus.Distributed) continue;
-        if (slot <= channel.openSlot + OPEN_SLOT_WINDOW) continue;
-        candidates.push({ channelId, rentPayer: channel.rentPayer });
+        if (currentSlot <= channel.openSlot + OPEN_SLOT_WINDOW) continue;
+
+        try {
+          await this.storage.upsert({
+            channelId,
+            payTo: "",
+            tokenProgram: "",
+            firstSeenAt: Date.now(),
+            expiresAt: 0,
+            network: this.network,
+          });
+          discovered.push(channelId);
+        } catch (error) {
+          opts.onError?.(error, { channelId });
+        }
       }
     }
-    return candidates;
+
+    if (discovered.length > 0) opts.onDiscover?.({ channelIds: discovered });
   }
 
   /**
@@ -412,14 +576,33 @@ export class UptoSvmRentCleanupManager {
    * interval cannot pile up queued passes.
    */
   private async tick(): Promise<void> {
-    if (!this.running || this.tickInFlight || !this.startConfig) return;
+    const config = this.startConfig;
+    if (!this.running || this.tickInFlight || !config) return;
     this.tickInFlight = true;
     try {
-      await this.cleanup(this.startConfig);
+      await this.cleanup(config);
     } catch (error) {
-      this.startConfig.onError?.(error);
+      // A stop() mid-pass is a requested shutdown, not a cleanup failure.
+      if (!isAbortError(error)) config.onError?.(error);
     } finally {
       this.tickInFlight = false;
+    }
+  }
+
+  /**
+   * Discovery tick. Skips while a sweep is outstanding, so a sweep slower than
+   * its interval cannot pile up queued sweeps ahead of cleanup passes.
+   */
+  private async discoveryTick(): Promise<void> {
+    const config = this.startConfig;
+    if (!this.running || this.discoveryTickInFlight || !config) return;
+    this.discoveryTickInFlight = true;
+    try {
+      await this.discover(config);
+    } catch (error) {
+      if (!isAbortError(error)) config.onError?.(error);
+    } finally {
+      this.discoveryTickInFlight = false;
     }
   }
 
@@ -487,21 +670,22 @@ export class UptoSvmRentCleanupManager {
 
   /**
    * Group reclaim candidates by rent_payer and run each group's batched
-   * reclaim transactions concurrently, each against its own maxTxsPerRun
+   * reclaim transactions concurrently, each against its own maxTxsPerSigner
    * budget.
    *
    * Submissions within a group stay sequential (each batch refetches live
    * state, so a group depends on its own prior submissions to avoid
    * double-reclaiming), but independent rent-payer groups do not share a
    * budget or depend on one another: adding managed signer keys adds
-   * maxTxsPerRun more reclaim throughput per pass, not a share of a fixed
+   * maxTxsPerSigner more reclaim throughput per pass, not a share of a fixed
    * pool.
    *
    * @param rpc - RPC client
    * @param candidates - Distributed channels ready to reclaim
    * @param opts - Batch size, tx budget, callbacks
    * @param opts.maxReclaimsPerTx - Max reclaim instructions per transaction
-   * @param opts.maxTxsPerRun - Max reclaim transactions per rent-payer group
+   * @param opts.maxTxsPerSigner - Max reclaim transactions per rent-payer group
+   * @param opts.abort - Cancellation checked before each batch
    * @param opts.onReclaim - Optional success callback per reclaim batch
    * @param opts.onError - Optional error callback
    */
@@ -510,12 +694,13 @@ export class UptoSvmRentCleanupManager {
     candidates: ReclaimCandidate[],
     opts: {
       maxReclaimsPerTx: number;
-      maxTxsPerRun: number;
+      maxTxsPerSigner: number;
+      abort: PassAbort;
       onReclaim?: ((result: RentCleanupReclaimResult) => void) | undefined;
       onError?: ((error: unknown, context?: { channelId?: string }) => void) | undefined;
     },
   ): Promise<void> {
-    if (opts.maxTxsPerRun <= 0 || candidates.length === 0) return;
+    if (opts.maxTxsPerSigner <= 0 || candidates.length === 0) return;
 
     const byRentPayer = new Map<string, ReclaimCandidate[]>();
     for (const candidate of candidates) {
@@ -526,7 +711,7 @@ export class UptoSvmRentCleanupManager {
 
     await Promise.all(
       Array.from(byRentPayer.entries()).map(([rentPayer, group]) =>
-        this.submitReclaimGroup(rpc, rentPayer, group, opts, { remaining: opts.maxTxsPerRun }),
+        this.submitReclaimGroup(rpc, rentPayer, group, opts, { remaining: opts.maxTxsPerSigner }),
       ),
     );
   }
@@ -540,10 +725,11 @@ export class UptoSvmRentCleanupManager {
    * @param group - This rent payer's reclaim candidates
    * @param opts - Batch size and callbacks
    * @param opts.maxReclaimsPerTx - Max reclaim instructions per transaction
+   * @param opts.abort - Cancellation checked before each batch
    * @param opts.onReclaim - Optional success callback per reclaim batch
    * @param opts.onError - Optional error callback
-   * @param budget - Shared remaining-transaction counter across all groups
-   * @param budget.remaining - Transactions left to submit across all groups
+   * @param budget - This group's remaining-transaction counter
+   * @param budget.remaining - Reclaim transactions this rent payer may submit
    */
   private async submitReclaimGroup(
     rpc: ChannelRpc,
@@ -551,6 +737,7 @@ export class UptoSvmRentCleanupManager {
     group: ReclaimCandidate[],
     opts: {
       maxReclaimsPerTx: number;
+      abort: PassAbort;
       onReclaim?: ((result: RentCleanupReclaimResult) => void) | undefined;
       onError?: ((error: unknown, context?: { channelId?: string }) => void) | undefined;
     },
@@ -571,6 +758,9 @@ export class UptoSvmRentCleanupManager {
 
     for (let i = 0; i < group.length; i += opts.maxReclaimsPerTx) {
       if (budget.remaining <= 0) return;
+      // Silent, unlike the scan loop: batches already submitted reported
+      // through onReclaim, and the pass as a whole reports the cancellation.
+      if (opts.abort.aborted()) return;
       budget.remaining -= 1;
 
       const batch = group.slice(i, i + opts.maxReclaimsPerTx);

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +33,7 @@ type cleanupHarness struct {
 	mu              sync.Mutex
 	closes          []CloseResult
 	reclaims        []ReclaimResult
+	discovered      []string
 	errors          []error
 	errorChannelIDs []string
 }
@@ -374,7 +376,7 @@ func TestCleanupRespectsReclaimBatchCaps(t *testing.T) {
 
 	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
 		MaxReclaimsPerTx: 2,
-		MaxTxsPerRun:     1,
+		MaxTxsPerSigner:  1,
 	})))
 
 	require.Len(t, harness.reclaims, 1)
@@ -382,23 +384,54 @@ func TestCleanupRespectsReclaimBatchCaps(t *testing.T) {
 	assert.Len(t, harness.signer.sentTransactions(), 1)
 }
 
-// rotateFromCursor resumes a stable-ordered backlog (e.g. Mongo-backed
-// storage) from where the previous pass's budget ran out, so a backlog
-// bigger than MaxTxsPerRun eventually reaches every record instead of only
-// ever reprocessing the same earliest ones.
-func TestRotateFromCursor(t *testing.T) {
-	records := []ChannelRecord{{ChannelID: "a"}, {ChannelID: "b"}, {ChannelID: "c"}}
+// The two budgets bound different things: MaxTxsPerRun stops the storage scan,
+// MaxTxsPerSigner caps each rent payer's reclaims. A scan budget of 1 must not
+// also throttle reclaims, which cost the scan nothing to classify.
+func TestCleanupBudgetsTheScanAndReclaimsSeparately(t *testing.T) {
+	harness := newCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	for i := 0; i < 4; i++ {
+		harness.seedRecord(
+			ChannelRecord{PayTo: harness.payTo.String()},
+			harness.channel(paymentchannels.StatusDistributed, openSlot),
+		)
+	}
 
-	assert.Equal(t, records, rotateFromCursor(records, ""), "no cursor scans from the start")
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
+		MaxReclaimsPerTx: 1,
+		MaxTxsPerRun:     1,
+		MaxTxsPerSigner:  4,
+	})))
+
+	assert.Len(t, harness.reclaims, 4, "reclaims draw on the per-signer budget, not the scan budget")
+	assert.Empty(t, harness.manager.scanCursor, "classifying a record costs no scan budget")
+}
+
+// orderForScan resumes a budget-limited backlog from where the previous pass
+// stopped, so a backlog bigger than MaxTxsPerRun eventually reaches every
+// record instead of only ever reprocessing the same earliest ones. Storage
+// promises no ordering, so the manager sorts first: otherwise the cursor would
+// mean something different on every ChannelStorage implementation.
+func TestOrderForScan(t *testing.T) {
+	sorted := []ChannelRecord{{ChannelID: "a"}, {ChannelID: "b"}, {ChannelID: "c"}}
+	unordered := []ChannelRecord{{ChannelID: "c"}, {ChannelID: "a"}, {ChannelID: "b"}}
+
+	assert.Equal(t, sorted, orderForScan(unordered, ""), "no cursor scans from the start, in order")
 	assert.Equal(t,
 		[]ChannelRecord{{ChannelID: "b"}, {ChannelID: "c"}, {ChannelID: "a"}},
-		rotateFromCursor(records, "b"),
+		orderForScan(unordered, "b"),
 	)
 	assert.Equal(t,
 		[]ChannelRecord{{ChannelID: "c"}, {ChannelID: "a"}, {ChannelID: "b"}},
-		rotateFromCursor(records, "c"),
+		orderForScan(unordered, "c"),
 	)
-	assert.Equal(t, records, rotateFromCursor(records, "gone"), "a cursor no longer present scans from the start")
+	assert.Equal(t, sorted, orderForScan(unordered, "gone"),
+		"a cursor no longer present scans from the start")
+	assert.Equal(t,
+		[]ChannelRecord{{ChannelID: "c"}, {ChannelID: "a"}, {ChannelID: "b"}},
+		unordered,
+		"the caller's slice is left alone",
+	)
 }
 
 // TestCleanupResumesScanningFromTheCursorAfterTheBudgetRunsOut proves the
@@ -631,7 +664,7 @@ func TestCleanupSplitsReclaimsAcrossTransactions(t *testing.T) {
 
 	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
 		MaxReclaimsPerTx: 2,
-		MaxTxsPerRun:     3,
+		MaxTxsPerSigner:  3,
 	})))
 
 	require.Len(t, harness.reclaims, 3)
@@ -856,6 +889,116 @@ func TestStartRunsCleanupOnAnIntervalUntilStopped(t *testing.T) {
 	assert.Equal(t, settled, len(harness.signer.sentTransactions()), "Stop halts the interval loop")
 }
 
+// Stop has to join the pass the interval loop left running: returning early
+// would let the process exit between a broadcast settle and the storage update
+// that records it. The cancellation itself is a requested shutdown, so it must
+// not reach OnError either.
+func TestStopWaitsForTheInFlightPass(t *testing.T) {
+	harness := newCleanupHarness(t)
+	record := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String(), ExpiresAt: time.Now().Unix() - 3600},
+		harness.channel(paymentchannels.StatusSealed, testSlot),
+	)
+	harness.closeAccountOnSend(record.ChannelID)
+
+	// Hold the pass open from a callback rather than an RPC call: cancelling
+	// the pass context aborts in-flight requests, which would let Stop return
+	// without ever proving that it waits.
+	var once sync.Once
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	opts := harness.options(CleanupOptions{})
+	recordClose := opts.OnClose
+	opts.OnClose = func(result CloseResult) {
+		recordClose(result)
+		once.Do(func() { close(entered) })
+		<-release
+	}
+
+	harness.manager.Start(context.Background(), StartConfig{
+		Interval:       time.Millisecond,
+		CleanupOptions: opts,
+	})
+
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the interval loop never started a pass")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		harness.manager.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned while a pass was still in flight")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return after the pass unwound")
+	}
+
+	harness.mu.Lock()
+	defer harness.mu.Unlock()
+	assert.Empty(t, harness.errors, "a canceled pass is not an operator-visible failure")
+}
+
+// Discovery is a getProgramAccounts scan per managed signer, so it runs on its
+// own far longer interval instead of riding every cleanup tick.
+func TestStartRunsDiscoveryOnItsOwnInterval(t *testing.T) {
+	harness := newCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	pda := harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
+
+	found := make(chan DiscoveryResult, 1)
+	harness.manager.Start(context.Background(), StartConfig{
+		Interval:          time.Millisecond,
+		DiscoveryInterval: 5 * time.Millisecond,
+		CleanupOptions:    harness.options(CleanupOptions{}),
+		OnDiscover: func(result DiscoveryResult) {
+			select {
+			case found <- result:
+			default:
+			}
+		},
+	})
+	t.Cleanup(harness.manager.Stop)
+
+	select {
+	case result := <-found:
+		assert.Equal(t, []string{pda.String()}, result.ChannelIDs)
+	case <-time.After(5 * time.Second):
+		t.Fatal("discovery did not run on the configured interval")
+	}
+}
+
+func TestStartLeavesDiscoveryOffWithoutAnInterval(t *testing.T) {
+	harness := newCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
+
+	harness.manager.Start(context.Background(), StartConfig{
+		Interval:       time.Millisecond,
+		CleanupOptions: harness.options(CleanupOptions{}),
+		OnDiscover: func(DiscoveryResult) {
+			t.Error("discovery ran without a configured interval")
+		},
+	})
+	time.Sleep(50 * time.Millisecond)
+	harness.manager.Stop()
+
+	stored, err := harness.storage.List(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, stored, "cleanup alone never learns about untracked channels")
+}
+
 func TestStartIgnoresANonPositiveInterval(t *testing.T) {
 	harness := newCleanupHarness(t)
 	harness.manager.Start(context.Background(), StartConfig{})
@@ -918,58 +1061,101 @@ func (h *cleanupHarness) discoveredChannel(
 	return pda
 }
 
-// newDiscoveryCleanupHarness reuses a plain harness's signer/storage/stub but
-// enables the onchain discovery sweep on the manager under test.
-func newDiscoveryCleanupHarness(t *testing.T) *cleanupHarness {
-	t.Helper()
-	harness := newCleanupHarness(t)
-	harness.manager = NewRentCleanupManager(RentCleanupConfig{
-		Signer:          harness.signer,
-		Storage:         harness.storage,
-		Network:         testNetwork,
-		RPCURL:          harness.stub.url,
-		EnableDiscovery: true,
-	})
-	return harness
+// discoveryOptions wires the harness recorders into a discovery sweep.
+func (h *cleanupHarness) discoveryOptions() DiscoveryOptions {
+	return DiscoveryOptions{
+		OnDiscover: func(result DiscoveryResult) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.discovered = append(h.discovered, result.ChannelIDs...)
+		},
+		OnError: func(err error, channelID string) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.errors = append(h.errors, err)
+			h.errorChannelIDs = append(h.errorChannelIDs, channelID)
+		},
+	}
 }
 
-func TestCleanupDiscoversAndReclaimsUntrackedDistributedChannels(t *testing.T) {
-	harness := newDiscoveryCleanupHarness(t)
+func TestDiscoverAddsUntrackedDistributedChannelsToStorage(t *testing.T) {
+	harness := newCleanupHarness(t)
 	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
 	pda := harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
 
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
+
+	assert.Equal(t, []string{pda.String()}, harness.discovered)
+	record, err := harness.storage.Get(context.Background(), pda.String())
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	// Only what the chain proves: the Open/Sealed metadata stays empty, which
+	// a Distributed channel never needs again.
+	assert.Empty(t, record.PayTo)
+	assert.Empty(t, record.TokenProgram)
+	assert.Zero(t, record.ExpiresAt)
+	assert.Equal(t, testNetwork, record.Network)
+	assert.Empty(t, harness.signer.sentTransactions(), "discovery never submits; cleanup reclaims")
+}
+
+func TestDiscoveredChannelsAreReclaimedByTheNextCleanupPass(t *testing.T) {
+	harness := newCleanupHarness(t)
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	pda := harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
+
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
 	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
 
 	require.Len(t, harness.reclaims, 1)
 	assert.Equal(t, []string{pda.String()}, harness.reclaims[0].ChannelIDs)
 }
 
-func TestCleanupDiscoveryIgnoresNonDistributedChannels(t *testing.T) {
-	harness := newDiscoveryCleanupHarness(t)
-	// An Open or Sealed channel discovered onchain carries no stored payTo,
-	// so discovery must never propose closing or distributing it.
+func TestDiscoverIgnoresNonDistributedChannels(t *testing.T) {
+	harness := newCleanupHarness(t)
+	// An Open or Sealed channel discovered onchain carries no stored payTo, so
+	// storing it would only produce a record cleanup cannot act on.
 	harness.discoveredChannel(paymentchannels.StatusOpen, testSlot, harness.signer.feePayer())
 	harness.discoveredChannel(paymentchannels.StatusSealed, testSlot, harness.signer.feePayer())
 
-	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
 
-	assert.Empty(t, harness.reclaims)
-	assert.Empty(t, harness.closes)
-	assert.Empty(t, harness.signer.sentTransactions())
+	assert.Empty(t, harness.discovered)
+	stored, err := harness.storage.List(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, stored)
 }
 
-func TestCleanupDiscoveryDoesNotDuplicateStoredChannels(t *testing.T) {
-	harness := newDiscoveryCleanupHarness(t)
+func TestDiscoverIgnoresChannelsInsideTheOpenSlotWindow(t *testing.T) {
+	harness := newCleanupHarness(t)
+	harness.discoveredChannel(paymentchannels.StatusDistributed, testSlot, harness.signer.feePayer())
+
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
+
+	assert.Empty(t, harness.discovered)
+	stored, err := harness.storage.List(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, stored)
+}
+
+// Discovery only knows what the chain proves, so overwriting a settle-time
+// record with a partial one would lose the payTo an abandon-close needs.
+func TestDiscoverNeverOverwritesATrackedChannel(t *testing.T) {
+	harness := newCleanupHarness(t)
 	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	// The seeded account carries the managed signer as rent payer, so the
+	// sweep finds it: it must recognize the id as already tracked.
 	record := harness.seedRecord(
 		ChannelRecord{PayTo: harness.payTo.String()},
 		harness.channel(paymentchannels.StatusDistributed, openSlot),
 	)
 
-	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
 
-	require.Len(t, harness.reclaims, 1, "the stored record must not also be reclaimed via discovery")
-	assert.Equal(t, []string{record.ChannelID}, harness.reclaims[0].ChannelIDs)
+	assert.Empty(t, harness.discovered)
+	stored, err := harness.storage.Get(context.Background(), record.ChannelID)
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, harness.payTo.String(), stored.PayTo)
 }
 
 // TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently proves that adding a
@@ -1033,7 +1219,7 @@ func TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently(t *testing.T) {
 }
 
 // TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently confirms
-// MaxTxsPerRun applies per rent-payer group rather than as a shared pool:
+// MaxTxsPerSigner applies per rent-payer group rather than as a shared pool:
 // adding a managed signer key adds reclaim throughput instead of splitting a
 // fixed budget with the other keys.
 func TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently(t *testing.T) {
@@ -1059,8 +1245,36 @@ func TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently(t *testing.T
 
 	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{
 		MaxReclaimsPerTx: 1,
-		MaxTxsPerRun:     2,
+		MaxTxsPerSigner:  2,
 	})))
 
 	assert.Len(t, harness.reclaims, 4, "each of the two rent-payer groups gets its own budget of 2")
+}
+
+// Cleanup and Discover both have to honor an injected client, or a facilitator
+// that paces its sends through a custom transport would bypass it on every
+// background pass.
+func TestCleanupAndDiscoverPreferAnInjectedRPCClient(t *testing.T) {
+	harness := newCleanupHarness(t)
+	harness.manager = NewRentCleanupManager(RentCleanupConfig{
+		Signer:  harness.signer,
+		Storage: harness.storage,
+		Network: testNetwork,
+		RPCURL:  "http://127.0.0.1:1/unreachable",
+		RPC:     rpc.New(harness.stub.url),
+	})
+
+	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
+	record := harness.seedRecord(
+		ChannelRecord{PayTo: harness.payTo.String()},
+		harness.channel(paymentchannels.StatusDistributed, openSlot),
+	)
+	pda := harness.discoveredChannel(paymentchannels.StatusDistributed, openSlot, harness.signer.feePayer())
+
+	require.NoError(t, harness.manager.Cleanup(context.Background(), harness.options(CleanupOptions{})))
+	require.Len(t, harness.reclaims, 1)
+	assert.Equal(t, []string{record.ChannelID}, harness.reclaims[0].ChannelIDs)
+
+	require.NoError(t, harness.manager.Discover(context.Background(), harness.discoveryOptions()))
+	assert.Equal(t, []string{pda.String()}, harness.discovered)
 }

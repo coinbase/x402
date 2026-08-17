@@ -205,10 +205,10 @@ func TestCreatePaymentPayloadBuildsAVerifiableOpen(t *testing.T) {
 	assert.Equal(t, decoded.Nonce, strconv.FormatUint(result.Salt, 10))
 }
 
-// A challenge advertising an empty memo is a requirement for an empty memo. The
-// TypeScript facilitator demands exactly one memo matching it, so substituting a
-// random nonce here would break a Go client against a TypeScript facilitator.
-func TestCreatePaymentPayloadHonorsAnEmptyMemo(t *testing.T) {
+// An empty extra.memo is a seller that set no memo, not a demand for an empty
+// one. The client still emits its uniqueness nonce, and the facilitator (which
+// resolves the same way) does not bind to it.
+func TestCreatePaymentPayloadTreatsAnEmptyMemoAsUnset(t *testing.T) {
 	signer := newTestSigner(t)
 	feePayer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
 	authorizer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
@@ -236,11 +236,18 @@ func TestCreatePaymentPayloadHonorsAnEmptyMemo(t *testing.T) {
 			{Recipient: requirements.PayTo, BPS: paymentchannels.BasisPointsDenominator},
 		},
 		RecentSlot: &recentSlot,
-		Memo:       &empty,
+		Memo:       upto.ParseExtraMemo(requirements.Extra[upto.ExtraMemo]),
 	}
+	require.Nil(t, expected.Memo, `extra.memo "" resolves to unset`)
 
 	_, err = paymentchannels.VerifyOpenTransaction(decoded.OpenTransaction, expected)
-	require.NoError(t, err, "the open must carry the empty memo the challenge demanded")
+	require.NoError(t, err)
+
+	// The open carries a nonce, not the empty memo, so a facilitator that did
+	// demand an empty memo would reject it.
+	expected.Memo = &empty
+	_, err = paymentchannels.VerifyOpenTransaction(decoded.OpenTransaction, expected)
+	require.ErrorContains(t, err, "does not match extra.memo")
 }
 
 func TestCreatePaymentPayloadFallsBackToRPCHints(t *testing.T) {
@@ -284,17 +291,14 @@ func TestCreatePaymentPayloadUsesChallengeHintsWithoutRPC(t *testing.T) {
 	assert.Equal(t, solana.Hash(solana.SystemProgramID), transaction.Message.RecentBlockhash)
 }
 
-func TestCreatePaymentPayloadHonorsComputeBudgetOverrides(t *testing.T) {
+// The open's ComputeBudget prefix is fixed by the scheme, not the caller: the
+// facilitator's compute-unit and priority-fee caps are verified against it.
+func TestCreatePaymentPayloadUsesTheOpenComputeBudgetDefaults(t *testing.T) {
 	signer := newTestSigner(t)
 	feePayer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
 	authorizer := solana.MustPrivateKeyFromBase58(mustNewKey(t)).PublicKey()
 	requirements := newRequirements(t, feePayer, authorizer, challengeOptions{})
-	limit := uint32(150_000)
-	price := uint64(3)
-	scheme := NewUptoSvmScheme(signer, &svm.ClientConfig{
-		ComputeUnitLimit:              &limit,
-		ComputeUnitPriceMicroLamports: &price,
-	})
+	scheme := NewUptoSvmScheme(signer, &svm.ClientConfig{})
 
 	payload, err := scheme.CreatePaymentPayload(context.Background(), requirements)
 	require.NoError(t, err)
@@ -309,8 +313,16 @@ func TestCreatePaymentPayloadHonorsComputeBudgetOverrides(t *testing.T) {
 	program, err := transaction.Message.Program(instructions[0].ProgramIDIndex)
 	require.NoError(t, err)
 	assert.True(t, program.Equals(solana.ComputeBudget))
-	assert.Equal(t, limit, binary.LittleEndian.Uint32(instructions[0].Data[1:5]))
-	assert.Equal(t, price, binary.LittleEndian.Uint64(instructions[1].Data[1:9]))
+	assert.Equal(
+		t,
+		paymentchannels.OpenDefaultComputeUnitLimit,
+		binary.LittleEndian.Uint32(instructions[0].Data[1:5]),
+	)
+	assert.Equal(
+		t,
+		uint64(svm.DefaultComputeUnitPriceMicrolamports),
+		binary.LittleEndian.Uint64(instructions[1].Data[1:9]),
+	)
 }
 
 func TestCreatePaymentPayloadRejectsInvalidChallenges(t *testing.T) {

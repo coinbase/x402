@@ -131,7 +131,10 @@ facilitator.Register([]x402.Network{network}, scheme)
 
 // Optional: reclaim PDA rent from abandoned, sealed, and distributed channels.
 cleanup := scheme.NewRentCleanupManager(string(network))
-cleanup.Start(ctx, uptosvm.StartConfig{Interval: 5 * time.Minute})
+cleanup.Start(ctx, uptosvm.StartConfig{
+    Interval:          5 * time.Minute,
+    DiscoveryInterval: 24 * time.Hour,
+})
 defer cleanup.Stop()
 ```
 
@@ -148,6 +151,8 @@ scheme := uptosvm.NewUptoSvmScheme(svmSigner, &uptosvm.Config{
 ```
 
 Each cleanup pass seals abandoned Open channels past `expiresAt` plus a grace period, distributes Sealed ones, and batch-reclaims rent from Distributed channels once they are 1,500 slots past their open slot. Sealing an abandoned channel freezes the settlement watermark and refunds the unsettled remainder to the client.
+
+`DiscoveryInterval` additionally arms `Discover`, the spec §6 recovery sweep that finds Distributed channels this facilitator paid rent for that storage lost track of and adds them for a later cleanup pass to reclaim. A sweep is a `getProgramAccounts` scan per managed signer, so run it rarely — daily, not on the cleanup interval. Leave it zero to keep discovery off.
 
 ## Supported Networks
 

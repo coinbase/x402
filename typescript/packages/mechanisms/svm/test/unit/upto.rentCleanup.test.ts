@@ -344,7 +344,7 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     );
   });
 
-  it("respects maxReclaimsPerTx and maxTxsPerRun for reclaim batching", async () => {
+  it("respects maxReclaimsPerTx and maxTxsPerSigner for reclaim batching", async () => {
     await seed();
     await seed();
     await seed();
@@ -352,11 +352,28 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
 
     const onReclaim = vi.fn();
-    await manager.cleanup({ maxReclaimsPerTx: 2, maxTxsPerRun: 1, onReclaim });
+    await manager.cleanup({ maxReclaimsPerTx: 2, maxTxsPerSigner: 1, onReclaim });
 
     expect(onReclaim).toHaveBeenCalledTimes(1);
     expect(onReclaim.mock.calls[0]![0].channelIds).toHaveLength(2);
     expect(submitSettleMock).toHaveBeenCalledTimes(1);
+  });
+
+  // The two budgets bound different things: maxTxsPerRun stops the storage
+  // scan, maxTxsPerSigner caps each rent payer's reclaims. A scan budget of 1
+  // must not also throttle reclaims, which cost the scan nothing to classify.
+  it("budgets the scan and reclaims separately", async () => {
+    await seed();
+    await seed();
+    await seed();
+    await seed();
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Distributed }));
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_READY);
+
+    const onReclaim = vi.fn();
+    await manager.cleanup({ maxReclaimsPerTx: 1, maxTxsPerRun: 1, maxTxsPerSigner: 4, onReclaim });
+
+    expect(onReclaim).toHaveBeenCalledTimes(4);
   });
 
   it("skips reclaim when a concurrent settle already changed status (stale refetch)", async () => {
@@ -435,6 +452,25 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     expect((manager as unknown as { scanCursor: string }).scanCursor).toBe("");
   });
 
+  // storage.list() promises no order, so the manager imposes one. Without it
+  // the resume cursor would mean something different on every storage backend.
+  it("scans in channel id order regardless of what storage.list returns", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    const first = await seed({ expiresAt: nowSecs - 200 });
+    const second = await seed({ expiresAt: nowSecs - 200 });
+    const lowest = [first.channelId, second.channelId].sort()[0];
+
+    const descending = (await storage.list()).sort((a, b) => (a.channelId < b.channelId ? 1 : -1));
+    vi.spyOn(storage, "list").mockResolvedValue(descending);
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Sealed }));
+
+    const onClose = vi.fn();
+    await manager.cleanup({ maxTxsPerRun: 1, onClose });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose.mock.calls[0]![0].channelId).toBe(lowest);
+  });
+
   // An unrecognized status has no cleanup path, so the record would sit in storage
   // forever without the operator ever hearing about it.
   it("reports an unrecognized channel status", async () => {
@@ -475,6 +511,72 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     await Promise.all([manager.cleanup({}), manager.cleanup({}), manager.cleanup({})]);
 
     expect(overlapped).toBe(false);
+  });
+
+  it("stops a scan in progress at the next record when the caller aborts", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    await seed({ expiresAt: nowSecs - 200 });
+    await seed({ expiresAt: nowSecs - 200 });
+    await seed({ expiresAt: nowSecs - 200 });
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Sealed }));
+
+    const controller = new AbortController();
+    submitSettleMock.mockImplementation(async () => {
+      controller.abort();
+      return "Sig11111111111111111111111111111111111111111";
+    });
+
+    await expect(manager.cleanup({ signal: controller.signal })).rejects.toThrow(
+      expect.objectContaining({ name: "AbortError" }),
+    );
+    // The first record's settle completed; the abort is observed before the
+    // second one is classified.
+    expect(submitSettleMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop waits for the in-flight pass and does not report the abort as an error", async () => {
+    const nowSecs = Math.floor(Date.now() / 1_000);
+    await seed({ expiresAt: nowSecs - 200 });
+    await seed({ expiresAt: nowSecs - 200 });
+    fetchMaybeChannelMock.mockResolvedValue(channelAccount({ status: ChannelStatus.Sealed }));
+
+    let settleFinished = false;
+    let releaseSettle: (() => void) | undefined;
+    const settleStarted = new Promise<void>(resolve => {
+      submitSettleMock.mockImplementation(async () => {
+        resolve();
+        await new Promise<void>(release => {
+          releaseSettle = release;
+        });
+        settleFinished = true;
+        return "Sig11111111111111111111111111111111111111111";
+      });
+    });
+
+    const onError = vi.fn();
+    manager.start({ intervalSecs: 0.01, onError });
+    await settleStarted;
+
+    const stopped = manager.stop();
+    let stopResolved = false;
+    void stopped.then(() => {
+      stopResolved = true;
+    });
+
+    // stop() must not resolve while a broadcast settle is still outstanding.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(stopResolved).toBe(false);
+
+    releaseSettle?.();
+    await stopped;
+    expect(settleFinished).toBe(true);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("stop is idempotent and safe when no pass ever ran", async () => {
+    await manager.stop();
+    await manager.stop();
+    expect(submitSettleMock).not.toHaveBeenCalled();
   });
 
   it("skips channels whose feePayer is not in the signer set", async () => {
@@ -536,7 +638,6 @@ describe("UptoSvmRentCleanupManager — onchain discovery", () => {
     discoveredChannelId = (await generateKeyPairSigner()).address;
     storage = new InMemoryUptoChannelStorage();
     manager = new UptoSvmRentCleanupManager({
-      enableDiscovery: true,
       network: NETWORK,
       signer: toFacilitatorSvmSigner(feePayer),
       storage,
@@ -563,7 +664,28 @@ describe("UptoSvmRentCleanupManager — onchain discovery", () => {
     };
   }
 
-  it("reclaims an undiscovered Distributed channel found onchain", async () => {
+  it("adds an untracked Distributed channel to storage for cleanup to reclaim", async () => {
+    discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
+
+    const onDiscover = vi.fn();
+    await manager.discover({ onDiscover });
+
+    expect(discoverChannelsMock).toHaveBeenCalledWith(expect.anything(), feePayer.address);
+    expect(onDiscover).toHaveBeenCalledWith({ channelIds: [discoveredChannelId] });
+    // Only what the chain proves: the Open/Sealed metadata stays empty, which
+    // a Distributed channel never needs again.
+    expect(await storage.get(discoveredChannelId)).toMatchObject({
+      channelId: discoveredChannelId,
+      expiresAt: 0,
+      network: NETWORK,
+      payTo: "",
+      tokenProgram: "",
+    });
+    // Discovery itself never submits: reclaiming is the next cleanup's job.
+    expect(submitSettleMock).not.toHaveBeenCalled();
+  });
+
+  it("reclaims a discovered channel on the following cleanup pass", async () => {
     discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
     fetchMaybeChannelMock.mockResolvedValue({
       data: {
@@ -577,10 +699,10 @@ describe("UptoSvmRentCleanupManager — onchain discovery", () => {
       exists: true,
     });
 
+    await manager.discover();
     const onReclaim = vi.fn();
     await manager.cleanup({ onReclaim });
 
-    expect(discoverChannelsMock).toHaveBeenCalledWith(expect.anything(), feePayer.address);
     expect(onReclaim).toHaveBeenCalledWith(
       expect.objectContaining({ channelIds: [discoveredChannelId] }),
     );
@@ -589,42 +711,88 @@ describe("UptoSvmRentCleanupManager — onchain discovery", () => {
   it("ignores discovered channels that are not Distributed", async () => {
     discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Open)]);
 
-    const onReclaim = vi.fn();
-    const onClose = vi.fn();
-    await manager.cleanup({ onClose, onReclaim });
+    const onDiscover = vi.fn();
+    await manager.discover({ onDiscover });
 
-    expect(onReclaim).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-    expect(submitSettleMock).not.toHaveBeenCalled();
+    expect(onDiscover).not.toHaveBeenCalled();
+    expect(await storage.list()).toHaveLength(0);
   });
 
-  it("does not duplicate a channel already tracked in storage", async () => {
-    await storage.upsert({
+  it("ignores discovered channels still inside the open-slot window", async () => {
+    discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
+    getSlotMock.mockResolvedValue(CURRENT_SLOT_TOO_EARLY);
+
+    await manager.discover();
+
+    expect(await storage.list()).toHaveLength(0);
+  });
+
+  // Discovery only knows what the chain proves, so overwriting a settle-time
+  // record with a partial one would lose the payTo an abandon-close needs.
+  it("never overwrites a channel already tracked in storage", async () => {
+    const tracked: UptoChannelRecord = {
       channelId: discoveredChannelId,
       expiresAt: FAR_FUTURE,
       firstSeenAt: Date.now(),
       network: NETWORK,
       payTo: payer.address,
       tokenProgram: TOKEN_PROGRAM_ADDRESS,
-    } as UptoChannelRecord);
-    fetchMaybeChannelMock.mockResolvedValue({
-      data: {
-        mint: USDC_DEVNET_ADDRESS,
-        openSlot: OPEN_SLOT,
-        payee: feePayer.address,
-        payer: payer.address,
-        rentPayer: feePayer.address,
-        status: ChannelStatus.Distributed,
-      },
-      exists: true,
-    });
+    };
+    await storage.upsert(tracked);
     discoverChannelsMock.mockResolvedValue([discovered(ChannelStatus.Distributed)]);
 
-    const onReclaim = vi.fn();
-    await manager.cleanup({ onReclaim });
+    const onDiscover = vi.fn();
+    await manager.discover({ onDiscover });
 
-    expect(onReclaim).toHaveBeenCalledTimes(1);
-    expect(onReclaim.mock.calls[0]![0].channelIds).toEqual([discoveredChannelId]);
+    expect(onDiscover).not.toHaveBeenCalled();
+    expect(await storage.get(discoveredChannelId)).toMatchObject({
+      payTo: payer.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
+  });
+
+  it("reports a sweep failure for one signer and continues", async () => {
+    const other = await generateKeyPairSigner();
+    manager = new UptoSvmRentCleanupManager({
+      network: NETWORK,
+      signer: multiKeySigner([feePayer, other]),
+      storage,
+    });
+    discoverChannelsMock
+      .mockRejectedValueOnce(new Error("getProgramAccounts failed"))
+      .mockResolvedValueOnce([discovered(ChannelStatus.Distributed)]);
+
+    const onError = vi.fn();
+    const onDiscover = vi.fn();
+    await manager.discover({ onDiscover, onError });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "getProgramAccounts failed" }),
+    );
+    expect(onDiscover).toHaveBeenCalledWith({ channelIds: [discoveredChannelId] });
+  });
+
+  it("runs discovery on its own interval, not the cleanup interval", async () => {
+    discoverChannelsMock.mockResolvedValue([]);
+    fetchMaybeChannelMock.mockResolvedValue({ exists: false });
+
+    manager.start({ intervalSecs: 0.01, discoveryIntervalSecs: 10 });
+    await new Promise(resolve => setTimeout(resolve, 60));
+    await manager.stop();
+
+    // Several cleanup ticks elapsed; the daily sweep is not due yet.
+    expect(discoverChannelsMock).not.toHaveBeenCalled();
+  });
+
+  it("does not sweep at all when no discovery interval is configured", async () => {
+    discoverChannelsMock.mockResolvedValue([]);
+    fetchMaybeChannelMock.mockResolvedValue({ exists: false });
+
+    manager.start({ intervalSecs: 0.01 });
+    await new Promise(resolve => setTimeout(resolve, 60));
+    await manager.stop();
+
+    expect(discoverChannelsMock).not.toHaveBeenCalled();
   });
 });
 
@@ -756,7 +924,7 @@ describe("UptoSvmRentCleanupManager — concurrent signer groups", () => {
     submitSettleMock.mockResolvedValue("Sig11111111111111111111111111111111111111111");
 
     const onReclaim = vi.fn();
-    await manager.cleanup({ maxReclaimsPerTx: 1, maxTxsPerRun: 2, onReclaim });
+    await manager.cleanup({ maxReclaimsPerTx: 1, maxTxsPerSigner: 2, onReclaim });
 
     // Each of the two rent-payer groups gets its own budget of 2, not a
     // shared pool of 2 total.

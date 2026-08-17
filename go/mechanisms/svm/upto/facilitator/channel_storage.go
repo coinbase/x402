@@ -31,6 +31,8 @@ type ChannelRecord struct {
 // multi-process facilitators.
 type ChannelStorage interface {
 	Get(ctx context.Context, channelID string) (*ChannelRecord, error)
+	// List returns every stored record, in any order. The rent cleanup manager
+	// sorts by channel ID before scanning, so implementations do not have to.
 	List(ctx context.Context) ([]ChannelRecord, error)
 	Upsert(ctx context.Context, record ChannelRecord) error
 	Delete(ctx context.Context, channelID string) error

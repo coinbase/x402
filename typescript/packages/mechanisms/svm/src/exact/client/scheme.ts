@@ -44,10 +44,7 @@ export class ExactSvmScheme implements SchemeNetworkClient {
    * Creates a new ExactSvmClient instance.
    *
    * @param signer - The SVM signer for client operations
-   * @param config - Optional configuration: custom RPC URL and ComputeBudget
-   *   overrides. Unlike `upto`'s channel open, the transfer's ComputeBudget
-   *   prefix is always present, so `0` is a literal price/limit rather than
-   *   an instruction to omit.
+   * @param config - Optional configuration with custom RPC URL
    * @returns ExactSvmClient instance
    */
   constructor(
@@ -136,17 +133,13 @@ export class ExactSvmScheme implements SchemeNetworkClient {
       data: memoData,
     };
 
-    const computeUnitLimit = this.config?.computeUnitLimit ?? DEFAULT_COMPUTE_UNIT_LIMIT;
-    const computeUnitPriceMicroLamports =
-      this.config?.computeUnitPriceMicroLamports ?? DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS;
-
     const tx = pipe(
       createTransactionMessage({ version: 0 }),
-      tx => setTransactionMessageComputeUnitPrice(computeUnitPriceMicroLamports, tx),
+      tx => setTransactionMessageComputeUnitPrice(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS, tx),
       tx => setTransactionMessageFeePayer(feePayer, tx),
       tx =>
         prependTransactionMessageInstruction(
-          getSetComputeUnitLimitInstruction({ units: computeUnitLimit }),
+          getSetComputeUnitLimitInstruction({ units: DEFAULT_COMPUTE_UNIT_LIMIT }),
           tx,
         ),
       tx => appendTransactionMessageInstructions([transferIx, memoIx], tx),

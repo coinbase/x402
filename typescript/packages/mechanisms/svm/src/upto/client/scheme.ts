@@ -33,9 +33,7 @@ export class UptoSvmScheme implements SchemeNetworkClient {
    * Creates a new upto SVM client.
    *
    * @param signer - The payer's SVM signer
-   * @param config - Optional configuration: custom RPC URL and ComputeBudget
-   *   overrides for the open transaction (see `ClientSvmConfig`; `0` omits
-   *   the corresponding instruction here, letting a wallet inject its own)
+   * @param config - Optional configuration, such as a custom RPC URL
    */
   constructor(
     private readonly signer: ClientSvmSigner,
@@ -82,8 +80,6 @@ export class UptoSvmScheme implements SchemeNetworkClient {
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
       },
-      computeUnitLimit: this.config?.computeUnitLimit,
-      computeUnitPriceMicroLamports: this.config?.computeUnitPriceMicroLamports,
       deposit: maxAmount,
       feePayer: channelConfig.feePayer,
       gracePeriod: channelConfig.withdrawDelay,

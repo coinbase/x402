@@ -73,16 +73,18 @@ export function resolveTokenProgram(requirements: PaymentRequirements): string {
 /**
  * Read the optional seller memo (`extra.memo`).
  *
- * A string value is a requirement even when empty, so the client emits the memo
- * the facilitator will demand instead of a random nonce. Any other type is
- * treated as absent rather than coerced, matching the Go SDK.
+ * A non-empty string is a requirement: the client emits exactly that memo and
+ * the facilitator demands a match. Missing, empty, or non-string is unset, so
+ * the client falls back to a random nonce and the facilitator does not check
+ * it. Both roles resolve through here, which keeps them from disagreeing on
+ * whether a memo was requested. Matches the Go SDK's `ParseExtraMemo`.
  *
  * @param extra - The `extra` map from the payment requirements
- * @returns The memo when present, otherwise undefined
+ * @returns The requested memo, or undefined when the seller set none
  */
 export function resolveUptoSvmMemo(extra: PaymentRequirements["extra"]): string | undefined {
   const memo = extra?.memo;
-  return typeof memo === "string" ? memo : undefined;
+  return typeof memo === "string" && memo !== "" ? memo : undefined;
 }
 
 /** Resolved payment-channel fields derived from SVM `upto` requirements. */
