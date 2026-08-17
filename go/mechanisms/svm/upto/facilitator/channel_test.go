@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -256,4 +257,47 @@ func TestBuildSettleAndDistributeCarriesTheVoucherPrecompile(t *testing.T) {
 
 		require.ErrorContains(t, err, "not valid base58")
 	})
+}
+
+// The composite settlement simulation must not duplicate the client's
+// SetComputeUnitLimit (the settle/distribute instructions appended after it
+// need headroom the client's own budget cannot see), but the client's
+// priority fee is meaningful to transaction landing and must survive.
+func TestSettleSimulationReplacesTheClientComputeUnitLimitButKeepsItsPriorityFee(t *testing.T) {
+	signer := newMockSigner(t, 1)
+	stub := newStubRPC(t)
+	fixture := newPaymentFixture(t, signer)
+	scheme := newScheme(signer, stub, nil)
+	signer.onSend = func(*solana.Transaction) {
+		stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
+	}
+
+	_, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
+	require.NoError(t, err)
+
+	simulated := stub.lastSimulatedTransaction()
+	require.NotNil(t, simulated, "settle must simulate the composite open+settle+distribute transaction")
+
+	var limitCount, priceCount int
+	var simulatedLimitUnits uint32
+	for _, compiled := range simulated.Message.Instructions {
+		program, err := simulated.Message.Program(compiled.ProgramIDIndex)
+		require.NoError(t, err)
+		if !program.Equals(solana.ComputeBudget) || len(compiled.Data) == 0 {
+			continue
+		}
+		switch compiled.Data[0] {
+		case paymentchannels.ComputeBudgetSetUnitLimit:
+			limitCount++
+			simulatedLimitUnits = binary.LittleEndian.Uint32(compiled.Data[1:5])
+		case paymentchannels.ComputeBudgetSetUnitPrice:
+			priceCount++
+		}
+	}
+
+	assert.Equal(t, 1, limitCount,
+		"the client's compute-unit limit must be replaced, not duplicated alongside the facilitator's")
+	assert.Equal(t, uint32(simComputeUnitLimit), simulatedLimitUnits,
+		"simulation must raise the limit to the per-transaction max, not keep the client's own budget")
+	assert.Equal(t, 1, priceCount, "the client's priority fee must survive into the simulated transaction")
 }

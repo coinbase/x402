@@ -2223,6 +2223,17 @@ describe("upto SVM scheme", () => {
       expect(result.invalidReason).toBe("invalid_upto_svm_payload_amount_mismatch");
     });
 
+    // A non-numeric requirements.amount must be reported as a structured
+    // verify failure, not thrown as an uncaught BigInt SyntaxError.
+    it("rejects a non-numeric requirements.amount instead of throwing", async () => {
+      const result = await facilitator.verify(
+        wrap(basePayload, requirements()),
+        requirements({ amount: "not-a-number" }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payload_amount");
+    });
+
     it("rejects a deposit below the ceiling (must equal exactly)", async () => {
       const payload = { ...basePayload, deposit: "500000" };
       const result = await facilitator.verify(wrap(payload, requirements()), requirements());

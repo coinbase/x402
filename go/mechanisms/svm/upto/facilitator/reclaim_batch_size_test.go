@@ -55,7 +55,7 @@ func TestReclaimBatchFitsInOneTransaction(t *testing.T) {
 	t.Parallel()
 
 	sizes := map[int]int{}
-	for _, n := range []int{1, DefaultMaxReclaimsPerTx, 16} {
+	for _, n := range []int{1, DefaultMaxReclaimsPerTx, MaxSafeReclaimsPerTx} {
 		tx := buildReclaimBatchTransaction(t, n)
 		encoded, err := tx.MarshalBinary()
 		require.NoError(t, err)
@@ -67,9 +67,21 @@ func TestReclaimBatchFitsInOneTransaction(t *testing.T) {
 
 	// Bytes added per extra reclaim instruction (one channel PDA plus its
 	// instruction overhead); used below to derive the largest safe batch size.
-	perReclaimBytes := (sizes[16] - sizes[1]) / 15
+	perReclaimBytes := (sizes[MaxSafeReclaimsPerTx] - sizes[1]) / (MaxSafeReclaimsPerTx - 1)
 	require.Positive(t, perReclaimBytes)
 	maxSafeReclaims := 1 + (solanaPacketDataSize-sizes[1])/perReclaimBytes
-	require.GreaterOrEqualf(t, maxSafeReclaims, 16,
-		"largest safe batch is %d reclaims, below the production target of 16", maxSafeReclaims)
+	require.GreaterOrEqualf(t, maxSafeReclaims, MaxSafeReclaimsPerTx,
+		"largest safe batch is %d reclaims, below MaxSafeReclaimsPerTx (%d)", maxSafeReclaims, MaxSafeReclaimsPerTx)
+}
+
+// TestCleanupOptionsClampsMaxReclaimsPerTxToTheSafeCeiling proves an operator
+// cannot configure a reclaim batch size that TestReclaimBatchFitsInOneTransaction
+// has not already proven safe: withDefaults silently clamps any value above
+// MaxSafeReclaimsPerTx instead of building transactions that fail to
+// serialize or get rejected on broadcast.
+func TestCleanupOptionsClampsMaxReclaimsPerTxToTheSafeCeiling(t *testing.T) {
+	t.Parallel()
+
+	opts := CleanupOptions{MaxReclaimsPerTx: MaxSafeReclaimsPerTx + 100}.withDefaults()
+	require.Equal(t, MaxSafeReclaimsPerTx, opts.MaxReclaimsPerTx)
 }

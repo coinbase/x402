@@ -7,7 +7,6 @@ const channelMocks = vi.hoisted(() => ({
   channelExists: vi.fn(),
   fetchAndVerifyOpenChannel: vi.fn(),
   simulateOpenSettleDistribute: vi.fn(),
-  simulateZeroChargeSettle: vi.fn(),
   submitSettle: vi.fn(),
 }));
 
@@ -21,7 +20,6 @@ vi.mock("../../src/upto/facilitator/channel", async () => {
     channelExists: channelMocks.channelExists,
     fetchAndVerifyOpenChannel: channelMocks.fetchAndVerifyOpenChannel,
     simulateOpenSettleDistribute: channelMocks.simulateOpenSettleDistribute,
-    simulateZeroChargeSettle: channelMocks.simulateZeroChargeSettle,
     submitSettle: channelMocks.submitSettle,
   };
 });
@@ -47,9 +45,11 @@ import {
   ERR_CHANNEL_BROADCAST,
   ERR_EXPIRES_AT_MISMATCH,
   ERR_CHANNEL_LIFETIME_EXCEEDED,
+  ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
   ERR_UNEXPECTED_VOUCHER,
   UptoSvmScheme,
 } from "../../src/upto/facilitator/scheme";
+import { SettlementConfirmationTimeoutError } from "../../src/upto/facilitator/channel";
 import type { UptoChannelStorage } from "../../src/upto/facilitator/channelStorage";
 import { UptoSvmRentCleanupManager } from "../../src/upto/facilitator/rentCleanupManager";
 import type { UptoSvmPayloadV2 } from "../../src/types";
@@ -68,7 +68,6 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     vi.clearAllMocks();
     channelMocks.channelExists.mockResolvedValue(false);
     channelMocks.simulateOpenSettleDistribute.mockResolvedValue(undefined);
-    channelMocks.simulateZeroChargeSettle.mockResolvedValue(undefined);
     channelMocks.broadcastOpen.mockResolvedValue(USDC_MAINNET_ADDRESS);
     channelMocks.submitSettle.mockResolvedValue(USDC_MAINNET_ADDRESS);
   });
@@ -158,7 +157,6 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
 
     expect(channelMocks.fetchAndVerifyOpenChannel).toHaveBeenCalledTimes(1);
     expect(channelMocks.broadcastOpen).not.toHaveBeenCalled();
-    expect(channelMocks.simulateZeroChargeSettle).not.toHaveBeenCalled();
     expect(channelMocks.submitSettle).toHaveBeenCalledTimes(1);
   });
 
@@ -219,7 +217,6 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     expect(channelMocks.channelExists).not.toHaveBeenCalled();
     expect(channelMocks.fetchAndVerifyOpenChannel).not.toHaveBeenCalled();
     expect(channelMocks.simulateOpenSettleDistribute).not.toHaveBeenCalled();
-    expect(channelMocks.simulateZeroChargeSettle).not.toHaveBeenCalled();
   });
 
   it("rejects maxTimeoutSeconds above maxChannelLifetimeSecs", async () => {
@@ -287,7 +284,6 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     });
     expect(channelMocks.broadcastOpen).not.toHaveBeenCalled();
     expect(channelMocks.simulateOpenSettleDistribute).not.toHaveBeenCalled();
-    expect(channelMocks.simulateZeroChargeSettle).not.toHaveBeenCalled();
     expect(channelMocks.fetchAndVerifyOpenChannel).not.toHaveBeenCalled();
   });
 
@@ -394,7 +390,6 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
         }),
       }),
     );
-    expect(channelMocks.simulateZeroChargeSettle).not.toHaveBeenCalled();
   });
 
   it("does not broadcast open when composite settlement simulation fails on deposit", async () => {
@@ -828,6 +823,65 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
         errorReason: "transaction_failed",
         transaction: "",
       });
+    });
+
+    // A confirmation timeout means the transaction's fate is unknown, not
+    // failed — it must be reported distinctly from a definite broadcast
+    // failure so an operator does not treat a possibly-landed settlement as
+    // safe to blindly retry.
+    it("returns settlement_confirmation_timeout when confirmation times out", async () => {
+      const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
+        await buildFixture();
+      channelMocks.submitSettle.mockRejectedValue(
+        new SettlementConfirmationTimeoutError(
+          "Sig11111111111111111111111111111111111111111" as never,
+        ),
+      );
+      const voucherSignature = await signVoucher(receiverAuthorizer, {
+        channelId: uptoPayload.channelId,
+        cumulativeAmount: 0n,
+        expiresAt: BigInt(uptoPayload.expiresAt),
+      });
+      await expect(
+        facilitator.settle(
+          { ...payload, payload: { ...uptoPayload, voucherSignature } },
+          { ...requirements, amount: "0" },
+        ),
+      ).resolves.toMatchObject({
+        success: false,
+        errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
+        transaction: "",
+      });
+    });
+
+    // The claim cache must survive a confirmation timeout: the first
+    // transaction may still land, so a retry must not be allowed to race a
+    // second settle_and_seal against it while the outcome is unresolved.
+    it("keeps the claim cache entry after a confirmation timeout, blocking a retry", async () => {
+      const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
+        await buildFixture();
+      channelMocks.submitSettle.mockRejectedValue(
+        new SettlementConfirmationTimeoutError(
+          "Sig11111111111111111111111111111111111111111" as never,
+        ),
+      );
+      const voucherSignature = await signVoucher(receiverAuthorizer, {
+        channelId: uptoPayload.channelId,
+        cumulativeAmount: 0n,
+        expiresAt: BigInt(uptoPayload.expiresAt),
+      });
+      const claimPayload = { ...payload, payload: { ...uptoPayload, voucherSignature } };
+      const claimRequirements = { ...requirements, amount: "0" };
+
+      await expect(facilitator.settle(claimPayload, claimRequirements)).resolves.toMatchObject({
+        success: false,
+        errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
+      });
+      await expect(facilitator.settle(claimPayload, claimRequirements)).resolves.toMatchObject({
+        success: false,
+        errorReason: "duplicate_settlement",
+      });
+      expect(channelMocks.submitSettle).toHaveBeenCalledTimes(1);
     });
 
     it("releases the claim cache when submitSettle fails so a retry can proceed", async () => {

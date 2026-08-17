@@ -29,7 +29,7 @@ import {
 import { OPEN_SLOT_WINDOW } from "../../payment-channels/open";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { createRpcClient } from "../../utils";
-import { SLOT_COMMITMENT, STATE_COMMITMENT } from "../shared";
+import { BASIS_POINTS_DENOMINATOR, SLOT_COMMITMENT, STATE_COMMITMENT } from "../shared";
 import type { ChannelRpc, UptoSvmSigner } from "./channel";
 import { reclaimComputeUnitLimit, submitSettle } from "./channel";
 import type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";
@@ -114,11 +114,43 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
+/**
+ * Resolve an operator-supplied numeric cleanup option. Non-positive, `NaN`,
+ * or non-finite values fall back to `defaultValue`, matching the Go SDK's
+ * `CleanupOptions.withDefaults`; a misconfigured `maxReclaimsPerTx` of `0`
+ * would otherwise spin the batching loop forever instead of budgeting a
+ * sane batch. The result is capped at `max` when given.
+ *
+ * @param value - Operator-supplied value, if any
+ * @param defaultValue - Value used when `value` is absent or invalid
+ * @param max - Optional upper bound the resolved value is clamped to
+ * @returns The resolved, positive option value
+ */
+function resolveCleanupCount(
+  value: number | undefined,
+  defaultValue: number,
+  max?: number,
+): number {
+  const resolved =
+    value !== undefined && Number.isFinite(value) && value > 0 ? value : defaultValue;
+  return max !== undefined ? Math.min(resolved, max) : resolved;
+}
+
 /** Default grace after voucher expiry before abandon-closing an Open channel. */
 export const DEFAULT_ABANDON_GRACE_SECS = 120;
 
 /** Default reclaim instructions per cleanup transaction. */
 export const DEFAULT_MAX_RECLAIMS_PER_TX = 8;
+
+/**
+ * Largest reclaim batch proven, by the Go SDK's
+ * `TestReclaimBatchFitsInOneTransaction`, to serialize under Solana's
+ * `PACKET_DATA_SIZE` (1232 bytes) with every channel PDA distinct and one
+ * shared fee payer. `maxReclaimsPerTx` is clamped to this so a misconfigured
+ * operator value can never build a reclaim transaction that fails to
+ * serialize or gets rejected on broadcast.
+ */
+export const MAX_SAFE_RECLAIMS_PER_TX = 16;
 
 /** Default close/distribute transactions the storage scan may submit per call. */
 export const DEFAULT_MAX_TXS_PER_RUN = 20;
@@ -397,11 +429,15 @@ export class UptoSvmRentCleanupManager {
    * @param opts - Work caps and callbacks
    */
   private async runPass(opts: RentCleanupOptions): Promise<void> {
-    const abandonGraceSecs = opts.abandonGraceSecs ?? DEFAULT_ABANDON_GRACE_SECS;
-    const maxReclaimsPerTx = opts.maxReclaimsPerTx ?? DEFAULT_MAX_RECLAIMS_PER_TX;
-    const maxTxsPerRun = opts.maxTxsPerRun ?? DEFAULT_MAX_TXS_PER_RUN;
-    const maxTxsPerSigner = opts.maxTxsPerSigner ?? DEFAULT_MAX_TXS_PER_SIGNER;
-    const maxClosesPerRun = opts.maxClosesPerRun ?? DEFAULT_MAX_CLOSES_PER_RUN;
+    const abandonGraceSecs = resolveCleanupCount(opts.abandonGraceSecs, DEFAULT_ABANDON_GRACE_SECS);
+    const maxReclaimsPerTx = resolveCleanupCount(
+      opts.maxReclaimsPerTx,
+      DEFAULT_MAX_RECLAIMS_PER_TX,
+      MAX_SAFE_RECLAIMS_PER_TX,
+    );
+    const maxTxsPerRun = resolveCleanupCount(opts.maxTxsPerRun, DEFAULT_MAX_TXS_PER_RUN);
+    const maxTxsPerSigner = resolveCleanupCount(opts.maxTxsPerSigner, DEFAULT_MAX_TXS_PER_SIGNER);
+    const maxClosesPerRun = resolveCleanupCount(opts.maxClosesPerRun, DEFAULT_MAX_CLOSES_PER_RUN);
     const abort = passAbort(this.abortController?.signal, opts.signal);
 
     const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
@@ -624,7 +660,7 @@ export class UptoSvmRentCleanupManager {
     live: Channel,
     status: ChannelStatus,
   ): Promise<Signature> {
-    const splits = [{ bps: 10_000, recipient: record.payTo }];
+    const splits = [{ bps: BASIS_POINTS_DENOMINATOR, recipient: record.payTo }];
     const distribute = await buildDistributeInstruction({
       channelId: record.channelId,
       mint: live.mint,

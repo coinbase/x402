@@ -107,10 +107,17 @@ func NewRPCClient(network, rpcURL string) (*rpc.Client, error) {
 // ParseTokenProgramHint reads and validates `extra.tokenProgram`. The second
 // return value reports whether the challenge carried a hint at all, letting
 // callers pick their own fallback.
+//
+// A present-but-non-string value is a broken challenge and errors, rather
+// than being silently treated as absent and masking the malformed input.
 func ParseTokenProgramHint(extra map[string]interface{}) (solana.PublicKey, bool, error) {
-	hint, ok := extra[ExtraTokenProgram].(string)
-	if !ok || hint == "" {
+	raw, present := extra[ExtraTokenProgram]
+	if !present || raw == nil || raw == "" {
 		return solana.PublicKey{}, false, nil
+	}
+	hint, ok := raw.(string)
+	if !ok {
+		return solana.PublicKey{}, true, fmt.Errorf("tokenProgram %v is not a valid base58 address", raw)
 	}
 
 	tokenProgram, err := solana.PublicKeyFromBase58(hint)

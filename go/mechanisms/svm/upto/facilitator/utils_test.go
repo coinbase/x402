@@ -154,6 +154,10 @@ type stubRPC struct {
 	simulationErr interface{}
 	// simulateCalls counts simulateTransaction requests.
 	simulateCalls int
+	// lastSimulatedTx is the most recently simulated transaction, decoded so
+	// tests can assert on its instruction shape (e.g. ComputeBudget
+	// deduplication) rather than only on success or failure.
+	lastSimulatedTx *solana.Transaction
 	// commitments records the commitment sent with each RPC method.
 	commitments map[string][]string
 	// simulateEntered is closed the first time a simulation starts, and
@@ -296,6 +300,13 @@ func (s *stubRPC) handle(method string, params []interface{}) (interface{}, erro
 
 	case "simulateTransaction":
 		s.simulateCalls++
+		if raw, ok := params[0].(string); ok {
+			if txData, err := base64.StdEncoding.DecodeString(raw); err == nil {
+				if tx, err := solana.TransactionFromBytes(txData); err == nil {
+					s.lastSimulatedTx = tx
+				}
+			}
+		}
 		if s.simulateGate != nil {
 			gate, entered := s.simulateGate, s.simulateEntered
 			s.simulateGate, s.simulateEntered = nil, nil
@@ -390,6 +401,13 @@ func (s *stubRPC) simulations() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.simulateCalls
+}
+
+// lastSimulatedTransaction returns the most recently simulated transaction.
+func (s *stubRPC) lastSimulatedTransaction() *solana.Transaction {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastSimulatedTx
 }
 
 // commitmentsFor returns the commitments sent with every call to an RPC method.

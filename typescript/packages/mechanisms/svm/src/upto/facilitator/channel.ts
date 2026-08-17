@@ -355,37 +355,6 @@ export async function simulateOpenSettleDistribute(
   await simulateInstructions(feePayer, rpc, instructions);
 }
 
-/**
- * Simulate the zero-charge settlement path (`settle_and_seal` with
- * `has_voucher = 0` + `distribute`) for an already-open channel so bad
- * ATA/account derivations fail before resource execution.
- *
- * @param feePayer - The fee-payer / channel payee signer
- * @param rpc - The RPC client
- * @param channel - Verified open-channel facts
- */
-export async function simulateZeroChargeSettle(
-  feePayer: UptoSvmSigner,
-  rpc: ChannelRpc,
-  channel: SettlementSimChannel,
-): Promise<void> {
-  const settle = buildSettleAndSealInstructions({
-    channelId: channel.channelId,
-    payeeSigner: feePayer,
-  });
-  const distribute = await buildDistributeInstruction({
-    channelId: channel.channelId,
-    mint: channel.mint,
-    network: channel.network,
-    payee: channel.payee,
-    payer: channel.payer,
-    rentPayer: channel.rentPayer,
-    splits: channel.splits,
-    tokenProgram: channel.tokenProgram,
-  });
-  await simulateInstructions(feePayer, rpc, [...settle, distribute]);
-}
-
 /** Options for {@link submitSettle}. */
 export interface SubmitSettleOptions {
   /**
@@ -459,12 +428,32 @@ export async function submitSettle(
 }
 
 /**
+ * Thrown by {@link confirmSignature} when the polling budget elapses before
+ * the transaction reaches `confirmed`. Distinct from an onchain rejection:
+ * the transaction's fate is unknown, not failed — it may still land. Callers
+ * must not treat this the same as a definite failure (e.g. must not assume
+ * it is safe to retry the same settlement).
+ */
+export class SettlementConfirmationTimeoutError extends Error {
+  /**
+   * Create the error for a signature whose confirmation timed out.
+   *
+   * @param signature - The transaction signature whose confirmation timed out
+   */
+  constructor(readonly signature: Signature) {
+    super(`timed out waiting for tx ${signature} confirmation`);
+    this.name = "SettlementConfirmationTimeoutError";
+  }
+}
+
+/**
  * Poll `getSignatureStatuses` until the signature reaches at least 'confirmed'.
  *
  * @param rpc - The RPC client
  * @param signature - The transaction signature
  * @param timeoutMs - Total time budget (default 30s)
- * @throws If the transaction failed onchain or the timeout elapses
+ * @throws {SettlementConfirmationTimeoutError} If the timeout elapses with the outcome still unknown
+ * @throws If the transaction failed onchain
  */
 export async function confirmSignature(
   rpc: ChannelRpc,
@@ -488,7 +477,7 @@ export async function confirmSignature(
       }
     }
     if (Date.now() >= deadline) {
-      throw new Error(`timed out waiting for tx ${signature} confirmation`);
+      throw new SettlementConfirmationTimeoutError(signature);
     }
     await new Promise(resolve => setTimeout(resolve, 1_000));
   }

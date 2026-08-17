@@ -4,7 +4,8 @@ import { TOKEN_2022_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS } from "../constants"
 import type { ChannelSplit } from "../payment-channels/open";
 import { getStablecoinTokenProgram, validateSvmAddress } from "../utils";
 
-const BASIS_POINTS_DENOMINATOR = 10_000;
+/** Denominator a `ChannelSplit.bps` is measured against; 10_000 = 100%. */
+export const BASIS_POINTS_DENOMINATOR = 10_000;
 
 /**
  * Commitment for reading account state the caller must act on. Opens are

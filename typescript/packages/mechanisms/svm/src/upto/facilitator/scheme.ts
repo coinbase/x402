@@ -30,6 +30,7 @@ import {
   broadcastOpen,
   channelExists,
   fetchAndVerifyOpenChannel,
+  SettlementConfirmationTimeoutError,
   simulateOpenSettleDistribute,
   submitSettle,
   type ChannelRpc,
@@ -63,6 +64,15 @@ export const ERR_CHANNEL_LIFETIME_EXCEEDED = "invalid_upto_svm_payload_channel_l
 
 /** Payload `expiresAt` later than `now + maxTimeoutSeconds` (+ skew). */
 export const ERR_EXPIRES_AT_MISMATCH = "invalid_upto_svm_payload_expires_at_mismatch";
+
+/**
+ * A claim's settle_and_seal + distribute transaction broadcast but did not
+ * reach `confirmed` within the polling budget. Unlike `transaction_failed`,
+ * the outcome is unknown, not a rejection — the transaction may still land.
+ * The settlement dedup entry is kept (not deleted) so a caller retrying the
+ * same claim cannot race a second settle_and_seal against the first.
+ */
+export const ERR_SETTLEMENT_CONFIRMATION_TIMEOUT = "settlement_confirmation_timeout";
 
 /** Default facilitator `maxChannelLifetimeSecs` (1 hour). */
 export const DEFAULT_MAX_CHANNEL_LIFETIME_SECS = 3_600;
@@ -685,6 +695,20 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         payer: channel.payer,
       };
     } catch (error) {
+      // A confirmation timeout leaves the transaction's fate unknown, not
+      // failed: it may still land. The dedup entry is kept, not deleted, so
+      // a caller retrying this claim cannot race a second settle_and_seal
+      // against the first while the outcome is still unresolved.
+      if (error instanceof SettlementConfirmationTimeoutError) {
+        return {
+          success: false,
+          network: payload.accepted.network,
+          transaction: "",
+          errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
+          errorMessage: error.message,
+          payer: p.from,
+        };
+      }
       this.settlementCache.delete(settlementKey);
       return {
         success: false,
@@ -764,16 +788,18 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
 
     let maxAmount: bigint;
     let deposit: bigint;
+    let requiredAmount: bigint;
     try {
       maxAmount = BigInt(p.maxAmount);
       deposit = BigInt(p.deposit);
+      requiredAmount = BigInt(requirements.amount);
     } catch {
       return {
         ok: false,
         failure: { reason: "invalid_upto_svm_payload_amount", payer: p.from },
       };
     }
-    if (maxAmount !== BigInt(requirements.amount)) {
+    if (maxAmount !== requiredAmount) {
       return {
         ok: false,
         failure: { reason: "invalid_upto_svm_payload_amount_mismatch", payer: p.from },

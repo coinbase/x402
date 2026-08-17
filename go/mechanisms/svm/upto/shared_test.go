@@ -167,6 +167,11 @@ func TestResolveTokenProgram(t *testing.T) {
 			hint:      solana.SystemProgramID.String(),
 			wantError: "is not a supported SPL token program",
 		},
+		{
+			name:      "non-string hint is a broken challenge, not an absent one",
+			hint:      float64(12345),
+			wantError: "not a valid base58 address",
+		},
 	}
 
 	for _, test := range tests {

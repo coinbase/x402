@@ -10,9 +10,6 @@ import (
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
 )
 
-// computeBudgetProgramID is allowed only in the optional prefix of an open.
-var computeBudgetProgramID = solana.MustPublicKeyFromBase58("ComputeBudget111111111111111111111111111111")
-
 // lighthouseProgramID is the Phantom/Solflare assertion program allowed in the
 // optional suffix of an open.
 var lighthouseProgramID = solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
@@ -428,7 +425,7 @@ func findCanonicalOpenInstruction(
 		if err != nil {
 			return empty, err
 		}
-		if !program.Equals(computeBudgetProgramID) {
+		if !program.Equals(solana.ComputeBudget) {
 			break
 		}
 		if err := rejectFeePayerOutsideOpen(message, ix, expected.FeePayer, "ComputeBudget"); err != nil {

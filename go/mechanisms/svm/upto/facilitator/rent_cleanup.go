@@ -26,6 +26,13 @@ const (
 	// one cleanup transaction.
 	DefaultMaxReclaimsPerTx = 8
 
+	// MaxSafeReclaimsPerTx is the largest reclaim batch proven, by
+	// TestReclaimBatchFitsInOneTransaction, to serialize under Solana's
+	// PACKET_DATA_SIZE (1232 bytes). MaxReclaimsPerTx is clamped to this so a
+	// misconfigured operator value can never build a reclaim transaction that
+	// fails to serialize or gets rejected on broadcast.
+	MaxSafeReclaimsPerTx = 16
+
 	// DefaultMaxTxsPerRun caps the close/distribute transactions the storage
 	// scan submits per run.
 	DefaultMaxTxsPerRun = 20
@@ -89,6 +96,8 @@ func (o CleanupOptions) withDefaults() CleanupOptions {
 	}
 	if o.MaxReclaimsPerTx <= 0 {
 		o.MaxReclaimsPerTx = DefaultMaxReclaimsPerTx
+	} else if o.MaxReclaimsPerTx > MaxSafeReclaimsPerTx {
+		o.MaxReclaimsPerTx = MaxSafeReclaimsPerTx
 	}
 	if o.MaxTxsPerRun <= 0 {
 		o.MaxTxsPerRun = DefaultMaxTxsPerRun
