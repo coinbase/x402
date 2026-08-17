@@ -392,6 +392,15 @@ class NetworkConfig(_NetworkConfigRequired, total=False):
 
 # Network configurations
 NETWORK_CONFIGS: dict[str, NetworkConfig] = {
+    "eip155:4663": NetworkConfig(
+        chain_id=4663,
+        default_asset=AssetInfo(
+            address="0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+            name="Global Dollar",
+            version="1",
+            decimals=6,
+        ),
+    ),
     # Base Mainnet
     "eip155:8453": {
         "chain_id": 8453,
