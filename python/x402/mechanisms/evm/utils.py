@@ -161,6 +161,42 @@ def normalize_address(address: str) -> str:
     return to_checksum_address("0x" + addr)
 
 
+def is_valid_tx_hash(tx_hash: object) -> bool:
+    """Check a signer-supplied hash is usable for a receipt wait: 0x + 64 hex, non-zero.
+
+    The all-zero hash reconciles to nothing, so a signer reporting success with a
+    placeholder fails terminally instead of as settlement_pending.
+    """
+    if not isinstance(tx_hash, str):
+        return False
+    if re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is None:
+        return False
+    return int(tx_hash, 16) != 0
+
+
+def final_hash_from_two_request_send(tx_hashes: list[str]) -> str | None:
+    """Last hash from a two-request extension-signer broadcast (e.g. approve + settle).
+
+    Conforming signers return one hash (atomic bundle) or two (sequential);
+    any other count means a partial execution.
+    """
+    if len(tx_hashes) not in (1, 2):
+        return None
+    return tx_hashes[-1]
+
+
+# Matches the truncation length used by the Go and TypeScript SDKs.
+MAX_ERROR_MESSAGE_LENGTH = 500
+
+
+def truncate_error_message(msg: str) -> str:
+    """Bound raw error text (e.g. from an RPC client) before it is placed in a settle/verify
+    error_message. RPC/transport errors can carry node URLs, request bodies, or other verbose
+    data that should not be echoed to callers unbounded.
+    """
+    return msg[:MAX_ERROR_MESSAGE_LENGTH]
+
+
 def is_valid_address(address: str) -> bool:
     """Check if string is valid Ethereum address.
 
