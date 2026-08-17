@@ -103,6 +103,8 @@ export interface UptoSvmRentCleanupManagerConfig {
    * (`reclaimComputeUnitLimit`) and are mint-independent.
    */
   settleComputeUnitLimit?: number;
+  /** Injected RPC client used instead of building one from `rpcUrl`. */
+  rpc?: ChannelRpc;
 }
 
 /**
@@ -119,6 +121,7 @@ export class UptoSvmRentCleanupManager {
   private readonly rpcUrl: string | undefined;
   private readonly computeUnitPriceMicroLamports: number | undefined;
   private readonly settleComputeUnitLimit: number | undefined;
+  private readonly rpc: ChannelRpc | undefined;
 
   private timer: ReturnType<typeof setInterval> | undefined;
   private running = false;
@@ -144,6 +147,7 @@ export class UptoSvmRentCleanupManager {
     this.rpcUrl = config.rpcUrl;
     this.computeUnitPriceMicroLamports = config.computeUnitPriceMicroLamports;
     this.settleComputeUnitLimit = config.settleComputeUnitLimit;
+    this.rpc = config.rpc;
   }
 
   /**
@@ -159,7 +163,7 @@ export class UptoSvmRentCleanupManager {
     const maxTxsPerRun = opts.maxTxsPerRun ?? DEFAULT_MAX_TXS_PER_RUN;
     const maxClosesPerRun = opts.maxClosesPerRun ?? DEFAULT_MAX_CLOSES_PER_RUN;
 
-    const rpc = createRpcClient(this.network, this.rpcUrl);
+    const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
     const records = await this.storage.list();
     const nowSecs = Math.floor(Date.now() / 1_000);
     let currentSlot: bigint | undefined;

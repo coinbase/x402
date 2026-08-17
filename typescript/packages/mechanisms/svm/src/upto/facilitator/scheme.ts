@@ -26,6 +26,7 @@ import {
   fetchAndVerifyOpenChannel,
   simulateOpenSettleDistribute,
   submitSettle,
+  type ChannelRpc,
   type UptoSvmSigner,
 } from "./channel";
 import {
@@ -80,6 +81,11 @@ function assertLimit(name: string, value: number | undefined, min: number): void
 export interface UptoSvmFacilitatorConfig {
   /** Custom RPC URL (per-network defaults are used when omitted). */
   rpcUrl?: string;
+  /**
+   * Injected RPC client used instead of building one from `rpcUrl`. Lets the
+   * host route channel sends through its own paced/instrumented transport.
+   */
+  rpc?: ChannelRpc;
   /**
    * Channel storage for rent cleanup. Defaults to in-memory storage.
    * Inject a durable implementation for multi-process facilitators.
@@ -241,6 +247,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       network,
       rpcUrl: this.config.rpcUrl,
       settleComputeUnitLimit: this.config.settleComputeUnitLimit,
+      rpc: this.config.rpc,
       signer: this.signer,
       storage: this.channelStorage,
     });
@@ -375,7 +382,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
 
     const { p, channelConfig, feePayerSigner, maxAmount, tokenProgram } = auth.ctx;
     const feePayer = channelConfig.feePayer;
-    const rpc = createRpcClient(requirements.network, this.config.rpcUrl);
+    const rpc = this.config.rpc ?? createRpcClient(requirements.network, this.config.rpcUrl);
 
     // One authorization → one deposit open. A confirmed channel is replay or a
     // stranded prior open, not a supported re-bind path; handler failure after
@@ -558,7 +565,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       (requirements.extra?.tokenProgram as string | undefined) ??
       getStablecoinTokenProgram(requirements.asset, requirements.network);
     const network = requirements.network;
-    const rpc = createRpcClient(network, this.config.rpcUrl);
+    const rpc = this.config.rpc ?? createRpcClient(network, this.config.rpcUrl);
 
     let channel: Awaited<ReturnType<typeof fetchAndVerifyOpenChannel>>;
     try {
@@ -746,7 +753,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const rpc = createRpcClient(requirements.network, this.config.rpcUrl);
+    const rpc = this.config.rpc ?? createRpcClient(requirements.network, this.config.rpcUrl);
     let openSlot: bigint;
     let recentSlot: bigint;
     let nonce: bigint;
