@@ -92,6 +92,15 @@ var (
 	// EIP-3009 is the default. Set AssetTransferMethod to AssetTransferMethodPermit2 for tokens
 	// that don't support EIP-3009. See DEFAULT_ASSET.md for details.
 	NetworkConfigs = map[string]NetworkConfig{
+	"eip155:4663": {
+		ChainID: big.NewInt(4663),
+		DefaultAsset: AssetInfo{
+			Address:  "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+			Name:     "Global Dollar",
+			Version:  "1",
+			Decimals: 6,
+		},
+	},
 		// Base Mainnet
 		"eip155:8453": {
 			ChainID: ChainIDBase,
