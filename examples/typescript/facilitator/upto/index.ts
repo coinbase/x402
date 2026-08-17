@@ -285,11 +285,14 @@ app.listen(parseInt(PORT), () => {
 
 /**
  * Stop rent cleanup and exit the process on SIGINT/SIGTERM.
+ *
+ * Awaits the in-flight pass so a settle that is already broadcast is not
+ * abandoned before its storage entry is updated.
  */
-function shutdown(): void {
-  rentCleanupManager?.stop();
+async function shutdown(): Promise<void> {
+  await rentCleanupManager?.stop();
   process.exit(0);
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

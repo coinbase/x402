@@ -18,12 +18,19 @@ import { encodeVoucherMessageBytes, verifyVoucherSignature } from "../../payment
 import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { isUptoSvmPayload, type UptoSvmPayloadV2 } from "../../types";
-import { createRpcClient, getStablecoinTokenProgram } from "../../utils";
-import { resolveUptoSvmPaymentChannelConfig, type UptoSvmPaymentChannelConfig } from "../shared";
+import { createRpcClient, validateSvmAddress } from "../../utils";
+import {
+  resolveTokenProgram,
+  resolveUptoSvmMemo,
+  resolveUptoSvmPaymentChannelConfig,
+  SLOT_COMMITMENT,
+  type UptoSvmPaymentChannelConfig,
+} from "../shared";
 import {
   broadcastOpen,
   channelExists,
   fetchAndVerifyOpenChannel,
+  SettlementConfirmationTimeoutError,
   simulateOpenSettleDistribute,
   submitSettle,
   type ChannelRpc,
@@ -45,11 +52,27 @@ export const ERR_UNEXPECTED_VOUCHER = "invalid_upto_svm_payload_unexpected_vouch
 /** Deposit settle when the channel PDA already exists (one request, one open). */
 export const ERR_CHANNEL_ALREADY_OPEN = "invalid_upto_svm_channel_already_open";
 
+/**
+ * Returned when the open transaction fails to broadcast, or when the
+ * pre-broadcast durable channel index fails: in both cases nothing has
+ * reached the chain and the deposit is safe to retry.
+ */
+export const ERR_CHANNEL_BROADCAST = "invalid_upto_svm_channel_broadcast";
+
 /** `maxTimeoutSeconds` or `expiresAt` exceeds facilitator `maxChannelLifetimeSecs`. */
 export const ERR_CHANNEL_LIFETIME_EXCEEDED = "invalid_upto_svm_payload_channel_lifetime_exceeded";
 
 /** Payload `expiresAt` later than `now + maxTimeoutSeconds` (+ skew). */
 export const ERR_EXPIRES_AT_MISMATCH = "invalid_upto_svm_payload_expires_at_mismatch";
+
+/**
+ * A claim's settle_and_seal + distribute transaction broadcast but did not
+ * reach `confirmed` within the polling budget. Unlike `transaction_failed`,
+ * the outcome is unknown, not a rejection — the transaction may still land.
+ * The settlement dedup entry is kept (not deleted) so a caller retrying the
+ * same claim cannot race a second settle_and_seal against the first.
+ */
+export const ERR_SETTLEMENT_CONFIRMATION_TIMEOUT = "settlement_confirmation_timeout";
 
 /** Default facilitator `maxChannelLifetimeSecs` (1 hour). */
 export const DEFAULT_MAX_CHANNEL_LIFETIME_SECS = 3_600;
@@ -427,14 +450,31 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Before broadcast so confirm timeout / rebind failure still indexes the PDA.
-    await this.upsertChannelStorage("settle", {
-      channelId: p.channelId,
-      network: requirements.network,
-      payTo: requirements.payTo,
-      tokenProgram,
-      expiresAt: p.expiresAt,
-    });
+    // Indexed before broadcast, and the index must succeed before broadcast:
+    // an open that reaches the chain without a durable record can never be
+    // found by rent cleanup, permanently stranding the facilitator's rent.
+    // Nothing has been broadcast yet, so failing here is safe to retry.
+    try {
+      await this.upsertChannelStorageOrFail({
+        channelId: p.channelId,
+        network: requirements.network,
+        payTo: requirements.payTo,
+        tokenProgram,
+        expiresAt: p.expiresAt,
+      });
+    } catch (error) {
+      this.settlementCache.delete(depositKey);
+      return {
+        success: false,
+        network: payload.accepted.network,
+        transaction: "",
+        errorReason: ERR_CHANNEL_BROADCAST,
+        errorMessage: `failed to durably index the channel before broadcast: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        payer: p.from,
+      };
+    }
 
     let openSignature: string;
     try {
@@ -450,7 +490,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         success: false,
         network: payload.accepted.network,
         transaction: "",
-        errorReason: "invalid_upto_svm_channel_broadcast",
+        errorReason: ERR_CHANNEL_BROADCAST,
         errorMessage: error instanceof Error ? error.message : String(error),
         payer: p.from,
       };
@@ -561,9 +601,12 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       return this.settleFailure(payload, "invalid_upto_svm_payload_voucher_signature", p.from);
     }
 
-    const tokenProgram =
-      (requirements.extra?.tokenProgram as string | undefined) ??
-      getStablecoinTokenProgram(requirements.asset, requirements.network);
+    let tokenProgram: string;
+    try {
+      tokenProgram = resolveTokenProgram(requirements);
+    } catch {
+      return this.settleFailure(payload, "invalid_upto_svm_payment_requirements", p.from);
+    }
     const network = requirements.network;
     const rpc = this.config.rpc ?? createRpcClient(network, this.config.rpcUrl);
 
@@ -652,6 +695,20 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         payer: channel.payer,
       };
     } catch (error) {
+      // A confirmation timeout leaves the transaction's fate unknown, not
+      // failed: it may still land. The dedup entry is kept, not deleted, so
+      // a caller retrying this claim cannot race a second settle_and_seal
+      // against the first while the outcome is still unresolved.
+      if (error instanceof SettlementConfirmationTimeoutError) {
+        return {
+          success: false,
+          network: payload.accepted.network,
+          transaction: "",
+          errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
+          errorMessage: error.message,
+          payer: p.from,
+        };
+      }
       this.settlementCache.delete(settlementKey);
       return {
         success: false,
@@ -731,16 +788,18 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
 
     let maxAmount: bigint;
     let deposit: bigint;
+    let requiredAmount: bigint;
     try {
       maxAmount = BigInt(p.maxAmount);
       deposit = BigInt(p.deposit);
+      requiredAmount = BigInt(requirements.amount);
     } catch {
       return {
         ok: false,
         failure: { reason: "invalid_upto_svm_payload_amount", payer: p.from },
       };
     }
-    if (maxAmount !== BigInt(requirements.amount)) {
+    if (maxAmount !== requiredAmount) {
       return {
         ok: false,
         failure: { reason: "invalid_upto_svm_payload_amount_mismatch", payer: p.from },
@@ -766,7 +825,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
           "requirements.extra.recentSlot",
         );
       } else {
-        recentSlot = await rpc.getSlot().send();
+        recentSlot = await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
       }
     } catch {
       return {
@@ -839,9 +898,60 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const tokenProgram =
-      (requirements.extra?.tokenProgram as string | undefined) ??
-      getStablecoinTokenProgram(requirements.asset, requirements.network);
+    // Reject unusable addresses here rather than letting them fail as an opaque
+    // open-transaction mismatch, so the payer learns which field is wrong.
+    if (!validateSvmAddress(p.from)) {
+      return {
+        ok: false,
+        failure: {
+          reason: "invalid_upto_svm_payload_payer_mismatch",
+          message: `payload.from ${p.from} is not a valid address`,
+          payer: p.from,
+        },
+      };
+    }
+    if (!validateSvmAddress(requirements.asset)) {
+      return {
+        ok: false,
+        failure: {
+          reason: "invalid_upto_svm_payment_requirements",
+          message: `requirements.asset ${requirements.asset} is not a valid mint address`,
+          payer: p.from,
+        },
+      };
+    }
+    // Checked after the fee-payer and receiver-authorizer identity comparisons
+    // above: a mismatch is the more specific answer, and a malformed value only
+    // matters once it is the value this facilitator would have signed against.
+    for (const [field, value] of [
+      ["feePayer", feePayer],
+      ["receiverAuthorizer", receiverAuthorizer],
+    ] as const) {
+      if (!validateSvmAddress(value)) {
+        return {
+          ok: false,
+          failure: {
+            reason: "invalid_upto_svm_payment_requirements",
+            message: `extra.${field} ${value} is not a valid address`,
+            payer: p.from,
+          },
+        };
+      }
+    }
+
+    let tokenProgram: string;
+    try {
+      tokenProgram = resolveTokenProgram(requirements);
+    } catch (error) {
+      return {
+        ok: false,
+        failure: {
+          reason: "invalid_upto_svm_payment_requirements",
+          message: error instanceof Error ? error.message : String(error),
+          payer: p.from,
+        },
+      };
+    }
 
     try {
       const open = await verifyOpenTransaction(p.openTransaction, {
@@ -852,7 +962,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         maxComputeUnits: this.config.maxComputeUnits,
         maxPriorityFeeMicroLamports: this.config.maxPriorityFeeMicroLamports,
         maxRequiredSignatures: this.config.maxRequiredSignatures,
-        memo: requirements.extra?.memo as string | undefined,
+        memo: resolveUptoSvmMemo(requirements.extra),
         mint: requirements.asset,
         openSlot,
         payee: feePayer,
@@ -947,8 +1057,10 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Upsert a channel into rent-cleanup storage. Failures go to
-   * {@link UptoSvmFacilitatorConfig.onStorageError} and never propagate.
+   * Upsert a channel into rent-cleanup storage after settlement is already
+   * confirmed onchain. Failures go to
+   * {@link UptoSvmFacilitatorConfig.onStorageError} and never propagate: a
+   * charged payment must never turn into a failure over bookkeeping.
    *
    * @param phase - Whether verify or settle succeeded before the upsert
    * @param fields - Channel facts retained for cleanup (payTo included)
@@ -972,6 +1084,27 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
           error,
         });
       }
+    }
+  }
+
+  /**
+   * Upsert a channel and rethrow on storage failure. Used only for the
+   * pre-broadcast deposit index, where nothing has reached the chain yet and
+   * a durable record is the only way rent cleanup can ever find the channel.
+   *
+   * @param fields - Channel facts retained for cleanup (payTo included)
+   */
+  private async upsertChannelStorageOrFail(
+    fields: Omit<UptoChannelRecord, "firstSeenAt">,
+  ): Promise<void> {
+    try {
+      await this.channelStorage.upsert({
+        ...fields,
+        firstSeenAt: Date.now(),
+      });
+    } catch (error) {
+      this.config.onStorageError?.(error, { channelId: fields.channelId, phase: "settle" });
+      throw error;
     }
   }
 }

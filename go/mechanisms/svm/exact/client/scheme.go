@@ -132,7 +132,6 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		return types.PaymentPayload{}, err
 	}
 
-	// Build compute budget instructions
 	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
 		SetUnits(svm.DefaultComputeUnitLimit).
 		ValidateAndBuild()

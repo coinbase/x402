@@ -3,26 +3,16 @@ import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { type Address } from "@solana/kit";
 import type { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
 
+import { findDefaultAsset } from "../../defaultAssets";
 import { buildOpenPaymentChannelTransaction } from "../../payment-channels/open";
 import type { ClientSvmConfig, ClientSvmSigner } from "../../signer";
 import { type UptoSvmPayloadV2 } from "../../types";
 import { createRpcClient, resolveBlockhash, resolveOpenSlot } from "../../utils";
-import { resolveUptoSvmPaymentChannelConfig } from "../shared";
-
-/** Configuration for the upto SVM client. */
-export type UptoClientSvmConfig = ClientSvmConfig & {
-  /**
-   * `SetComputeUnitLimit` override for the open transaction. Defaults to
-   * `OPEN_DEFAULT_COMPUTE_UNIT_LIMIT`; `0` omits the instruction.
-   */
-  computeUnitLimit?: number;
-  /**
-   * `SetComputeUnitPrice` override in microlamports per compute unit (paid by
-   * the facilitator fee payer). Defaults to
-   * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS`; `0` omits the instruction.
-   */
-  computeUnitPriceMicroLamports?: number;
-};
+import {
+  parseTokenProgramHint,
+  resolveUptoSvmMemo,
+  resolveUptoSvmPaymentChannelConfig,
+} from "../shared";
 
 /**
  * SVM client implementation for the `upto` payment scheme.
@@ -36,15 +26,18 @@ export type UptoClientSvmConfig = ClientSvmConfig & {
 export class UptoSvmScheme implements SchemeNetworkClient {
   readonly scheme = "upto";
 
+  /** Lets client spend controls recognize the network's default stablecoins. */
+  findDefaultAsset = findDefaultAsset;
+
   /**
    * Creates a new upto SVM client.
    *
    * @param signer - The payer's SVM signer
-   * @param config - Optional configuration with a custom RPC URL
+   * @param config - Optional configuration, such as a custom RPC URL
    */
   constructor(
     private readonly signer: ClientSvmSigner,
-    private readonly config?: UptoClientSvmConfig,
+    private readonly config?: ClientSvmConfig,
   ) {}
 
   /**
@@ -64,7 +57,7 @@ export class UptoSvmScheme implements SchemeNetworkClient {
     const rpc = createRpcClient(paymentRequirements.network, this.config?.rpcUrl);
 
     // Resolve the token program: prefer the requirement's hint, else read the mint.
-    let tokenProgram = paymentRequirements.extra?.tokenProgram as string | undefined;
+    let tokenProgram = parseTokenProgramHint(paymentRequirements.extra);
     if (!tokenProgram) {
       const mint = await fetchMint(rpc, paymentRequirements.asset as Address);
       const programAddress = mint.programAddress.toString();
@@ -87,12 +80,10 @@ export class UptoSvmScheme implements SchemeNetworkClient {
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
       },
-      computeUnitLimit: this.config?.computeUnitLimit,
-      computeUnitPriceMicroLamports: this.config?.computeUnitPriceMicroLamports,
       deposit: maxAmount,
       feePayer: channelConfig.feePayer,
       gracePeriod: channelConfig.withdrawDelay,
-      memo: paymentRequirements.extra?.memo as string | undefined,
+      memo: resolveUptoSvmMemo(paymentRequirements.extra),
       mint: paymentRequirements.asset,
       openSlot,
       payee: channelConfig.feePayer,

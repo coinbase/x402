@@ -42,7 +42,7 @@ import {
   COMPUTE_BUDGET_PROGRAM_ADDRESS,
   DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
 } from "../../constants";
-import { fetchChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
+import { fetchMaybeChannel, type Channel } from "../../payment-channels/generated/accounts/channel";
 import {
   buildDistributeInstruction,
   buildSettleAndSealInstructions,
@@ -51,6 +51,7 @@ import {
 import type { ChannelSplit } from "../../payment-channels/open";
 import type { FacilitatorSvmSigner } from "../../signer";
 import { createRpcClient } from "../../utils";
+import { BLOCKHASH_COMMITMENT, STATE_COMMITMENT } from "../shared";
 
 /** Payment-channels `AccountDiscriminator::Channel` (byte 0 is reserved for uninitialized accounts). */
 const CHANNEL_ACCOUNT_DISCRIMINATOR = 1;
@@ -61,6 +62,8 @@ const MAX_TRANSACTION_COMPUTE_UNITS = 1_400_000;
  *  per-transaction max because the composite (open + settle + distribute) can
  *  exceed the client open's 400k ceiling. */
 const SIM_COMPUTE_UNIT_LIMIT = MAX_TRANSACTION_COMPUTE_UNITS;
+const CHANNEL_READ_MAX_ATTEMPTS = 5;
+const CHANNEL_READ_INITIAL_BACKOFF_MS = 200;
 
 /**
  * Default `SetComputeUnitLimit` for facilitator-submitted settlement
@@ -113,7 +116,9 @@ export type ChannelRpc = ReturnType<typeof createRpcClient>;
  * @returns Whether the account exists
  */
 export async function channelExists(rpc: ChannelRpc, channelId: string): Promise<boolean> {
-  const info = await rpc.getAccountInfo(address(channelId), { encoding: "base64" }).send();
+  const info = await rpc
+    .getAccountInfo(address(channelId), { commitment: STATE_COMMITMENT, encoding: "base64" })
+    .send();
   return info.value !== null;
 }
 
@@ -155,8 +160,24 @@ export async function fetchAndVerifyOpenChannel(
   channelId: string,
   expected: ExpectedOpenChannel,
 ): Promise<VerifiedOpenChannel> {
-  const account = await fetchChannel(rpc, address(channelId));
-  return verifyOpenChannelAccount(channelId, account.data, expected);
+  for (let attempt = 1; attempt <= CHANNEL_READ_MAX_ATTEMPTS; attempt++) {
+    const account = await fetchMaybeChannel(rpc, address(channelId), {
+      commitment: STATE_COMMITMENT,
+    });
+    if (account.exists) {
+      // Existing but invalid state is terminal: only account absence can be
+      // caused by replica visibility lag.
+      return verifyOpenChannelAccount(channelId, account.data, expected);
+    }
+    if (attempt === CHANNEL_READ_MAX_ATTEMPTS) {
+      break;
+    }
+
+    const delayMs = CHANNEL_READ_INITIAL_BACKOFF_MS * 2 ** (attempt - 1);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+
+  throw new Error(`channel ${channelId} does not exist`);
 }
 
 /**
@@ -334,37 +355,6 @@ export async function simulateOpenSettleDistribute(
   await simulateInstructions(feePayer, rpc, instructions);
 }
 
-/**
- * Simulate the zero-charge settlement path (`settle_and_seal` with
- * `has_voucher = 0` + `distribute`) for an already-open channel so bad
- * ATA/account derivations fail before resource execution.
- *
- * @param feePayer - The fee-payer / channel payee signer
- * @param rpc - The RPC client
- * @param channel - Verified open-channel facts
- */
-export async function simulateZeroChargeSettle(
-  feePayer: UptoSvmSigner,
-  rpc: ChannelRpc,
-  channel: SettlementSimChannel,
-): Promise<void> {
-  const settle = buildSettleAndSealInstructions({
-    channelId: channel.channelId,
-    payeeSigner: feePayer,
-  });
-  const distribute = await buildDistributeInstruction({
-    channelId: channel.channelId,
-    mint: channel.mint,
-    network: channel.network,
-    payee: channel.payee,
-    payer: channel.payer,
-    rentPayer: channel.rentPayer,
-    splits: channel.splits,
-    tokenProgram: channel.tokenProgram,
-  });
-  await simulateInstructions(feePayer, rpc, [...settle, distribute]);
-}
-
 /** Options for {@link submitSettle}. */
 export interface SubmitSettleOptions {
   /**
@@ -414,7 +404,9 @@ export async function submitSettle(
       : []),
   ];
 
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
+    .send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -436,12 +428,32 @@ export async function submitSettle(
 }
 
 /**
+ * Thrown by {@link confirmSignature} when the polling budget elapses before
+ * the transaction reaches `confirmed`. Distinct from an onchain rejection:
+ * the transaction's fate is unknown, not failed — it may still land. Callers
+ * must not treat this the same as a definite failure (e.g. must not assume
+ * it is safe to retry the same settlement).
+ */
+export class SettlementConfirmationTimeoutError extends Error {
+  /**
+   * Create the error for a signature whose confirmation timed out.
+   *
+   * @param signature - The transaction signature whose confirmation timed out
+   */
+  constructor(readonly signature: Signature) {
+    super(`timed out waiting for tx ${signature} confirmation`);
+    this.name = "SettlementConfirmationTimeoutError";
+  }
+}
+
+/**
  * Poll `getSignatureStatuses` until the signature reaches at least 'confirmed'.
  *
  * @param rpc - The RPC client
  * @param signature - The transaction signature
  * @param timeoutMs - Total time budget (default 30s)
- * @throws If the transaction failed onchain or the timeout elapses
+ * @throws {SettlementConfirmationTimeoutError} If the timeout elapses with the outcome still unknown
+ * @throws If the transaction failed onchain
  */
 export async function confirmSignature(
   rpc: ChannelRpc,
@@ -465,7 +477,7 @@ export async function confirmSignature(
       }
     }
     if (Date.now() >= deadline) {
-      throw new Error(`timed out waiting for tx ${signature} confirmation`);
+      throw new SettlementConfirmationTimeoutError(signature);
     }
     await new Promise(resolve => setTimeout(resolve, 1_000));
   }
@@ -520,7 +532,9 @@ async function simulateInstructions(
   rpc: ChannelRpc,
   instructions: readonly Instruction[],
 ): Promise<void> {
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const { value: latestBlockhash } = await rpc
+    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
+    .send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -538,7 +552,7 @@ async function simulateInstructions(
   const wire = getBase64EncodedWireTransaction(signed);
   const result = await rpc
     .simulateTransaction(wire, {
-      commitment: "confirmed",
+      commitment: STATE_COMMITMENT,
       encoding: "base64",
       replaceRecentBlockhash: true,
       sigVerify: false,

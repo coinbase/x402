@@ -539,6 +539,43 @@ r.Use(ginmw.X402Payment(ginmw.Config{
 }))
 ```
 
+### Usage-Based Pricing (`upto`)
+
+The `upto` scheme charges for actual usage: the route's `Price` is the maximum the
+client authorizes, and the handler decides what to settle.
+
+```go
+// SVM upto settles through an onchain payment channel, so the server needs a hot
+// key that signs settlement vouchers. It never signs a transaction.
+authorizer, err := svmsigners.NewReceiverAuthorizerSignerFromPrivateKey(os.Getenv("SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY"))
+
+r.Use(ginmw.X402Payment(ginmw.Config{
+    Routes: x402http.RoutesConfig{
+        "GET /api/generate": {
+            Accepts: x402http.PaymentOptions{
+                {Scheme: "upto", Price: "$0.10", Network: svmNetwork, PayTo: svmAddress},
+            },
+        },
+    },
+    Facilitator: facilitator,
+    Schemes: []ginmw.SchemeConfig{
+        {Network: svmNetwork, Server: uptosvm.NewUptoSvmScheme(&uptosvm.Config{
+            ReceiverAuthorizerSigner: authorizer,
+        })},
+    },
+}))
+
+r.GET("/api/generate", func(c *gin.Context) {
+    // Charge only what the request actually consumed.
+    ginmw.SetSettlementOverrides(c, &x402.SettlementOverrides{Amount: "50%"})
+    c.JSON(http.StatusOK, gin.H{"result": "..."})
+})
+```
+
+`Amount` accepts raw atomic units, a percentage of the authorized maximum, or a
+dollar price. See the [upto SVM README](mechanisms/svm/upto/README.md) and the
+[upto EVM README](mechanisms/evm/upto/README.md) for the per-chain details.
+
 ### Per-Route Configuration
 
 Different prices for different endpoints:

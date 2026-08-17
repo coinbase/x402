@@ -36,6 +36,7 @@ import {
 } from "../../src/payment-channels/open";
 import { encodeVoucherMessageBytes, VOUCHER_MAGIC } from "../../src/payment-channels/voucher";
 import { UptoSvmScheme as UptoClientScheme } from "../../src/upto/client/scheme";
+import { resolveUptoSvmMemo } from "../../src/upto/shared";
 import { UptoSvmScheme as UptoServerScheme } from "../../src/upto/server/scheme";
 import {
   DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT,
@@ -1769,6 +1770,17 @@ describe("upto SVM scheme", () => {
   });
 
   describe("client.createPaymentPayload", () => {
+    it("reports the devnet/mainnet USDC mints as default assets for spend controls", async () => {
+      const payer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      expect(client.findDefaultAsset?.(USDC_DEVNET_ADDRESS, SOLANA_DEVNET_CAIP2)?.asset).toBe(
+        USDC_DEVNET_ADDRESS,
+      );
+      expect(client.findDefaultAsset?.(USDC_MAINNET_ADDRESS, SOLANA_MAINNET_CAIP2)?.asset).toBe(
+        USDC_MAINNET_ADDRESS,
+      );
+    });
+
     it("builds a delegated open with the payTo split and decimal salt nonce", async () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
@@ -1814,14 +1826,14 @@ describe("upto SVM scheme", () => {
       expect(payload).not.toHaveProperty("profile");
     });
 
-    it("passes compute budget overrides through to the open transaction", async () => {
+    // The open's ComputeBudget prefix is fixed by the scheme, not the caller:
+    // the facilitator's compute-unit and priority-fee caps are verified
+    // against it.
+    it("emits the open compute budget defaults", async () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
       const receiverAuthorizer = await generateKeyPairSigner();
-      const client = new UptoClientScheme(payer, {
-        computeUnitLimit: 150_000,
-        computeUnitPriceMicroLamports: 3,
-      });
+      const client = new UptoClientScheme(payer);
       const requirements: PaymentRequirements = {
         scheme: "upto",
         network: SOLANA_DEVNET_CAIP2,
@@ -1842,8 +1854,77 @@ describe("upto SVM scheme", () => {
       const result = await client.createPaymentPayload(2, requirements);
       const payload = result.payload as unknown as UptoSvmPayloadV2;
       const instructions = decodeTopLevelInstructions(payload.openTransaction);
-      expect(readComputeLimitData(instructions[0]!.data)).toBe(150_000);
-      expect(readComputePriceData(instructions[1]!.data)).toBe(3n);
+      expect(readComputeLimitData(instructions[0]!.data)).toBe(OPEN_DEFAULT_COMPUTE_UNIT_LIMIT);
+      expect(readComputePriceData(instructions[1]!.data)).toBe(
+        BigInt(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS),
+      );
+    });
+
+    // An empty extra.memo is a seller that set no memo, not a demand for an
+    // empty one. Client and facilitator resolve through the same helper, so
+    // neither side can decide a memo was requested when the other did not.
+    it("treats an empty extra.memo as unset and emits a nonce instead", async () => {
+      expect(resolveUptoSvmMemo({ memo: "" })).toBeUndefined();
+      expect(resolveUptoSvmMemo({ memo: "order-42" })).toBe("order-42");
+      expect(resolveUptoSvmMemo({})).toBeUndefined();
+
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: MINT,
+        amount: "1000000",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          memo: "",
+          recentBlockhash: DUMMY_BLOCKHASH,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+
+      const result = await client.createPaymentPayload(2, requirements);
+      const payload = result.payload as unknown as UptoSvmPayloadV2;
+      const memoIx = decodeTopLevelInstructions(payload.openTransaction).find(
+        ix => ix.program === MEMO_PROGRAM_ADDRESS,
+      );
+      expect(new TextDecoder().decode(memoIx!.data)).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    // The facilitator rejects an unsupported token program too, but the client
+    // is where the error can still name the field that is wrong.
+    it("rejects an extra.tokenProgram that is not a supported SPL token program", async () => {
+      const payer = await generateKeyPairSigner();
+      const feePayer = await generateKeyPairSigner();
+      const receiverAuthorizer = await generateKeyPairSigner();
+      const client = new UptoClientScheme(payer);
+      const requirements: PaymentRequirements = {
+        scheme: "upto",
+        network: SOLANA_DEVNET_CAIP2,
+        asset: MINT,
+        amount: "1000000",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: 300,
+        extra: {
+          feePayer: feePayer.address,
+          recentBlockhash: DUMMY_BLOCKHASH,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizer.address,
+          tokenProgram: PAY_TO,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      };
+
+      await expect(client.createPaymentPayload(2, requirements)).rejects.toThrow(
+        "is not a supported SPL token program",
+      );
     });
 
     it("resolveOpenSlot falls back to rpc.getSlot when extra.recentSlot is omitted", async () => {
@@ -2051,6 +2132,59 @@ describe("upto SVM scheme", () => {
       expect(result.invalidReason).toBe("invalid_upto_svm_payload_receiver_authorizer");
     });
 
+    // The mismatch above is the more specific answer, so a malformed
+    // receiverAuthorizer only surfaces once the payload agrees with it.
+    it("rejects a malformed receiver authorizer the payload agrees with", async () => {
+      const bad = "OtherReceiver111111111111111111111111";
+      const req = requirements({
+        extra: {
+          feePayer: feePayerAddress,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: bad,
+          tokenProgram: TOKEN_PROGRAM_ADDRESS,
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      });
+      const result = await facilitator.verify(
+        wrap({ ...basePayload, authorizedSigner: bad }, req),
+        req,
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
+    it("rejects a malformed asset", async () => {
+      const req = requirements({ asset: "NotAMint11111111111111111111111111111" });
+      const result = await facilitator.verify(wrap(basePayload, req), req);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
+    it("rejects a malformed payer", async () => {
+      const req = requirements();
+      const result = await facilitator.verify(
+        wrap({ ...basePayload, from: "NotAPayer11111111111111111111111111111" }, req),
+        req,
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payload_payer_mismatch");
+    });
+
+    it("rejects a token program that is not an SPL token program", async () => {
+      const req = requirements({
+        extra: {
+          feePayer: feePayerAddress,
+          recentSlot: OPEN_SLOT.toString(),
+          receiverAuthorizer: receiverAuthorizerAddress,
+          tokenProgram: "SysvarC1ock11111111111111111111111111111111",
+          withdrawDelay: WITHDRAW_DELAY,
+        },
+      });
+      const result = await facilitator.verify(wrap(basePayload, req), req);
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payment_requirements");
+    });
+
     it("rejects a missing receiverAuthorizer", async () => {
       const req = requirements({
         extra: {
@@ -2087,6 +2221,17 @@ describe("upto SVM scheme", () => {
       );
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_upto_svm_payload_amount_mismatch");
+    });
+
+    // A non-numeric requirements.amount must be reported as a structured
+    // verify failure, not thrown as an uncaught BigInt SyntaxError.
+    it("rejects a non-numeric requirements.amount instead of throwing", async () => {
+      const result = await facilitator.verify(
+        wrap(basePayload, requirements()),
+        requirements({ amount: "not-a-number" }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_upto_svm_payload_amount");
     });
 
     it("rejects a deposit below the ceiling (must equal exactly)", async () => {
