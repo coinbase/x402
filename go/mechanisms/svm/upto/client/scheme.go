@@ -110,18 +110,18 @@ func (c *UptoSvmScheme) CreatePaymentPayload(
 	}
 
 	open, err := paymentchannels.BuildOpenTransaction(paymentchannels.BuildOpenArgs{
-		Payer:                         c.signer.Address(),
-		Payee:                         feePayer,
-		Mint:                          mint,
-		AuthorizedSigner:              receiverAuthorizer,
-		FeePayer:                      feePayer,
-		TokenProgram:                  tokenProgram,
-		Deposit:                       maxAmount,
-		Blockhash:                     blockhash,
-		OpenSlot:                      openSlot,
-		GracePeriod:                   channelConfig.WithdrawDelay,
-		Recipients:                    channelConfig.Splits,
-		Memo:                          upto.ParseExtraMemo(requirements.Extra[upto.ExtraMemo]),
+		Payer:            c.signer.Address(),
+		Payee:            feePayer,
+		Mint:             mint,
+		AuthorizedSigner: receiverAuthorizer,
+		FeePayer:         feePayer,
+		TokenProgram:     tokenProgram,
+		Deposit:          maxAmount,
+		Blockhash:        blockhash,
+		OpenSlot:         openSlot,
+		GracePeriod:      channelConfig.WithdrawDelay,
+		Recipients:       channelConfig.Splits,
+		Memo:             upto.ParseExtraMemo(requirements.Extra[upto.ExtraMemo]),
 	})
 	if err != nil {
 		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildOpen+": %w", err)
