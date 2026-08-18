@@ -11,11 +11,13 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
+from ...schemas.helpers import convert_to_token_amount
 from .constants import (
     NETWORK_CONFIGS,
     AssetInfo,
     NetworkConfig,
 )
+from .default_assets import ExactDefaultAssetInfo, find_default_asset
 
 
 def get_evm_chain_id(network: str) -> int:
@@ -67,13 +69,28 @@ def get_network_config(network: str) -> NetworkConfig:
     raise ValueError(f"Unsupported network format: {network} (expected eip155:CHAIN_ID)")
 
 
+def _to_asset_info(entry: ExactDefaultAssetInfo) -> AssetInfo:
+    """Convert a default-asset table entry to today's ``AssetInfo`` (``address`` = ``asset``)."""
+    info: AssetInfo = {
+        "address": entry["asset"],
+        "name": entry["name"],
+        "version": entry["version"],
+        "decimals": entry["decimals"],
+    }
+    if "asset_transfer_method" in entry:
+        info["asset_transfer_method"] = entry["asset_transfer_method"]
+    if "supports_eip2612" in entry:
+        info["supports_eip2612"] = entry["supports_eip2612"]
+    return info
+
+
 def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     """Get asset info by address.
 
-    Returns the full default asset info if the address matches the network's default asset.
+    Returns the full default asset info if the address matches a registered default.
 
     Args:
-        network: Network identifier in CAIP-2 format.
+        network: Network identifier in CAIP-2 format (or v1 name).
         asset_address: Asset contract address (0x...).
 
     Returns:
@@ -82,11 +99,9 @@ def get_asset_info(network: str, asset_address: str) -> AssetInfo:
     Raises:
         ValueError: If the address does not match any registered asset for the network.
     """
-    config = get_network_config(network)
-    default = config.get("default_asset")
-
-    if default and default["address"].lower() == asset_address.lower():
-        return default
+    found = find_default_asset(asset_address, network)
+    if found is not None:
+        return _to_asset_info(found)
 
     raise ValueError(f"Token {asset_address} is not a registered asset for network {network}.")
 
@@ -226,9 +241,7 @@ def parse_amount(amount: str, decimals: int) -> int:
     Returns:
         Amount in smallest unit.
     """
-    d = Decimal(amount)
-    multiplier = Decimal(10**decimals)
-    return int(d * multiplier)
+    return int(convert_to_token_amount(amount, decimals))
 
 
 def format_amount(amount: int, decimals: int) -> str:
@@ -286,26 +299,3 @@ def is_contract_revert(error: Exception | None) -> bool:
     if error is None:
         return False
     return "revert" in str(error).lower()
-
-
-def parse_money_to_decimal(money: str | float | int) -> float:
-    """Parse Money to decimal.
-
-    Handles formats like "$1.50", "1.50", 1.50.
-
-    Args:
-        money: Money value in various formats.
-
-    Returns:
-        Decimal amount as float.
-    """
-    if isinstance(money, int | float):
-        return float(money)
-
-    # Clean string
-    clean = money.strip()
-    clean = clean.lstrip("$")
-    clean = re.sub(r"\s*(USD|USDC|usd|usdc)\s*$", "", clean)
-    clean = clean.strip()
-
-    return float(clean)

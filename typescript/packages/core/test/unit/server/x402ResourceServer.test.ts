@@ -3297,6 +3297,12 @@ describe("resolveSettlementOverrideAmount", () => {
       expect(resolveSettlementOverrideAmount("$0", baseRequirements, 6)).toBe("0");
     });
 
+    it("pads and truncates toward zero without rounding", () => {
+      expect(resolveSettlementOverrideAmount("$1.0000005", baseRequirements, 6)).toBe("1000000");
+      expect(resolveSettlementOverrideAmount("$0.0000005", baseRequirements, 6)).toBe("0");
+      expect(resolveSettlementOverrideAmount("$0.0000009", baseRequirements, 6)).toBe("0");
+    });
+
     it("throws when decimals are unknown", () => {
       expect(() => resolveSettlementOverrideAmount("$1.00", baseRequirements)).toThrow(
         /asset decimals are unknown/,

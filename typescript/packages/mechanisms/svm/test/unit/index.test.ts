@@ -333,8 +333,8 @@ describe("@x402/svm", () => {
 
     it("should register custom money parser and use it", async () => {
       const customServer = new ServerExactSvmScheme();
-      const customParser = async (amount: number, _network: string) => {
-        if (amount === 42) {
+      const customParser = async (amount: string | number, _network: string) => {
+        if (Number(amount) === 42) {
           return { amount: "42000000", asset: "custom_asset_address", extra: {} };
         }
         return null;
@@ -366,12 +366,12 @@ describe("@x402/svm", () => {
 
     it("should try custom parsers in registration order", async () => {
       const customServer = new ServerExactSvmScheme();
-      const firstParser = async (amount: number) => {
-        if (amount > 0) return { amount: "first", asset: "first_asset", extra: {} };
+      const firstParser = async (amount: string | number) => {
+        if (Number(amount) > 0) return { amount: "first", asset: "first_asset", extra: {} };
         return null;
       };
-      const secondParser = async (amount: number) => {
-        if (amount > 0) return { amount: "second", asset: "second_asset", extra: {} };
+      const secondParser = async (amount: string | number) => {
+        if (Number(amount) > 0) return { amount: "second", asset: "second_asset", extra: {} };
         return null;
       };
       customServer.registerMoneyParser(firstParser).registerMoneyParser(secondParser);

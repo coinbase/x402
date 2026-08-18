@@ -201,7 +201,7 @@ spendControls: {
 |---------|---------|
 | `spendControls: false` | Disable all spend controls (any asset, no caps). Useful for UI-confirmed flows (paywall) and tests. |
 | `maxAmountPerPayment` | USD ceiling on payments in recognized USD-pegged assets (default **`$1`**). Applies to every default asset the registered scheme's `findDefaultAsset` knows about. Set a higher `Money` value to raise the cap, or **`false`** to remove it. |
-| `allowedAssets` | Opt-in for non-default tokens. Omit for default assets only; `true` to allow any asset; or a list of `{ network, asset }` (optional atomic `maxAmountPerPayment` per entry). `asset` may be an on-chain id or a default-asset symbol (e.g. `"PYUSD"`). |
+| `allowedAssets` | Opt-in for non-default tokens. Omit for default assets only; `true` to allow any asset; or a list of `{ network, asset }` (optional integer atomic `maxAmountPerPayment` per entry, e.g. `"2000000"`, not `"$1"`). `asset` may be an onchain id or a default-asset symbol (e.g. `"PYUSD"`). |
 
 Network scoping is separate: register only the networks you intend to pay on (e.g. `registerExactEvmScheme(client, { signer, networks: ['eip155:8453'] })`). Unregistered networks are never selected regardless of spend controls.
 

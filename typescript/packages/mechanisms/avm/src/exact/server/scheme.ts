@@ -13,7 +13,7 @@ import type {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 
 /**
@@ -32,7 +32,7 @@ export class ExactAvmScheme implements SchemeNetworkServer {
   /**
    * Register a custom money parser in the parser chain.
    * Multiple parsers can be registered - they will be tried in registration order.
-   * Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+   * Each parser receives a decimal string (e.g., "1.50" for $1.50).
    * If a parser returns null, the next parser in the chain will be tried.
    * The default parser is always the final fallback.
    *
@@ -43,8 +43,8 @@ export class ExactAvmScheme implements SchemeNetworkServer {
    * ```typescript
    * avmServer.registerMoneyParser(async (amount, network) => {
    *   // Custom conversion logic for non-USDC assets
-   *   if (amount > 100) {
-   *     return { amount: (amount * 1e6).toString(), asset: "12345678" };
+   *   if (Number(amount) > 100) {
+   *     return { amount: convertToTokenAmount(String(amount), 6), asset: "12345678" };
    *   }
    *   return null; // Use next parser
    * });
@@ -151,9 +151,9 @@ export class ExactAvmScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns The parsed asset amount in USDC
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
-    const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
+    const tokenAmount = convertToTokenAmount(amount, assetInfo.decimals);
 
     return {
       amount: tokenAmount,

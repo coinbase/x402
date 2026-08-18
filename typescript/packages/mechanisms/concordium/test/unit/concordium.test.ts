@@ -15,6 +15,7 @@ import {
 } from "../../src";
 import type { PaymentRequirements } from "@x402/core/types";
 import type { FacilitatorConcordiumSigner } from "../../src";
+import { convertToTokenAmount } from "@x402/core/utils";
 
 function createMockFacilitatorSigner(
   address = "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW",
@@ -184,7 +185,7 @@ describe("@x402/concordium", () => {
     it("should allow USD prices when a money parser is registered", async () => {
       const server = new ExactConcordiumServer();
       server.registerMoneyParser(async amount => ({
-        amount: String(Math.round(amount * 1e6)),
+        amount: convertToTokenAmount(String(amount), 6),
         asset: "EURR",
         extra: {},
       }));
@@ -242,7 +243,7 @@ describe("@x402/concordium", () => {
       });
       server.registerMoneyParser(async amount => {
         callOrder.push(2);
-        return { amount: String(amount * 1e6), asset: "EURR", extra: {} };
+        return { amount: convertToTokenAmount(String(amount), 6), asset: "EURR", extra: {} };
       });
       server.registerMoneyParser(async amount => {
         callOrder.push(3); // should never be called

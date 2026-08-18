@@ -10,7 +10,7 @@ import type {
   SchemeNetworkServer,
   SupportedKind,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 import { DEFAULT_GRACE_PERIOD_SECONDS } from "../../payment-channels/open";
 import { signVoucher } from "../../payment-channels/voucher";
@@ -268,9 +268,9 @@ export class UptoSvmScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns The parsed asset amount
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
-    const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
+    const tokenAmount = convertToTokenAmount(amount, assetInfo.decimals);
     return {
       amount: tokenAmount,
       asset: assetInfo.asset,

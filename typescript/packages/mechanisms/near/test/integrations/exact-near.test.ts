@@ -21,6 +21,7 @@ import { ExactNearScheme as ExactNearClient } from "../../src/exact/client";
 import { ExactNearScheme as ExactNearFacilitator } from "../../src/exact/facilitator";
 import { ExactNearScheme as ExactNearServer } from "../../src/exact/server";
 import type { ExactNearPayload } from "../../src/types";
+import { convertToTokenAmount } from "@x402/core/utils";
 import {
   FIXTURE,
   buildSignedDelegateB64,
@@ -283,9 +284,9 @@ describe("NEAR Integration Tests", () => {
 
     it("should use registerMoneyParser for custom conversion", async () => {
       nearServer.registerMoneyParser(async (amount, _network) => {
-        if (amount > 100) {
+        if (Number(amount) > 100) {
           return {
-            amount: String(Math.round(amount * 1e8)),
+            amount: convertToTokenAmount(String(amount), 8),
             asset: "premium-usdc.testnet",
             extra: { tier: "large" },
           };

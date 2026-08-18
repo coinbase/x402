@@ -25,6 +25,7 @@ import type { ExactKeetaPayload } from "../../src/types";
 import { KEETA_TESTNET_CAIP2 } from "../../src/constants";
 import { USDC_MAINNET_ADDRESS, USDC_TESTNET_ADDRESS } from "../../src/defaultAssets";
 import { KTA_TESTNET_ADDRESS } from "../../src/utils";
+import { convertToTokenAmount } from "@x402/core/utils";
 
 // Load mnemonics from environment (all optional, ephemeral accounts are generated if absent)
 const CLIENT_MNEMONIC = process.env.KEETA_CLIENT_MNEMONIC;
@@ -522,10 +523,10 @@ describe("Keeta Integration Tests", () => {
       // Use mainnet USDC as stand-in (doesn't exist on testnet)
       const CUSTOM_TOKEN = usdcMainnetAddress;
       keetaServer.registerMoneyParser(async (amount, _network) => {
-        if (amount > 100) {
+        if (Number(amount) > 100) {
           return {
             // 8 decimal token (different from default USDC with 6 decimals)
-            amount: String(Math.round(amount * 1e8)),
+            amount: convertToTokenAmount(String(amount), 8),
             asset: CUSTOM_TOKEN,
             extra: { tier: "large" },
           };
@@ -564,9 +565,9 @@ describe("Keeta Integration Tests", () => {
 
       keetaServer
         .registerMoneyParser(async amount => {
-          if (amount > 1000) {
+          if (Number(amount) > 1000) {
             return {
-              amount: String(Math.round(amount * 1e8)),
+              amount: convertToTokenAmount(String(amount), 8),
               asset: TOKEN_A,
               extra: { tier: "vip" },
             };
@@ -574,9 +575,9 @@ describe("Keeta Integration Tests", () => {
           return null;
         })
         .registerMoneyParser(async amount => {
-          if (amount > 100) {
+          if (Number(amount) > 100) {
             return {
-              amount: String(Math.round(amount * 1e6)),
+              amount: convertToTokenAmount(String(amount), 6),
               asset: TOKEN_B,
               extra: { tier: "premium" },
             };

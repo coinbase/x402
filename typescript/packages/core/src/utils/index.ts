@@ -33,39 +33,38 @@ export function numberToDecimalString(n: number): string {
 }
 
 /**
- * Parses a money string into a finite, non-negative decimal number.
+ * Parses a money string into a finite, non-negative decimal string.
  * Accepts plain decimal strings with an optional leading dollar sign.
  * Rejects ticker suffixes — use {@link parseMoney} when a symbol may be present.
  *
  * @param money - The money string to parse
- * @returns Decimal number
+ * @returns The cleaned decimal substring (no `$`, no ticker)
  */
-export function parseMoneyString(money: string): number {
+export function parseMoneyString(money: string): string {
   const cleaned = money.replace(/^\$/, "").trim();
-  if (!/^-?\d+(?:\.\d+)?$/.test(cleaned) || /[eE]/.test(cleaned)) {
+  if (!/^\d+(?:\.\d+)?$/.test(cleaned) || /[eE]/.test(cleaned)) {
     throw new Error(`Invalid money format: ${money}`);
   }
-
-  const amount = Number(cleaned);
-  if (!Number.isFinite(amount) || amount < 0) {
-    throw new Error(`Invalid money format: ${money}`);
-  }
-  return amount;
+  return cleaned;
 }
 
 /**
  * Parse money into `{ amount, symbol? }`. `"1.50 USDT"` → symbol; `"1.50 USD"`
  * and bare amounts have none. Glued tickers (`"1.50USDT"`) are rejected.
  *
+ * String prices keep the extracted decimal substring. Number prices are
+ * stringified once via {@link numberToDecimalString}; digits already lost in
+ * the caller's `number` stay lost.
+ *
  * @param money - Money value (string or number)
- * @returns Parsed amount and optional uppercase ticker
+ * @returns Parsed decimal-string amount and optional uppercase ticker
  */
-export function parseMoney(money: Money): { amount: number; symbol?: string } {
+export function parseMoney(money: Money): { amount: string; symbol?: string } {
   if (typeof money === "number") {
     if (!Number.isFinite(money) || money < 0) {
       throw new Error(`Invalid money format: ${money}`);
     }
-    return { amount: money };
+    return { amount: numberToDecimalString(money) };
   }
 
   const trimmed = money.trim();
@@ -85,7 +84,7 @@ export function parseMoney(money: Money): { amount: number; symbol?: string } {
 /**
  * Convert a decimal amount to token smallest units.
  * Accepts only plain decimal strings — scientific notation is not allowed.
- * Throws if the amount is non-zero but too small to represent with the given decimal precision.
+ * Pads or truncates toward zero, including to `"0"`. Does not round.
  *
  * @param decimalAmount - The decimal amount as a plain string (e.g., "0.10")
  * @param decimals - The number of decimals for the token (e.g., 6 for USDC)
@@ -102,13 +101,7 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
   }
   const [intPart, decPart = ""] = decimalAmount.split(".");
   const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
-  const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
-  if (tokenAmount === "0" && /[1-9]/.test(decimalAmount)) {
-    throw new Error(
-      `Amount ${decimalAmount} is too small to represent with ${decimals} decimal places`,
-    );
-  }
-  return tokenAmount;
+  return (intPart + paddedDec).replace(/^0+/, "") || "0";
 }
 
 /**

@@ -1650,6 +1650,79 @@ describe("x402Client", () => {
       expect(mockClient.createPaymentPayloadCalls).toHaveLength(1);
     });
 
+    it("drops a non-integer 402 amount on the per-asset atomic cap path", async () => {
+      const customAsset = "0xCustomToken";
+      const { client } = clientWithDefaultAsset(usdc, {
+        allowedAssets: [{ asset: customAsset, network, maxAmountPerPayment: "10000" }],
+      });
+
+      await expect(
+        client.createPaymentPayload(
+          buildPaymentRequired({
+            accepts: [
+              buildPaymentRequirements({
+                scheme: "exact",
+                network,
+                asset: customAsset,
+                amount: "1.5",
+              }),
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/allowedAssets maxAmountPerPayment/);
+    });
+
+    it("keeps a sibling accept when a mixed offer has a non-integer per-asset amount", async () => {
+      const customAsset = "0xCustomToken";
+      const { client, mockClient } = clientWithDefaultAsset(usdc, {
+        allowedAssets: [{ asset: customAsset, network, maxAmountPerPayment: "10000" }],
+      });
+
+      await client.createPaymentPayload(
+        buildPaymentRequired({
+          accepts: [
+            buildPaymentRequirements({
+              scheme: "exact",
+              network,
+              asset: customAsset,
+              amount: "1.5",
+            }),
+            buildPaymentRequirements({
+              scheme: "exact",
+              network,
+              asset: customAsset,
+              amount: "100",
+            }),
+          ],
+        }),
+      );
+      expect(mockClient.createPaymentPayloadCalls[0].requirements.amount).toBe("100");
+    });
+
+    it("errors when a per-asset cap is not an integer atomic amount", async () => {
+      const customAsset = "0xCustomToken";
+      for (const cap of ["$1", "1.5"] as const) {
+        const { client } = clientWithDefaultAsset(usdc, {
+          allowedAssets: [{ asset: customAsset, network, maxAmountPerPayment: cap }],
+        });
+
+        await expect(
+          client.createPaymentPayload(
+            buildPaymentRequired({
+              accepts: [
+                buildPaymentRequirements({
+                  scheme: "exact",
+                  network,
+                  asset: customAsset,
+                  amount: "100",
+                }),
+              ],
+            }),
+          ),
+        ).rejects.toThrow(/maxAmountPerPayment must be an integer atomic amount/);
+      }
+    });
+
     it("overrides the USD cap for default assets by id or symbol", async () => {
       const { client: byId, mockClient: mockById } = clientWithDefaultAsset(usdc, {
         allowedAssets: [{ asset: usdc.asset, network, maxAmountPerPayment: "500000" }],

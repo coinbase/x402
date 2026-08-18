@@ -120,7 +120,7 @@ describe("ExactKeetaServer", () => {
       server.registerMoneyParser(customParser);
 
       const result = await server.parsePrice("5.00", KEETA_TESTNET_CAIP2);
-      expect(customParser).toHaveBeenCalledWith(5, KEETA_TESTNET_CAIP2);
+      expect(customParser).toHaveBeenCalledWith("5.00", KEETA_TESTNET_CAIP2);
       expect(result).toEqual(customResult);
     });
 

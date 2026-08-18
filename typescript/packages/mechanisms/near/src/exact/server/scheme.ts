@@ -7,7 +7,7 @@ import type {
   Price,
   SchemeNetworkServer,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { isNearNetwork } from "../../constants";
 import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 
@@ -121,9 +121,9 @@ export class ExactNearScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns Asset amount in the configured default NEP-141 token
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
-    const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
+    const tokenAmount = convertToTokenAmount(amount, assetInfo.decimals);
 
     return {
       amount: tokenAmount,

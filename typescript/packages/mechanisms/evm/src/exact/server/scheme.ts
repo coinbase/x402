@@ -7,7 +7,7 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset, type ExactDefaultAssetInfo } from "../../defaultAssets";
 import type { AssetTransferMethod } from "../../types";
 
@@ -26,7 +26,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   /**
    * Register a custom money parser in the parser chain.
    * Multiple parsers can be registered - they will be tried in registration order.
-   * Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+   * Each parser receives a decimal string (e.g., "1.50" for $1.50).
    * If a parser returns null, the next parser in the chain will be tried.
    * The default parser is always the final fallback.
    *
@@ -36,9 +36,9 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    * @example
    * evmServer.registerMoneyParser(async (amount, network) => {
    *   // Custom conversion logic
-   *   if (amount > 100) {
+   *   if (Number(amount) > 100) {
    *     // Use different token for large amounts
-   *     return { amount: (amount * 1e18).toString(), asset: "0xCustomToken" };
+   *     return { amount: convertToTokenAmount(String(amount), 18), asset: "0xCustomToken" };
    *   }
    *   return null; // Use next parser
    * });
@@ -127,14 +127,14 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   /**
    * Converts a numeric dollar amount to an AssetAmount using the default token for the network.
    *
-   * @param amount - The dollar amount as a number
+   * @param amount - The decimal amount as a string
    * @param network - The target network
    * @param symbol - Optional ticker from a suffixed price
    * @returns The converted asset amount with token metadata
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo: ExactDefaultAssetInfo = getDefaultAsset(network, symbol);
-    const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
+    const tokenAmount = convertToTokenAmount(amount, assetInfo.decimals);
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
     // Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).

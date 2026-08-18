@@ -8,7 +8,7 @@ import type {
   Price,
   SchemeNetworkServer,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset, type HederaDefaultAsset } from "../../defaultAssets";
 import { assertSupportedHederaNetwork, isValidHederaAsset } from "../../utils";
 
@@ -137,7 +137,7 @@ export class ExactHederaScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns AssetAmount in configured default HTS token
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const tokenConfig =
       this.config.defaultAssets?.[network] ??
       (() => {
@@ -150,7 +150,7 @@ export class ExactHederaScheme implements SchemeNetworkServer {
     }
 
     return {
-      amount: convertToTokenAmount(numberToDecimalString(amount), tokenConfig.decimals),
+      amount: convertToTokenAmount(amount, tokenConfig.decimals),
       asset: tokenConfig.asset,
       extra: {},
     };

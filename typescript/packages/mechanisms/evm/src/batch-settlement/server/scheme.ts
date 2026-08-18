@@ -12,7 +12,7 @@ import {
 } from "@x402/core/types";
 import type { DeepReadonly } from "@x402/core/types";
 import type { SettleContext, SettleResultContext } from "@x402/core/server";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import type { FacilitatorClient } from "@x402/core/server";
 import { getAddress } from "viem";
 import { BatchSettlementChannelManager } from "./channelManager";
@@ -435,9 +435,9 @@ export class BatchSettlementEvmScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns {@link AssetAmount} with integer token amount, contract address, and metadata.
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
-    const tokenAmount = convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals);
+    const tokenAmount = convertToTokenAmount(amount, assetInfo.decimals);
 
     // EIP-3009 tokens always need name/version for their transferWithAuthorization domain.
     // Permit2 tokens only need them if the token supports EIP-2612 (for gasless permit signing).

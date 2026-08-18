@@ -22,6 +22,7 @@ import {
   ADDITIVE_ARRAY_INFO_FIELDS,
   ADDITIVE_ARRAY_MAX_LENGTHS,
   deepEqual,
+  convertToTokenAmount,
   findByNetworkAndScheme,
   toComparableArray,
 } from "../utils";
@@ -280,8 +281,7 @@ export function resolveSettlementOverrideAmount(
           `asset decimals are unknown. Pass an atomic amount or register the asset.`,
       );
     }
-    const dollars = parseFloat(dollarMatch[1]);
-    return Math.round(dollars * 10 ** decimals).toString();
+    return convertToTokenAmount(dollarMatch[1], decimals);
   }
 
   // Raw atomic units (existing behavior)

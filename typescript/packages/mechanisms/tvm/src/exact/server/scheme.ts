@@ -7,7 +7,7 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 import { makeZeroBitCellBoc, normalizeTonAddress } from "../../utils";
 
@@ -106,10 +106,10 @@ export class ExactTvmScheme implements SchemeNetworkServer {
     return Promise.resolve(paymentRequirements);
   }
 
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
     return {
-      amount: convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals),
+      amount: convertToTokenAmount(amount, assetInfo.decimals),
       asset: assetInfo.asset,
       extra: {
         areFeesSponsored: true,

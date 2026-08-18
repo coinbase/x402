@@ -7,7 +7,7 @@ import type {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
-import { convertToTokenAmount, numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { convertToTokenAmount, parseMoney } from "@x402/core/utils";
 import { findDefaultAsset, getDefaultAsset } from "../../defaultAssets";
 
 /**
@@ -41,7 +41,7 @@ export class ExactConcordiumScheme implements SchemeNetworkServer {
    * @example
    * ```typescript
    * scheme.registerMoneyParser(async (amount, network) => ({
-   *   amount: String(Math.round(amount * 1e6)),
+   *   amount: convertToTokenAmount(String(amount), 6),
    *   asset: "EURR",
    *   extra: {},
    * }));
@@ -141,10 +141,10 @@ export class ExactConcordiumScheme implements SchemeNetworkServer {
    * @param symbol - Optional ticker from a suffixed price
    * @returns Asset amount in USDR atomic units
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
     return {
-      amount: convertToTokenAmount(numberToDecimalString(amount), assetInfo.decimals),
+      amount: convertToTokenAmount(amount, assetInfo.decimals),
       asset: assetInfo.asset,
       extra: {},
     };

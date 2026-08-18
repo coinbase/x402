@@ -51,6 +51,9 @@ from .constants import (
     NetworkConfig,
 )
 
+# Default assets
+from .default_assets import DEFAULT_ASSETS, find_default_asset, get_default_asset
+
 # EIP-712
 from .eip712 import (
     build_typed_data_for_signing,
@@ -106,7 +109,6 @@ from .utils import (
     is_valid_tx_hash,
     normalize_address,
     parse_amount,
-    parse_money_to_decimal,
 )
 
 # V1 legacy constants (re-exported for backward compatibility)
@@ -209,7 +211,10 @@ __all__ = [
     "format_amount",
     "hex_to_bytes",
     "bytes_to_hex",
-    "parse_money_to_decimal",
+    # Default assets
+    "DEFAULT_ASSETS",
+    "find_default_asset",
+    "get_default_asset",
     # EIP-712
     "hash_typed_data",
     "hash_eip3009_authorization",

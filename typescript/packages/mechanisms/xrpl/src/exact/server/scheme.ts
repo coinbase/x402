@@ -8,7 +8,7 @@ import type {
   SchemeNetworkServer,
   SupportedKind,
 } from "@x402/core/types";
-import { numberToDecimalString, parseMoney } from "@x402/core/utils";
+import { parseMoney } from "@x402/core/utils";
 import { getDefaultAsset } from "../../defaultAssets";
 import type { XrplAssetTransferMethod } from "../../types";
 import {
@@ -136,15 +136,15 @@ export class ExactXrplScheme implements SchemeNetworkServer {
   /**
    * Converts a numeric dollar amount to RLUSD issued-currency units.
    *
-   * @param amount - The dollar amount as a number
+   * @param amount - The decimal amount as a string
    * @param network - The target network
    * @param symbol - Optional ticker from a suffixed price
    * @returns Asset amount with decimal ledger value and issuer extra
    */
-  private defaultMoneyConversion(amount: number, network: Network, symbol?: string): AssetAmount {
+  private defaultMoneyConversion(amount: string, network: Network, symbol?: string): AssetAmount {
     const assetInfo = getDefaultAsset(network, symbol);
     return {
-      amount: numberToDecimalString(amount),
+      amount,
       asset: assetInfo.asset,
       extra: { issuer: assetInfo.issuer },
     };
