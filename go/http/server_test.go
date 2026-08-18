@@ -1561,6 +1561,10 @@ func (m *mockSchemeServer) ParsePrice(price x402.Price, network x402.Network) (x
 	}, nil
 }
 
+func (m *mockSchemeServer) GetAssetDecimals(asset string, network x402.Network) (int, bool) {
+	return 6, true
+}
+
 func (m *mockSchemeServer) EnhancePaymentRequirements(ctx context.Context, base types.PaymentRequirements, supported types.SupportedKind, extensions []string) (types.PaymentRequirements, error) {
 	return base, nil
 }

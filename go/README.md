@@ -277,6 +277,7 @@ Transfer an exact amount to access a resource:
 - ✅ Extensible plugin architecture
 - ✅ Production ready with comprehensive testing
 - ✅ Lifecycle hooks for customization
+- ✅ Client spend controls (default-asset allowlist and $1 USD cap)
 
 ## Package Documentation
 

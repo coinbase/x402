@@ -75,7 +75,7 @@ func BuildPaymentClient() *PaymentClientContext {
 		log.Fatal("At least one of CLIENT_EVM_PRIVATE_KEY or CLIENT_SVM_PRIVATE_KEY is required")
 	}
 
-	x402Client := x402.Newx402Client()
+	x402Client := x402.Newx402Client().DisableSpendControls()
 	var batchedScheme *batchedclient.BatchSettlementEvmScheme
 
 	if evmPrivateKey != "" {

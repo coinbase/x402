@@ -1233,6 +1233,10 @@ func TestResolveSettlementOverrideAmount(t *testing.T) {
 			{"$0.05", "50000"},
 			{"$0.001", "1000"},
 			{"$0", "0"},
+			{"$1.0000005", "1000000"},
+			{"$0.0000005", "0"},
+			{"$0.0000009", "0"},
+			{"$0.00", "0"},
 		}
 		for _, tt := range tests {
 			result, err := ResolveSettlementOverrideAmount(tt.input, baseReqs, 6)

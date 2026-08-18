@@ -262,17 +262,13 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 //   - AssetInfo for the requested asset
 //   - Error if default asset is requested but not configured for this network
 func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
+	if found := FindDefaultAsset(assetSymbolOrAddress, network); found != nil {
+		return defaultAssetToAssetInfo(found), nil
+	}
+
 	// Check if it's an explicit address - works for ANY network
 	if IsValidAddress(assetSymbolOrAddress) {
 		normalizedAddr := NormalizeAddress(assetSymbolOrAddress)
-
-		// Check if this matches a known default asset for richer metadata
-		config, err := GetNetworkConfig(network)
-		if err == nil && config.DefaultAsset.Address != "" {
-			if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
-				return &config.DefaultAsset, nil
-			}
-		}
 
 		// Unknown token - return basic info (works for any EVM network)
 		return &AssetInfo{
@@ -284,17 +280,11 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 	}
 
 	// Not an explicit address - need the network's default asset
-	config, err := GetNetworkConfig(network)
+	info, err := GetDefaultAsset(network, "")
 	if err != nil {
-		return nil, err
-	}
-
-	// Check if default asset is configured
-	if config.DefaultAsset.Address == "" {
 		return nil, fmt.Errorf("no default asset configured for network %s; specify an explicit asset address or register a money parser", network)
 	}
-
-	return &config.DefaultAsset, nil
+	return defaultAssetToAssetInfo(info), nil
 }
 
 // CreateValidityWindow creates valid after/before timestamps

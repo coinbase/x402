@@ -281,16 +281,16 @@ Use alternative tokens for payments:
 
 ```go
 evmScheme := evm.NewExactEvmScheme().RegisterMoneyParser(
-    func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
-        // Use DAI for large amounts
-        if amount > 100 {
-            return &x402.AssetAmount{
-                Amount: fmt.Sprintf("%.0f", amount*1e18),
-                Asset:  "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", // DAI
-                Extra:  map[string]interface{}{"token": "DAI"},
-            }, nil
+    func(amount string, network x402.Network) (*x402.AssetAmount, error) {
+        tokenAmount, err := x402.ConvertToTokenAmount(amount, 18)
+        if err != nil {
+            return nil, err
         }
-        return nil, nil // Use default USDC for small amounts
+        return &x402.AssetAmount{
+            Amount: tokenAmount,
+            Asset:  "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", // DAI
+            Extra:  map[string]interface{}{"token": "DAI"},
+        }, nil
     },
 )
 ```

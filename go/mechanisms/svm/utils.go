@@ -56,6 +56,10 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 
 // GetAssetInfo returns information about an asset on a network
 func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
+	if found := FindDefaultAsset(assetSymbolOrAddress, network); found != nil {
+		return defaultAssetToAssetInfo(found), nil
+	}
+
 	config, err := GetNetworkConfig(network)
 	if err != nil {
 		return nil, err
@@ -63,11 +67,6 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 
 	// Check if it's a valid Solana address (mint address)
 	if ValidateSolanaAddress(assetSymbolOrAddress) {
-		// Check if it matches the default asset
-		if assetSymbolOrAddress == config.DefaultAsset.Address {
-			return &config.DefaultAsset, nil
-		}
-
 		// Unknown token - return basic info with default decimals
 		return &AssetInfo{
 			Address:  assetSymbolOrAddress,

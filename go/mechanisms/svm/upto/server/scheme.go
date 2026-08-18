@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -24,9 +23,6 @@ import (
 // AssetTransferMethodChannel is the asset transfer method advertised for
 // SVM `upto`: funds move through an onchain payment channel.
 const AssetTransferMethodChannel = "channel"
-
-// priceSuffixPattern matches a trailing asset symbol in a price string.
-var priceSuffixPattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9]*\s*$`)
 
 // Config configures the server-side SVM `upto` scheme.
 type Config struct {
@@ -187,7 +183,7 @@ func (s *UptoSvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (map[str
 
 // RegisterMoneyParser registers a custom money parser in the parser chain.
 // Multiple parsers can be registered - they will be tried in registration order.
-// Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+// Each parser receives a decimal string (e.g., "1.50" for $1.50).
 // If a parser returns nil, the next parser in the chain will be tried.
 // The default parser is always the final fallback.
 func (s *UptoSvmScheme) RegisterMoneyParser(parser x402.MoneyParser) *UptoSvmScheme {
@@ -227,7 +223,7 @@ func (s *UptoSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402
 		}
 	}
 
-	decimalAmount, stablecoin, err := s.parseMoney(price)
+	decimalAmount, symbol, err := x402.ParseMoney(price)
 	if err != nil {
 		return x402.AssetAmount{}, err
 	}
@@ -242,7 +238,7 @@ func (s *UptoSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402
 		}
 	}
 
-	return s.defaultMoneyConversion(decimalAmount, networkStr, stablecoin)
+	return s.defaultMoneyConversion(decimalAmount, networkStr, symbol)
 }
 
 // EnhancePaymentRequirements folds the facilitator's feePayer into the
@@ -334,75 +330,44 @@ func (s *UptoSvmScheme) enrichBlockhashHints(ctx context.Context, extra map[stri
 	extra[upto.ExtraRecentSlot] = strconv.FormatUint(latest.Context.Slot, 10)
 }
 
-// parseMoney converts Money (string | number) to a decimal amount, recognizing a
-// trailing stablecoin symbol ("$1.50", "1.50 PYUSD"). An empty symbol selects the
-// network default.
-func (s *UptoSvmScheme) parseMoney(price x402.Price) (float64, string, error) {
-	switch typed := price.(type) {
-	case string:
-		cleanPrice := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(typed), "$"))
-		parts := strings.Fields(cleanPrice)
-		if len(parts) == 0 {
-			return 0, "", fmt.Errorf(ErrInvalidPriceFormat+": %v", price)
-		}
-		amount, err := strconv.ParseFloat(parts[0], 64)
-		if err != nil {
-			return 0, "", fmt.Errorf(ErrFailedToParsePrice+": '%s': %w", typed, err)
-		}
-		return amount, priceStablecoinSuffix(cleanPrice), nil
-	case float64:
-		return typed, "", nil
-	case int:
-		return float64(typed), "", nil
-	case int64:
-		return float64(typed), "", nil
-	}
-	return 0, "", fmt.Errorf(ErrInvalidPriceFormat+": %v", price)
-}
-
-// priceStablecoinSuffix reads a trailing stablecoin symbol from a price. "USD" is
-// USDC; anything unsupported is ignored so the network default applies.
-func priceStablecoinSuffix(cleanPrice string) string {
-	suffix := strings.ToUpper(priceSuffixPattern.FindString(cleanPrice))
-	if suffix == "USD" {
-		return "USDC"
-	}
-	if _, ok := svm.StablecoinTokenPrograms[suffix]; ok {
-		return suffix
-	}
-	return ""
-}
-
 // defaultMoneyConversion converts a decimal amount to atomic units of the
 // requested stablecoin, defaulting to the network's default asset.
 func (s *UptoSvmScheme) defaultMoneyConversion(
-	amount float64,
+	amount string,
 	network string,
-	stablecoin string,
+	symbol string,
 ) (x402.AssetAmount, error) {
-	asset, err := svm.GetStablecoinAddress(defaultStablecoin(stablecoin), network)
+	assetInfo, err := svm.GetDefaultAsset(network, symbol)
 	if err != nil {
-		return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", err)
+		if symbol != "" {
+			if address, stablecoinErr := svm.GetStablecoinAddress(strings.ToUpper(symbol), network); stablecoinErr == nil {
+				tokenAmount, convertErr := x402.ConvertToTokenAmount(amount, svm.StablecoinDecimals)
+				if convertErr != nil {
+					return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", convertErr)
+				}
+				return x402.AssetAmount{
+					Amount: tokenAmount,
+					Asset:  address,
+					Extra:  make(map[string]interface{}),
+				}, nil
+			}
+		}
+		assetInfo, err = svm.GetDefaultAsset(network, "")
+		if err != nil {
+			return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", err)
+		}
 	}
 
-	amountStr := strconv.FormatFloat(amount, 'f', svm.StablecoinDecimals, 64)
-	parsedAmount, err := svm.ParseAmount(amountStr, svm.StablecoinDecimals)
+	tokenAmount, err := x402.ConvertToTokenAmount(amount, assetInfo.Decimals)
 	if err != nil {
 		return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", err)
 	}
 
 	return x402.AssetAmount{
-		Amount: strconv.FormatUint(parsedAmount, 10),
-		Asset:  asset,
+		Amount: tokenAmount,
+		Asset:  assetInfo.Asset,
 		Extra:  make(map[string]interface{}),
 	}, nil
-}
-
-func defaultStablecoin(stablecoin string) string {
-	if stablecoin == "" {
-		return "USDC"
-	}
-	return stablecoin
 }
 
 // requirementsFromView rebuilds concrete requirements from the version-agnostic
