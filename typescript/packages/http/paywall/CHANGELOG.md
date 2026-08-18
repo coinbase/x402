@@ -1,5 +1,20 @@
 # @x402/paywall Changelog
 
+## 2.23.0
+
+### Minor Changes
+
+- Updated dependencies [79b6259](https://github.com/x402-foundation/x402/commit/79b6259)
+- Updated dependencies [4f58723](https://github.com/x402-foundation/x402/commit/4f58723)
+- Updated dependencies [ab1a31a](https://github.com/x402-foundation/x402/commit/ab1a31a)
+- Updated dependencies [c2612d3](https://github.com/x402-foundation/x402/commit/c2612d3)
+- Updated dependencies [656437e](https://github.com/x402-foundation/x402/commit/656437e)
+  - @x402/core@2.23.0
+
+### Patch Changes
+
+- [4f58723](https://github.com/x402-foundation/x402/commit/4f58723): Normalize each mechanism's default assets into `DEFAULT_ASSETS` + `getDefaultAsset` / `findDefaultAsset`, and add client `spendControls`: by default only recognized pegged assets are allowed with a `$1` USD cap; opt into other tokens via `allowedAssets` (list with optional integer atomic `maxAmountPerPayment`, or `true` to allow any); pass `spendControls: false` to disable all spend controls. A non-integer per-asset cap is a config error; a non-integer 402 amount on that path is dropped. Keeta, XRPL, and Concordium now ship USD defaults (USDC, RLUSD, USDR). XRPL pins the RLUSD issuer in the client scheme before signing. `$` settlement overrides throw when `getAssetDecimals` is unknown instead of guessing 6 decimals. Notable API moves: `DEFAULT_STABLECOINS` / `USDC_CONFIG` / `DEFAULT_ASSET_BY_NETWORK` → `DEFAULT_ASSETS` (list per network); identifier field `address` / `asaId` → `asset`; TVM `getDefaultAsset` returns an entry (use `.asset`). EVM `getAssetDecimals` is asset-aware; aptos unknown networks throw; EVM/SVM register helpers scope v1 networks to `config.networks`. Paywall uses `spendControls: false` (UI approval); MCP forwards `spendControls`. ([#3124](https://github.com/x402-foundation/x402/pull/3124)) - Thanks [@phdargen](https://github.com/phdargen)!
+
 ## 2.22.0
 
 ### Minor Changes
