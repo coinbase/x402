@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Grant Search">
+  <rect width="256" height="256" rx="48" fill="#12372a"/>
+  <path d="M68 50h88l32 32v72H68z" fill="#fff"/>
+  <path d="M156 50v32h32" fill="#d9f99d"/>
+  <path d="M94 105h68M94 128h48" stroke="#12372a" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="144" cy="157" r="33" fill="#d9f99d" stroke="#12372a" stroke-width="12"/>
+  <path d="m168 181 28 28" stroke="#d9f99d" stroke-width="18" stroke-linecap="round"/>
+</svg>
