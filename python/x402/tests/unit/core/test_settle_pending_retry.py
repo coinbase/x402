@@ -96,9 +96,13 @@ class TestIsRetryableSettlementPending:
         )
         assert is_retryable_settlement_pending(result) is False
 
-    def test_false_for_settlement_pending_with_none_reason_is_impossible_but_empty_string_is_not_pending(
-        self,
-    ):
+    def test_false_for_none_error_reason(self):
+        result = SettleResponse(
+            success=False, error_reason=None, transaction="0xabc", network=NETWORK
+        )
+        assert is_retryable_settlement_pending(result) is False
+
+    def test_false_for_empty_string_error_reason(self):
         result = SettleResponse(
             success=False, error_reason="", transaction="0xabc", network=NETWORK
         )
@@ -393,4 +397,26 @@ class TestResourceServerAsyncSettleRetry:
         assert result.success is False
         assert result.error_reason == "settlement_pending"
         assert result.transaction == "0xsecond"
+        assert client.settle_calls == 2
+
+    def test_recovery_hook_still_runs_after_a_non_recovered_retry(self):
+        """Async counterpart of the sync test above: a final settlement_pending (after
+        the capped retry) must still route through an async on_settle_failure hook, which
+        must be able to recover it via an awaited RecoveredSettleResult."""
+        from x402.schemas import RecoveredSettleResult
+
+        server, client = self._make_server(
+            [_pending_response("0xfirst"), _pending_response("0xsecond")]
+        )
+        recovered = _success_response("0xrecovered")
+
+        async def _recover(ctx):
+            return RecoveredSettleResult(result=recovered)
+
+        server.on_settle_failure(_recover)
+
+        result = asyncio.run(server.settle_payment(_payload(), _requirements()))
+
+        assert result.success is True
+        assert result.transaction == "0xrecovered"
         assert client.settle_calls == 2

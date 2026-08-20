@@ -38,6 +38,13 @@ class MockFacilitatorSigner:
         pass
 
 
+class _ConfirmTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def confirm_transaction(self, signature: str, network: str) -> None:
+        raise TimeoutError("rpc: timeout waiting for confirmation")
+
+
 class TestExactSvmSchemeConstructor:
     """Test ExactSvmScheme facilitator constructor."""
 
@@ -277,10 +284,6 @@ class TestSettle:
         """Confirm-timeout must report settlement_pending (not transaction_failed) and
         populate the pending-settlement store with the broadcast signature."""
 
-        class _ConfirmTimeoutSigner(MockFacilitatorSigner):
-            def confirm_transaction(self, signature: str, network: str) -> None:
-                raise TimeoutError("rpc: timeout waiting for confirmation")
-
         signer = _ConfirmTimeoutSigner()
         facilitator = ExactSvmFacilitatorScheme(signer)
         requirements = PaymentRequirements(
@@ -376,10 +379,6 @@ class TestSettlePendingSettlementStoreReconciliation:
         )
 
     def test_cache_hit_skips_verify_and_send_then_reconciles_success(self):
-        class _ConfirmTimeoutSigner(MockFacilitatorSigner):
-            def confirm_transaction(self, signature: str, network: str) -> None:
-                raise TimeoutError("rpc: timeout waiting for confirmation")
-
         signer = _ConfirmTimeoutSigner()
         facilitator, payload, requirements = _make_settle_fixtures(signer)
 
@@ -410,10 +409,6 @@ class TestSettlePendingSettlementStoreReconciliation:
         assert facilitator._pending_store.get(tx_key) is None
 
     def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
-        class _ConfirmTimeoutSigner(MockFacilitatorSigner):
-            def confirm_transaction(self, signature: str, network: str) -> None:
-                raise TimeoutError("rpc: timeout waiting for confirmation")
-
         signer = _ConfirmTimeoutSigner()
         facilitator, payload, requirements = _make_settle_fixtures(signer)
 
@@ -460,10 +455,6 @@ class TestSettlePendingSettlementStoreReconciliation:
         (e.g. from a caller without a shared PendingSettlementStore) could re-verify and
         re-send a transaction that's already in flight. Mirrors the Go/TS SVM exact tests.
         """
-
-        class _ConfirmTimeoutSigner(MockFacilitatorSigner):
-            def confirm_transaction(self, signature: str, network: str) -> None:
-                raise TimeoutError("rpc: timeout waiting for confirmation")
 
         signer = _ConfirmTimeoutSigner()
         facilitator, payload, requirements = _make_settle_fixtures(signer)

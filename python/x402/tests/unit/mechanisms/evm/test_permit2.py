@@ -187,6 +187,13 @@ class MockFacilitatorSigner:
         return b""
 
 
+class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        raise TimeoutError("rpc: timeout waiting for receipt")
+
+
 # ============================================================================
 # Type detection tests
 # ============================================================================
@@ -461,10 +468,6 @@ class TestSettlePermit2:
         assert result.success is False
 
     def test_settle_receipt_wait_failure_returns_settlement_pending(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -512,10 +515,6 @@ class TestSettlePermit2:
         assert facilitator._pending_store.entries == {}
 
     def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -532,10 +531,6 @@ class TestSettlePermit2:
         assert facilitator._pending_store.get(signature) == result.transaction
 
     def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -564,10 +559,6 @@ class TestSettlePermit2:
         assert facilitator._pending_store.entries == {}
 
     def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()

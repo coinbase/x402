@@ -44,15 +44,9 @@ from x402.mechanisms.svm.exact import (
     ExactSvmServerScheme,
 )
 from x402.mechanisms.svm.signers import FacilitatorKeypairSigner
-from x402.schemas import (
-    PaymentPayload,
-    PaymentRequired,
-    PaymentRequirements,
-    ResourceInfo,
-    SettleResponse,
-    SupportedResponse,
-    VerifyResponse,
-)
+from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, ResourceInfo
+
+from ._settlement_pending_helpers import SingleSchemeFacilitatorClientSync
 
 CLIENT_PRIVATE_KEY = os.environ.get("SVM_CLIENT_PRIVATE_KEY")
 FACILITATOR_PRIVATE_KEY = os.environ.get("SVM_FACILITATOR_PRIVATE_KEY")
@@ -102,39 +96,6 @@ class ForcedPendingConfirmSigner:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._wrapped, name)
-
-
-class _SvmFacilitatorClientSync:
-    """Facilitator client wrapper for the x402ResourceServerSync."""
-
-    scheme = SCHEME_EXACT
-    network = NETWORK
-    x402_version = 2
-
-    def __init__(self, facilitator_scheme: ExactSvmFacilitatorScheme):
-        self._facilitator_scheme = facilitator_scheme
-
-    def verify(self, payload: PaymentPayload, requirements: PaymentRequirements) -> VerifyResponse:
-        return self._facilitator_scheme.verify(payload, requirements)
-
-    def settle(self, payload: PaymentPayload, requirements: PaymentRequirements) -> SettleResponse:
-        return self._facilitator_scheme.settle(payload, requirements)
-
-    def get_supported(self) -> SupportedResponse:
-        from x402.schemas import SupportedKind
-
-        return SupportedResponse(
-            kinds=[
-                SupportedKind(
-                    x402_version=2,
-                    scheme=SCHEME_EXACT,
-                    network=NETWORK,
-                    extra=self._facilitator_scheme.get_extra(NETWORK),
-                )
-            ],
-            extensions=[],
-            signers={NETWORK: self._facilitator_scheme.get_signers(NETWORK)},
-        )
 
 
 def _build_requirements(pay_to: str, amount: str, fee_payer: str) -> PaymentRequirements:
@@ -251,7 +212,9 @@ class TestSvmResourceServerSettlementPendingRetry:
         facilitator_signer = ForcedPendingConfirmSigner(real_facilitator_signer)
         facilitator_scheme = ExactSvmFacilitatorScheme(facilitator_signer)  # type: ignore[arg-type]
 
-        facilitator_client = _SvmFacilitatorClientSync(facilitator_scheme)
+        facilitator_client = SingleSchemeFacilitatorClientSync(
+            SCHEME_EXACT, NETWORK, facilitator_scheme
+        )
         server = x402ResourceServerSync(facilitator_client)
         server.register(NETWORK, ExactSvmServerScheme())
         server.initialize()

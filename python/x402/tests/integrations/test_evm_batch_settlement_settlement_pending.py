@@ -48,14 +48,9 @@ from x402.mechanisms.evm.batch_settlement.server import (
 )
 from x402.mechanisms.evm.constants import ERR_SETTLEMENT_PENDING
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
-from x402.schemas import (
-    PaymentPayload,
-    PaymentRequirements,
-    ResourceInfo,
-    SettleResponse,
-    SupportedResponse,
-    VerifyResponse,
-)
+from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
+
+from ._settlement_pending_helpers import SingleSchemeFacilitatorClientSync
 
 CLIENT_PRIVATE_KEY = os.environ.get("EVM_CLIENT_EOA_PRIVATE_KEY") or os.environ.get(
     "EVM_CLIENT_PRIVATE_KEY"
@@ -113,40 +108,6 @@ class ForcedPendingReceiptSigner:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._wrapped, name)
-
-
-class _BatchFacilitatorClientSync:
-    """Adapts BatchSettlementEvmFacilitator to the FacilitatorClient surface used by
-    the resource server."""
-
-    scheme = SCHEME_BATCH_SETTLEMENT
-    network = NETWORK
-    x402_version = 2
-
-    def __init__(self, facilitator_scheme: BatchSettlementEvmFacilitator):
-        self._facilitator_scheme = facilitator_scheme
-
-    def verify(self, payload: PaymentPayload, requirements: PaymentRequirements) -> VerifyResponse:
-        return self._facilitator_scheme.verify(payload, requirements)
-
-    def settle(self, payload: PaymentPayload, requirements: PaymentRequirements) -> SettleResponse:
-        return self._facilitator_scheme.settle(payload, requirements)
-
-    def get_supported(self) -> SupportedResponse:
-        from x402.schemas import SupportedKind
-
-        return SupportedResponse(
-            kinds=[
-                SupportedKind(
-                    x402_version=2,
-                    scheme=SCHEME_BATCH_SETTLEMENT,
-                    network=NETWORK,
-                    extra=self._facilitator_scheme.get_extra(NETWORK),
-                )
-            ],
-            extensions=[],
-            signers={NETWORK: self._facilitator_scheme.get_signers(NETWORK)},
-        )
 
 
 def _build_requirements(pay_to: str, amount: str, receiver_authorizer: str) -> PaymentRequirements:
@@ -290,7 +251,9 @@ class TestEvmBatchSettlementResourceServerSettlementPendingRetry:
             authorizer_signer,  # type: ignore[arg-type]
         )
 
-        facilitator_client = _BatchFacilitatorClientSync(facilitator_scheme)
+        facilitator_client = SingleSchemeFacilitatorClientSync(
+            SCHEME_BATCH_SETTLEMENT, NETWORK, facilitator_scheme
+        )
         server = x402ResourceServerSync(facilitator_client)
         server.register(
             NETWORK,

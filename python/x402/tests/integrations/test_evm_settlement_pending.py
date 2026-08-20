@@ -41,14 +41,9 @@ from x402.mechanisms.evm.exact import (
     ExactEvmServerScheme,
 )
 from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
-from x402.schemas import (
-    PaymentPayload,
-    PaymentRequirements,
-    ResourceInfo,
-    SettleResponse,
-    SupportedResponse,
-    VerifyResponse,
-)
+from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
+
+from ._settlement_pending_helpers import SingleSchemeFacilitatorClientSync
 
 CLIENT_PRIVATE_KEY = os.environ.get("EVM_CLIENT_EOA_PRIVATE_KEY") or os.environ.get(
     "EVM_CLIENT_PRIVATE_KEY"
@@ -96,39 +91,6 @@ class ForcedPendingReceiptSigner:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._wrapped, name)
-
-
-class _EvmFacilitatorClientSync:
-    """Facilitator client wrapper for the x402ResourceServerSync."""
-
-    scheme = SCHEME_EXACT
-    network = NETWORK
-    x402_version = 2
-
-    def __init__(self, facilitator_scheme: ExactEvmFacilitatorScheme):
-        self._facilitator_scheme = facilitator_scheme
-
-    def verify(self, payload: PaymentPayload, requirements: PaymentRequirements) -> VerifyResponse:
-        return self._facilitator_scheme.verify(payload, requirements)
-
-    def settle(self, payload: PaymentPayload, requirements: PaymentRequirements) -> SettleResponse:
-        return self._facilitator_scheme.settle(payload, requirements)
-
-    def get_supported(self) -> SupportedResponse:
-        from x402.schemas import SupportedKind
-
-        return SupportedResponse(
-            kinds=[
-                SupportedKind(
-                    x402_version=2,
-                    scheme=SCHEME_EXACT,
-                    network=NETWORK,
-                    extra=self._facilitator_scheme.get_extra(NETWORK),
-                )
-            ],
-            extensions=[],
-            signers={NETWORK: self._facilitator_scheme.get_signers(NETWORK)},
-        )
 
 
 def _build_requirements(pay_to: str, amount: str) -> PaymentRequirements:
@@ -249,7 +211,9 @@ class TestEvmResourceServerSettlementPendingRetry:
             ExactEvmSchemeConfig(),  # type: ignore[arg-type]
         )
 
-        facilitator_client = _EvmFacilitatorClientSync(facilitator_scheme)
+        facilitator_client = SingleSchemeFacilitatorClientSync(
+            SCHEME_EXACT, NETWORK, facilitator_scheme
+        )
         server = x402ResourceServerSync(facilitator_client)
         server.register(NETWORK, ExactEvmServerScheme())
         server.initialize()

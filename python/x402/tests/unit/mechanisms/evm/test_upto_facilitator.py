@@ -201,6 +201,13 @@ class MockFacilitatorSigner:
         return self._code_by_address.get(address.lower(), self._code)
 
 
+class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        raise TimeoutError("rpc: timeout waiting for receipt")
+
+
 class TestUptoEvmSchemeConstructor:
     def test_creates_instance_with_correct_scheme(self):
         signer = MockFacilitatorSigner()
@@ -508,10 +515,6 @@ class TestSettle:
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
         from unittest.mock import patch
-
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
 
         signer = _ReceiptTimeoutSigner()
         facilitator = UptoEvmFacilitatorScheme(signer)
@@ -905,10 +908,6 @@ class TestUptoPermit2PendingSettlementStore:
     def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
         from unittest.mock import patch
 
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = UptoEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -926,10 +925,6 @@ class TestUptoPermit2PendingSettlementStore:
 
     def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
         from unittest.mock import patch
-
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
 
         signer = _ReceiptTimeoutSigner()
         facilitator = UptoEvmFacilitatorScheme(signer)
@@ -961,10 +956,6 @@ class TestUptoPermit2PendingSettlementStore:
 
     def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
         from unittest.mock import patch
-
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
 
         signer = _ReceiptTimeoutSigner()
         facilitator = UptoEvmFacilitatorScheme(signer)

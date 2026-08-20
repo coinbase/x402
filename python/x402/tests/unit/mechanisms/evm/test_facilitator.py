@@ -281,6 +281,13 @@ class MockFacilitatorSigner:
         return self.code
 
 
+class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        raise TimeoutError("rpc: timeout waiting for receipt")
+
+
 class TestExactEvmSchemeConstructor:
     def test_creates_instance_with_config(self):
         signer = MockFacilitatorSigner()
@@ -617,10 +624,6 @@ class TestSettle:
         assert signer.write_calls == 1
 
     def test_receipt_wait_failure_returns_settlement_pending(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         # Payer has code so verify_typed_data_strict takes the EIP-1271 path, which
         # honours typed_data_valid=True via the isValidSignature mock.
         signer = _ReceiptTimeoutSigner(code_by_address={PAYER.lower(): b"\x01"})
@@ -675,10 +678,6 @@ class TestEip3009PendingSettlementStore:
         assert facilitator._pending_store.entries == {}
 
     def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner(code_by_address={PAYER.lower(): b"\x01"})
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -691,10 +690,6 @@ class TestEip3009PendingSettlementStore:
         assert facilitator._pending_store.get(signature) == result.transaction
 
     def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner(code_by_address={PAYER.lower(): b"\x01"})
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -720,10 +715,6 @@ class TestEip3009PendingSettlementStore:
         assert facilitator._pending_store.entries == {}
 
     def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner(code_by_address={PAYER.lower(): b"\x01"})
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
