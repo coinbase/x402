@@ -32,6 +32,9 @@ type settleMockSigner struct {
 	// writeTxHash, when set, overrides the hash returned from WriteContract so tests can
 	// model a signer that reports success without a usable transaction hash.
 	writeTxHash string
+	// writeCalls counts WriteContract invocations, so pending-settlement
+	// reconciliation tests can assert the fast path never re-broadcasts.
+	writeCalls int
 }
 
 func (m *settleMockSigner) GetAddresses() []string { return []string{"0xFac11"} }
@@ -50,6 +53,7 @@ func (m *settleMockSigner) VerifyTypedData(ctx context.Context, address string, 
 }
 
 func (m *settleMockSigner) WriteContract(ctx context.Context, address string, abi []byte, functionName string, dataSuffix []byte, args ...interface{}) (string, error) {
+	m.writeCalls++
 	if m.writeErr != nil {
 		return "", m.writeErr
 	}

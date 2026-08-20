@@ -1,5 +1,7 @@
 package facilitator
 
+import x402 "github.com/x402-foundation/x402/go/v2"
+
 // Facilitator error codes for the SVM `upto` payment-channel scheme.
 const (
 	// Shared protocol-level codes.
@@ -66,3 +68,13 @@ const (
 	// ErrPaymentRequirements is returned when the requirements are unusable.
 	ErrPaymentRequirements = "invalid_upto_svm_payment_requirements"
 )
+
+// ErrSettlementPending is the non-terminal settle error reason used when a
+// deposit (open) or claim (settle_and_seal + distribute) transaction was
+// broadcast but ConfirmTransaction couldn't observe its confirmation in time.
+// It always carries the broadcast signature (as SettleError.Transaction) so a
+// caller can reconcile onchain, and mirrors x402.ErrSettlementPending /
+// evm.ErrSettlementPending so x402ResourceServer's generic
+// single-retry-on-settlement_pending logic (see settleWithPendingRetry in
+// server.go) recognizes it uniformly across schemes/networks.
+const ErrSettlementPending = x402.ErrSettlementPending
