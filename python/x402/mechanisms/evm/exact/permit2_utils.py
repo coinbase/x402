@@ -16,6 +16,7 @@ except ImportError as e:
     ) from e
 
 from ....interfaces import FacilitatorContext  # noqa: E402
+from ....pending_settlement_store import PendingSettlementStore  # noqa: E402
 from ....schemas import (  # noqa: E402
     PaymentPayload,
     PaymentRequirements,
@@ -401,11 +402,42 @@ def _verify_permit2_allowance(
     )
 
 
+def resolve_permit2_receipt_wait_signer(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    context: FacilitatorContext | None,
+) -> Any:
+    """Return the signer that should wait for the settlement receipt.
+
+    The ERC-20-approval-gas-sponsoring extension's signer when that extension provided the
+    transaction (it may have broadcast via a different account), otherwise the facilitator's
+    own signer. Depends only on payload.extensions/context, so it can be resolved before
+    verify runs (the pending-settlement fast path skips verify entirely).
+    """
+    from ....extensions.erc20_approval_gas_sponsoring import (
+        ERC20_APPROVAL_GAS_SPONSORING_KEY,
+        Erc20ApprovalFacilitatorExtension,
+        extract_erc20_approval_gas_sponsoring_info,
+    )
+
+    if context is None:
+        return signer
+    erc20_info = extract_erc20_approval_gas_sponsoring_info(payload)
+    if erc20_info is None:
+        return signer
+    ext = context.get_extension(ERC20_APPROVAL_GAS_SPONSORING_KEY)
+    if not isinstance(ext, Erc20ApprovalFacilitatorExtension):
+        return signer
+    extension_signer = ext.resolve_signer(str(payload.accepted.network))
+    return extension_signer if extension_signer is not None else signer
+
+
 def settle_permit2(
     signer: FacilitatorEvmSigner,
     payload: PaymentPayload,
     requirements: PaymentRequirements,
     context: FacilitatorContext | None = None,
+    pending_store: PendingSettlementStore | None = None,
 ) -> SettleResponse:
     """Settle a Permit2 payment on-chain.
 
@@ -419,6 +451,9 @@ def settle_permit2(
         payload: Verified payment payload.
         requirements: Payment requirements.
         context: Optional facilitator context for extension lookup.
+        pending_store: Optional store letting a retried settle for the same payload
+            reconcile against an already-broadcast transaction instead of re-verifying
+            and re-broadcasting (see settlement_pending).
 
     Returns:
         SettleResponse with success, transaction, and payer.
@@ -433,6 +468,23 @@ def settle_permit2(
     permit2_payload = ExactPermit2Payload.from_dict(payload.payload)
     payer = permit2_payload.permit2_authorization.from_address
     network = str(requirements.network)
+
+    # Fast path: a prior settle attempt for this exact payload already broadcast a
+    # transaction whose receipt wait failed (settlement_pending). Reconcile against it
+    # instead of re-verifying/re-broadcasting.
+    if pending_store is not None and permit2_payload.signature:
+        cached_tx_hash = pending_store.get(permit2_payload.signature)
+        if cached_tx_hash is not None:
+            receipt_wait_signer = resolve_permit2_receipt_wait_signer(signer, payload, context)
+            return wait_for_receipt_and_build_response(
+                receipt_wait_signer,
+                cached_tx_hash,
+                network,
+                payer,
+                failed_reason=ERR_TRANSACTION_FAILED,
+                pending_store=pending_store,
+                pending_key=permit2_payload.signature,
+            )
 
     # Re-verify before settling
     verify_result = verify_permit2(signer, payload, requirements, context)
@@ -452,7 +504,12 @@ def settle_permit2(
     eip2612_info = extract_eip2612_gas_sponsoring_info(payload)
     if eip2612_info is not None:
         return _settle_permit2_with_eip2612(
-            signer, payload, permit2_payload, eip2612_info, data_suffix=data_suffix
+            signer,
+            payload,
+            permit2_payload,
+            eip2612_info,
+            data_suffix=data_suffix,
+            pending_store=pending_store,
         )
 
     # Branch: ERC-20 approval gas sponsoring (broadcast approval + settle)
@@ -463,11 +520,18 @@ def settle_permit2(
             extension_signer = ext.resolve_signer(str(payload.accepted.network))
             if extension_signer is not None:
                 return _settle_permit2_with_erc20_approval(
-                    extension_signer, payload, permit2_payload, erc20_info, data_suffix=data_suffix
+                    extension_signer,
+                    payload,
+                    permit2_payload,
+                    erc20_info,
+                    data_suffix=data_suffix,
+                    pending_store=pending_store,
                 )
 
     # Branch: standard settle (allowance already on-chain)
-    return _settle_permit2_direct(signer, payload, permit2_payload, data_suffix=data_suffix)
+    return _settle_permit2_direct(
+        signer, payload, permit2_payload, data_suffix=data_suffix, pending_store=pending_store
+    )
 
 
 def _build_permit2_settle_args(
@@ -501,6 +565,7 @@ def _settle_permit2_direct(
     payload: PaymentPayload,
     permit2_payload: ExactPermit2Payload,
     data_suffix: str | None = None,
+    pending_store: PendingSettlementStore | None = None,
 ) -> SettleResponse:
     """Standard Permit2 settle — allowance is already on-chain."""
     payer = permit2_payload.permit2_authorization.from_address
@@ -523,7 +588,13 @@ def _settle_permit2_direct(
         )
 
         return wait_for_receipt_and_build_response(
-            signer, tx_hash, network, payer, failed_reason=ERR_TRANSACTION_FAILED
+            signer,
+            tx_hash,
+            network,
+            payer,
+            failed_reason=ERR_TRANSACTION_FAILED,
+            pending_store=pending_store,
+            pending_key=permit2_payload.signature,
         )
 
     except Exception as e:
@@ -536,6 +607,7 @@ def _settle_permit2_with_eip2612(
     permit2_payload: ExactPermit2Payload,
     eip2612_info: Any,
     data_suffix: str | None = None,
+    pending_store: PendingSettlementStore | None = None,
 ) -> SettleResponse:
     """Settle via settleWithPermit — includes the EIP-2612 permit atomically."""
     payer = permit2_payload.permit2_authorization.from_address
@@ -577,7 +649,13 @@ def _settle_permit2_with_eip2612(
         )
 
         return wait_for_receipt_and_build_response(
-            signer, tx_hash, network, payer, failed_reason=ERR_TRANSACTION_FAILED
+            signer,
+            tx_hash,
+            network,
+            payer,
+            failed_reason=ERR_TRANSACTION_FAILED,
+            pending_store=pending_store,
+            pending_key=permit2_payload.signature,
         )
 
     except Exception as e:
@@ -590,6 +668,7 @@ def _settle_permit2_with_erc20_approval(
     permit2_payload: ExactPermit2Payload,
     erc20_info: Any,
     data_suffix: str | None = None,
+    pending_store: PendingSettlementStore | None = None,
 ) -> SettleResponse:
     """Settle via extension signer's send_transactions (approval + settle)."""
     payer = permit2_payload.permit2_authorization.from_address
@@ -627,6 +706,8 @@ def _settle_permit2_with_erc20_approval(
             network,
             payer,
             failed_reason=ERR_TRANSACTION_FAILED,
+            pending_store=pending_store,
+            pending_key=permit2_payload.signature,
         )
     except Exception as e:
         return _map_settle_error(e, network, payer)
