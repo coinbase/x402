@@ -1,5 +1,7 @@
 package facilitator
 
+import x402 "github.com/x402-foundation/x402/go/v2"
+
 // Facilitator error constants for the exact SVM (Solana) scheme (V2)
 const (
 	// Verify errors
@@ -30,9 +32,19 @@ const (
 	ErrMemoCount    = "invalid_exact_solana_payload_memo_count"
 
 	// Settle errors
-	ErrVerificationFailed            = "invalid_exact_solana_verification_failed"
-	ErrFeePayerMismatch              = "invalid_exact_solana_fee_payer_mismatch"
-	ErrTransactionFailed             = "invalid_exact_solana_transaction_failed"
-	ErrTransactionConfirmationFailed = "invalid_exact_solana_transaction_confirmation_failed"
-	ErrDuplicateSettlement           = "duplicate_settlement"
+	ErrVerificationFailed  = "invalid_exact_solana_verification_failed"
+	ErrFeePayerMismatch    = "invalid_exact_solana_fee_payer_mismatch"
+	ErrTransactionFailed   = "invalid_exact_solana_transaction_failed"
+	ErrDuplicateSettlement = "duplicate_settlement"
 )
+
+// ErrSettlementPending is the non-terminal settle error reason used when a
+// transaction was broadcast but ConfirmTransaction couldn't observe its
+// confirmation in time. It always carries the broadcast signature (as
+// SettleError.Transaction) so a caller can reconcile onchain, and mirrors
+// x402.ErrSettlementPending / evm.ErrSettlementPending so
+// x402ResourceServer's generic single-retry-on-settlement_pending logic
+// (see settleWithPendingRetry in server.go) recognizes it uniformly across
+// schemes/networks. Replaces the former ErrTransactionConfirmationFailed,
+// which was terminal and gave callers no reconciliation path.
+const ErrSettlementPending = x402.ErrSettlementPending

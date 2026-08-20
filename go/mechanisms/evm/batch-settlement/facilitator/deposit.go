@@ -285,6 +285,29 @@ func VerifyDeposit(
 	}, nil
 }
 
+// depositSettlementCacheKey returns the unique-per-payload key used to key the
+// PendingSettlementStore for a deposit settle: the payer's authorization
+// signature (ERC-3009 or Permit2, whichever the payload carries). Returns ""
+// when no signature is available (malformed payload), disabling the pending-
+// settlement fast path for that call — the normal broadcast path still runs
+// and surfaces the appropriate validation error.
+func depositSettlementCacheKey(
+	payload *batchsettlement.BatchSettlementDepositPayload,
+	transferMethod batchsettlement.AssetTransferMethod,
+) string {
+	switch transferMethod {
+	case batchsettlement.AssetTransferMethodEip3009:
+		if auth := payload.Deposit.Authorization.Erc3009Authorization; auth != nil {
+			return auth.Signature
+		}
+	case batchsettlement.AssetTransferMethodPermit2:
+		if auth := payload.Deposit.Authorization.Permit2Authorization; auth != nil {
+			return auth.Signature
+		}
+	}
+	return ""
+}
+
 // SettleDeposit executes a deposit onchain.
 // Calls deposit(config, amount, collector, collectorData) on the BatchSettlement contract.
 //
@@ -294,6 +317,11 @@ func VerifyDeposit(
 // deposit() via `Erc20ApprovalGasSponsoringSigner.SendTransactions`) and the
 // EIP-2612 permit segment (encoded into `collectorData`). Both may be nil for
 // the standard Permit2 path or for ERC-3009 deposits.
+//
+// `store` is consulted first (keyed by depositSettlementCacheKey) to reconcile
+// a previously-broadcast-but-unconfirmed deposit transaction from a prior
+// settlement_pending response, instead of re-broadcasting. A nil store
+// disables this fast path.
 func SettleDeposit(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,
@@ -303,6 +331,7 @@ func SettleDeposit(
 	fctx *x402.FacilitatorContext,
 	dataSuffix []byte,
 	allowedFactories []string,
+	store x402.PendingSettlementStore,
 ) (*x402.SettleResponse, error) {
 	config := payload.ChannelConfig
 	network := x402.Network(requirements.Network)
@@ -340,6 +369,25 @@ func SettleDeposit(
 				"Permit2 deposit extension invalid at settle")
 		}
 		permit2Branch = branch
+	}
+
+	cacheKey := depositSettlementCacheKey(payload, transferMethod)
+	receiptWaitSigner := signer
+	if permit2Branch != nil && permit2Branch.kind == permit2BranchErc20Approval {
+		receiptWaitSigner = permit2Branch.extensionSigner
+	}
+
+	// Pending-settlement fast path: a prior settle for this exact authorization
+	// broadcast a transaction but couldn't confirm it in time. Reconcile against
+	// that transaction instead of re-broadcasting (which would revert on replay
+	// — the authorization's nonce/signature has already been consumed onchain).
+	if store != nil && cacheKey != "" {
+		if txHash, hit, _ := store.Get(ctx, cacheKey); hit {
+			return reconcilePendingDeposit(
+				ctx, signer, receiptWaitSigner, config, payload.Voucher.ChannelId, network, txHash,
+				payload.Deposit.Amount, store, cacheKey,
+			)
+		}
 	}
 
 	collectorAddr, collectorData, err := buildDepositCollectorCall(payload, transferMethod, permit2Branch)
@@ -390,16 +438,13 @@ func SettleDeposit(
 	//   erc20Approval → broadcast pre-signed approve() then deposit() via the
 	//                   facilitator extension signer's SendTransactions.
 	//   else          → single deposit() write through the facilitator signer.
-	var (
-		txHash            string
-		receiptWaitSigner = signer
-		// A single hash from the two-request (approve + deposit) send means the signer
-		// bundled them atomically, but a non-conforming signer could return one hash
-		// after broadcasting only the approve. Its receipt then proves some transaction
-		// didn't revert, not that the deposit ran, so success requires the balance
-		// check below.
-		unconfirmedBundleHash bool
-	)
+	var txHash string
+	// A single hash from the two-request (approve + deposit) send means the signer
+	// bundled them atomically, but a non-conforming signer could return one hash
+	// after broadcasting only the approve. Its receipt then proves some transaction
+	// didn't revert, not that the deposit ran, so success requires the balance
+	// check below.
+	unconfirmedBundleHash := false
 	if permit2Branch != nil && permit2Branch.kind == permit2BranchErc20Approval {
 		settleCall := erc20approvalgassponsor.WriteContractCall{
 			Address:    batchsettlement.BatchSettlementAddress,
@@ -422,7 +467,6 @@ func SettleDeposit(
 				fmt.Sprintf("expected 1 (atomic bundle) or 2 (sequential) tx hashes from extension signer, got %d", len(txHashes)))
 		}
 		unconfirmedBundleHash = len(txHashes) == 1
-		receiptWaitSigner = permit2Branch.extensionSigner
 	} else {
 		txHash, err = signer.WriteContract(
 			ctx,
@@ -441,7 +485,44 @@ func SettleDeposit(
 		}
 	}
 
-	if _, err := evm.WaitForSettleReceipt(ctx, receiptWaitSigner, txHash, config.Payer, network,
+	return finishDepositSettle(
+		ctx, signer, receiptWaitSigner, config, payload.Voucher.ChannelId, network, txHash,
+		depositAmount, payload.Deposit.Amount, unconfirmedBundleHash,
+		priorBalance, priorTotalClaimed, priorWithdrawRequestedAt, priorRefundNonce,
+		store, cacheKey,
+	)
+}
+
+// finishDepositSettle waits for the deposit transaction to confirm, updates the
+// PendingSettlementStore accordingly (recording the broadcast hash on a
+// non-terminal wait failure so a subsequent settle attempt for the same
+// authorization can reconcile instead of re-broadcasting, and clearing it once
+// the receipt is observed), then polls channel state and builds the success
+// response.
+//
+// priorBalance/priorTotalClaimed/priorWithdrawRequestedAt/priorRefundNonce must
+// be read strictly before the deposit transaction was broadcast — they anchor
+// the optimistic post-deposit fallback used when the post-receipt RPC read
+// hasn't caught up yet. Reading them after broadcast could double-count (or
+// under-count, for the erc20-approval-bundle ambiguity check) the deposit.
+func finishDepositSettle(
+	ctx context.Context,
+	signer evm.FacilitatorEvmSigner,
+	receiptWaitSigner evm.FacilitatorEvmSigner,
+	config batchsettlement.ChannelConfig,
+	channelId string,
+	network x402.Network,
+	txHash string,
+	depositAmount *big.Int,
+	amountStr string,
+	unconfirmedBundleHash bool,
+	priorBalance, priorTotalClaimed *big.Int,
+	priorWithdrawRequestedAt int,
+	priorRefundNonce *big.Int,
+	store x402.PendingSettlementStore,
+	cacheKey string,
+) (*x402.SettleResponse, error) {
+	if _, err := evm.WaitForSettleReceiptWithPendingStore(ctx, store, cacheKey, receiptWaitSigner, txHash, config.Payer, network,
 		ErrDepositTransactionFailed, ErrTransactionReverted); err != nil {
 		return nil, err
 	}
@@ -464,13 +545,13 @@ func SettleDeposit(
 	// verify reads are guaranteed to see this balance.
 	expectedMinBalance := new(big.Int).Set(optimisticBalance)
 	deadline := time.Now().Add(channelStatePollDeadline)
-	postState, readErr := ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
+	postState, readErr := ReadChannelState(ctx, signer, channelId)
 	for postState == nil || postState.Balance == nil || postState.Balance.Cmp(expectedMinBalance) < 0 {
 		if time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(channelStatePollInterval)
-		postState, readErr = ReadChannelState(ctx, signer, payload.Voucher.ChannelId)
+		postState, readErr = ReadChannelState(ctx, signer, channelId)
 	}
 
 	balanceConfirmed := postState != nil && postState.Balance != nil && postState.Balance.Cmp(expectedMinBalance) >= 0
@@ -484,6 +565,9 @@ func SettleDeposit(
 				"extension signer returned a single transaction hash for the erc20 approval + deposit "+
 					"bundle, but the resulting channel balance does not reflect the deposit")
 		}
+		if store != nil && cacheKey != "" {
+			_ = store.Set(ctx, cacheKey, txHash)
+		}
 		return nil, x402.NewSettleError(ErrSettlementPending, config.Payer, network, txHash,
 			"extension signer returned a single transaction hash for the erc20 approval + deposit "+
 				"bundle and the post-deposit balance read failed, so the deposit could not be confirmed")
@@ -494,14 +578,73 @@ func SettleDeposit(
 		finalState = postState
 	}
 
-	extra := BuildSettleExtra(payload.Voucher.ChannelId, finalState)
+	extra := BuildSettleExtra(channelId, finalState)
 
 	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,
 		Network:     network,
 		Payer:       config.Payer,
-		Amount:      payload.Deposit.Amount,
+		Amount:      amountStr,
+		Extra:       extra,
+	}, nil
+}
+
+// reconcilePendingDeposit handles a PendingSettlementStore cache hit for
+// SettleDeposit: a prior call already broadcast txHash (its nonce/signature is
+// now consumed onchain, so re-broadcasting is not an option) but couldn't
+// confirm it before returning settlement_pending. Unlike finishDepositSettle,
+// there is no reliable pre-broadcast channel-state snapshot available here (it
+// lived in the earlier, now-returned call), so this path skips the optimistic
+// balance-add fallback entirely: on confirmation it reports whatever the RPC
+// currently reads (a short poll only guards against read-after-write lag), and
+// on failure to confirm it re-records the pending entry and returns another
+// settlement_pending for the caller to retry again later.
+//
+// Known limitation: finishDepositSettle's unconfirmedBundleHash check (guarding
+// against a non-conforming ERC-20-approval extension signer that bundles a single
+// hash covering only approve(), never running deposit()) has no equivalent here,
+// since it needs the pre-broadcast channel state this path doesn't have — a
+// receipt success here is trusted at face value. Only affects a non-conforming
+// extension signer combined with a confirm-timeout on the original request.
+func reconcilePendingDeposit(
+	ctx context.Context,
+	signer evm.FacilitatorEvmSigner,
+	receiptWaitSigner evm.FacilitatorEvmSigner,
+	config batchsettlement.ChannelConfig,
+	channelId string,
+	network x402.Network,
+	txHash string,
+	amountStr string,
+	store x402.PendingSettlementStore,
+	cacheKey string,
+) (*x402.SettleResponse, error) {
+	if _, err := evm.WaitForSettleReceiptWithPendingStore(ctx, store, cacheKey, receiptWaitSigner, txHash, config.Payer, network,
+		ErrDepositTransactionFailed, ErrTransactionReverted); err != nil {
+		return nil, err
+	}
+
+	deadline := time.Now().Add(channelStatePollDeadline)
+	state, err := ReadChannelState(ctx, signer, channelId)
+	for state == nil && err != nil {
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(channelStatePollInterval)
+		state, err = ReadChannelState(ctx, signer, channelId)
+	}
+
+	var extra map[string]interface{}
+	if state != nil {
+		extra = BuildSettleExtra(channelId, state)
+	}
+
+	return &x402.SettleResponse{
+		Success:     true,
+		Transaction: txHash,
+		Network:     network,
+		Payer:       config.Payer,
+		Amount:      amountStr,
 		Extra:       extra,
 	}, nil
 }

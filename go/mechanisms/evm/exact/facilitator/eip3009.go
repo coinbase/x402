@@ -161,6 +161,17 @@ func (f *ExactEvmScheme) settleEIP3009(
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
 
+	// Fast path: a prior settle attempt for this exact payload already broadcast
+	// a transaction whose receipt wait failed (settlement_pending). The resource
+	// server's single automatic retry resends the identical payload, so check the
+	// pending-settlement store before re-verifying/re-broadcasting — reconcile
+	// against the already-broadcast transaction instead of creating a second one.
+	if evmPayload, parseErr := evm.PayloadFromMap(payload.Payload); parseErr == nil && evmPayload.Signature != "" {
+		if txHash, ok, _ := f.pendingStore.Get(ctx, evmPayload.Signature); ok {
+			return f.reconcilePendingEIP3009(ctx, evmPayload, requirements, network, txHash)
+		}
+	}
+
 	verifyResp, err := f.verifyEIP3009(ctx, payload, requirements, f.config.SimulateInSettle)
 	if err != nil {
 		ve := &x402.VerifyError{}
@@ -229,9 +240,55 @@ func (f *ExactEvmScheme) settleEIP3009(
 		return nil, x402.NewSettleError(parseEIP3009TransferError(err), verifyResp.Payer, network, "", err.Error())
 	}
 
-	receipt, err := evm.WaitForSettleReceipt(ctx, f.signer, txHash, verifyResp.Payer, network,
+	return f.awaitEIP3009Settlement(ctx, evmPayload.Signature, tokenAddress, parsedAuthorization, network, verifyResp.Payer, txHash)
+}
+
+// reconcilePendingEIP3009 handles a pending-settlement store hit: it skips
+// verify and broadcast entirely (the payer is taken directly from the
+// payload, exactly as the original attempt did) and awaits the previously
+// broadcast transaction.
+func (f *ExactEvmScheme) reconcilePendingEIP3009(
+	ctx context.Context,
+	evmPayload *evm.ExactEIP3009Payload,
+	requirements types.PaymentRequirements,
+	network x402.Network,
+	txHash string,
+) (*x402.SettleResponse, error) {
+	tokenAddress := evm.NormalizeAddress(requirements.Asset)
+	parsedAuthorization, err := ParseEIP3009Authorization(evmPayload.Authorization)
+	if err != nil {
+		return nil, x402.NewSettleError(ErrInvalidPayload, evmPayload.Authorization.From, network, "", err.Error())
+	}
+	return f.awaitEIP3009Settlement(ctx, evmPayload.Signature, tokenAddress, parsedAuthorization, network, evmPayload.Authorization.From, txHash)
+}
+
+// awaitEIP3009Settlement waits for the broadcast transaction's receipt and
+// verifies its Transfer event, shared by both the normal broadcast path and
+// the pending-settlement reconciliation path above. On a receipt-wait
+// failure (or an unparseable-but-successful receipt), the broadcast hash is
+// recorded in the pending-settlement store, keyed by the EIP-3009 signature,
+// so a subsequent settle attempt for the same payload can reconcile against
+// it instead of broadcasting again.
+func (f *ExactEvmScheme) awaitEIP3009Settlement(
+	ctx context.Context,
+	pendingKey string,
+	tokenAddress string,
+	parsedAuthorization *ParsedEIP3009Authorization,
+	network x402.Network,
+	payer string,
+	txHash string,
+) (*x402.SettleResponse, error) {
+	// An invalid hash means nothing usable was ever broadcast: clear any
+	// stale entry instead of caching the garbage hash.
+	if !evm.IsValidTxHash(txHash) {
+		_ = f.pendingStore.Delete(ctx, pendingKey)
+		return nil, evm.InvalidBroadcastHashError(ErrTransactionFailed, payer, network, txHash)
+	}
+
+	receipt, err := evm.WaitForSettleReceipt(ctx, f.signer, txHash, payer, network,
 		ErrTransactionFailed, ErrTransactionFailed)
 	if err != nil {
+		_ = f.pendingStore.Set(ctx, pendingKey, txHash)
 		return nil, err
 	}
 
@@ -244,18 +301,21 @@ func (f *ExactEvmScheme) settleEIP3009(
 		if err != nil {
 			// The receipt succeeded but its logs could not be parsed, so the transfer's effect
 			// is unknown. A parsed-but-absent event below is terminal; this is not.
-			return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, txHash,
+			_ = f.pendingStore.Set(ctx, pendingKey, txHash)
+			return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash,
 				evm.TruncateErrorMessage(err.Error()))
 		}
 		if !transferMatched {
-			return nil, x402.NewSettleError(ErrTransferEventMismatch, verifyResp.Payer, network, txHash, "")
+			_ = f.pendingStore.Delete(ctx, pendingKey)
+			return nil, x402.NewSettleError(ErrTransferEventMismatch, payer, network, txHash, "")
 		}
 	}
 
+	_ = f.pendingStore.Delete(ctx, pendingKey)
 	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,
 		Network:     network,
-		Payer:       verifyResp.Payer,
+		Payer:       payer,
 	}, nil
 }

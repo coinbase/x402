@@ -111,6 +111,7 @@ type UptoSvmScheme struct {
 	config          Config
 	channelStorage  ChannelStorage
 	settlementCache *svm.SettlementCache
+	pendingStore    x402.PendingSettlementStore
 }
 
 // NewUptoSvmScheme creates a new UptoSvmScheme. The signer supplies the fee
@@ -148,6 +149,17 @@ func NewUptoSvmScheme(signer svm.FacilitatorSvmSigner, config *Config) *UptoSvmS
 		config:          cfg,
 		channelStorage:  storage,
 		settlementCache: svm.NewSettlementCache(),
+		pendingStore:    x402.NewInMemoryPendingSettlementStore(),
+	}
+}
+
+// SetPendingSettlementStore overrides the default in-memory PendingSettlementStore
+// used to reconcile a deposit (open) or claim (settle_and_seal + distribute)
+// transaction that broadcast successfully but whose confirmation wait timed
+// out (settlement_pending). A nil store is a no-op.
+func (f *UptoSvmScheme) SetPendingSettlementStore(store x402.PendingSettlementStore) {
+	if store != nil {
+		f.pendingStore = store
 	}
 }
 
@@ -290,6 +302,39 @@ func (f *UptoSvmScheme) Settle(
 		"a partial settlement requires a receiver-authorizer voucher")
 }
 
+// awaitPendingUptoSignature re-awaits confirmation of a signature previously
+// recorded in the PendingSettlementStore under cacheKey, without
+// re-verifying, re-signing, or re-broadcasting. Re-broadcasting is not a safe
+// fallback here: the deposit's channel PDA is one-shot (a second open would
+// hit ErrChannelAlreadyOpen) and a claim seals the channel (a second claim
+// attempt would hit a channel-no-longer-open verification failure) — either
+// of which would misreport an already-successful payment as failed. Returns
+// nil on confirmation (with the store entry cleared); on failure it
+// re-records the pending entry and returns the settlement_pending
+// x402.SettleError to surface.
+func (f *UptoSvmScheme) awaitPendingUptoSignature(
+	ctx context.Context,
+	cacheKey string,
+	sigStr string,
+	payer string,
+	network x402.Network,
+	networkStr string,
+) error {
+	signature, err := solana.SignatureFromBase58(sigStr)
+	if err != nil {
+		// Malformed cache entry — drop it so future attempts fall through to
+		// the normal broadcast path instead of getting stuck.
+		_ = f.pendingStore.Delete(ctx, cacheKey)
+		return x402.NewSettleError(ErrChannelBroadcast, payer, network, "", err.Error())
+	}
+	if err := f.signer.ConfirmTransaction(ctx, signature, networkStr); err != nil {
+		_ = f.pendingStore.Set(ctx, cacheKey, sigStr)
+		return x402.NewSettleError(ErrSettlementPending, payer, network, sigStr, err.Error())
+	}
+	_ = f.pendingStore.Delete(ctx, cacheKey)
+	return nil
+}
+
 // settleDeposit validates the open authorization, simulates the whole channel
 // lifecycle, then co-signs and broadcasts the open.
 func (f *UptoSvmScheme) settleDeposit(
@@ -298,6 +343,29 @@ func (f *UptoSvmScheme) settleDeposit(
 	requirements types.PaymentRequirements,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
+
+	// Pending-settlement fast path: a prior deposit settle for this exact
+	// channel broadcast the open successfully but couldn't confirm it in
+	// time. Reconcile against that signature instead of re-validating and
+	// re-broadcasting — a second open attempt would hit ErrChannelAlreadyOpen
+	// even though the original payment is (or will be) fine.
+	if f.pendingStore != nil {
+		if uptoPayload, parseErr := svm.UptoPayloadFromMap(payload.Payload); parseErr == nil {
+			depositKey := fmt.Sprintf("upto:deposit:%s:%s", requirements.Network, uptoPayload.ChannelId)
+			if sigStr, hit, _ := f.pendingStore.Get(ctx, depositKey); hit {
+				if err := f.awaitPendingUptoSignature(ctx, depositKey, sigStr, uptoPayload.From, network, string(requirements.Network)); err != nil {
+					return nil, err
+				}
+				return &x402.SettleResponse{
+					Success:     true,
+					Transaction: sigStr,
+					Network:     network,
+					Amount:      uptoPayload.MaxAmount,
+					Payer:       uptoPayload.From,
+				}, nil
+			}
+		}
+	}
 
 	auth, err := f.validateOpenAuthorization(ctx, payload, requirements)
 	if err != nil {
@@ -373,6 +441,17 @@ func (f *UptoSvmScheme) settleDeposit(
 		ctx, f.signer, auth.feePayer, string(requirements.Network), uptoPayload.OpenTransaction,
 	)
 	if err != nil {
+		// A non-empty signature means the open broadcast successfully but
+		// ConfirmTransaction couldn't observe confirmation in time: leave the
+		// deposit dedup lock in place (a fresh broadcast would double-open)
+		// and record the signature so a retry reconciles via the fast path
+		// above instead of re-validating.
+		if openSignature != "" {
+			if f.pendingStore != nil {
+				_ = f.pendingStore.Set(ctx, depositKey, openSignature)
+			}
+			return nil, x402.NewSettleError(ErrSettlementPending, uptoPayload.From, network, openSignature, err.Error())
+		}
 		f.settlementCache.Delete(depositKey)
 		return nil, x402.NewSettleError(ErrChannelBroadcast, uptoPayload.From, network, "", err.Error())
 	}
@@ -411,6 +490,29 @@ func (f *UptoSvmScheme) settleClaim(
 	maxAmount uint64,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
+
+	// Pending-settlement fast path: a prior claim settle for this exact
+	// channel broadcast settle_and_seal + distribute successfully but
+	// couldn't confirm it in time. Reconcile against that signature instead
+	// of re-verifying and re-submitting — the channel is sealed by a
+	// successful settle_and_seal, so a second claim attempt would fail
+	// fetchAndVerifyOpenChannel's "channel is not open" check even though the
+	// original payment succeeded.
+	settlementKey := fmt.Sprintf("upto:%s:%s", requirements.Network, uptoPayload.ChannelId)
+	if f.pendingStore != nil {
+		if sigStr, hit, _ := f.pendingStore.Get(ctx, settlementKey); hit {
+			if err := f.awaitPendingUptoSignature(ctx, settlementKey, sigStr, uptoPayload.From, network, string(requirements.Network)); err != nil {
+				return nil, err
+			}
+			return &x402.SettleResponse{
+				Success:     true,
+				Transaction: sigStr,
+				Network:     network,
+				Amount:      strconv.FormatUint(actual, 10),
+				Payer:       uptoPayload.From,
+			}, nil
+		}
+	}
 
 	if uptoPayload.VoucherSignature == "" {
 		return nil, x402.NewSettleError(ErrMissingVoucher, uptoPayload.From, network, "",
@@ -479,7 +581,6 @@ func (f *UptoSvmScheme) settleClaim(
 	// Deduplicate only once the channel is rebound, so replays and concurrent
 	// claims — including ones carrying a different valid voucher — collapse to
 	// a single settle_and_seal + distribute. Failures above never insert.
-	settlementKey := fmt.Sprintf("upto:%s:%s", requirements.Network, uptoPayload.ChannelId)
 	if f.settlementCache.IsDuplicate(settlementKey) {
 		return nil, x402.NewSettleError(ErrDuplicateSettlement, uptoPayload.From, network, "",
 			"a settlement for this channel is already in flight")
@@ -493,8 +594,22 @@ func (f *UptoSvmScheme) settleClaim(
 		VoucherSignature: uptoPayload.VoucherSignature,
 	})
 	if err != nil {
+		// A non-empty signature means settle_and_seal + distribute broadcast
+		// successfully but ConfirmTransaction couldn't observe confirmation
+		// in time: leave the settlement dedup lock in place (a fresh submit
+		// would double-seal) and record the signature so a retry reconciles
+		// via the fast path above instead of re-verifying.
+		if signature != "" {
+			if f.pendingStore != nil {
+				_ = f.pendingStore.Set(ctx, settlementKey, signature)
+			}
+			return nil, x402.NewSettleError(ErrSettlementPending, uptoPayload.From, network, signature, err.Error())
+		}
 		f.settlementCache.Delete(settlementKey)
-		return nil, x402.NewSettleError(ErrTransactionFailed, uptoPayload.From, network, signature, err.Error())
+		return nil, x402.NewSettleError(ErrTransactionFailed, uptoPayload.From, network, "", err.Error())
+	}
+	if f.pendingStore != nil {
+		_ = f.pendingStore.Delete(ctx, settlementKey)
 	}
 
 	// Settlement is confirmed onchain past this point, so storage bookkeeping
