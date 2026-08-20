@@ -48,7 +48,6 @@ import {
   type UptoChannelStorage,
 } from "./channelStorage";
 import { UptoSvmRentCleanupManager } from "./rentCleanupManager";
-export { ErrSettlementPending } from "../../exact/facilitator/errors";
 
 /** Scheme-specific error returned when the settlement amount exceeds the ceiling. */
 export const ERR_SETTLEMENT_EXCEEDS_AMOUNT = "invalid_upto_svm_payload_settlement_exceeds_amount";

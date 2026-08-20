@@ -1573,18 +1573,20 @@ export class x402ResourceServer {
     settlePayload: PaymentPayload,
     effectiveRequirements: PaymentRequirements,
   ): Promise<SettleResponse> {
-    let result: SettleResponse;
+    let result: SettleResponse | undefined;
+    let retryable: boolean;
     try {
       result = await facilitatorClient.settle(settlePayload, effectiveRequirements);
+      retryable = isRetryableSettlementPendingResult(result);
     } catch (error) {
       if (!isRetryableSettlementPendingError(error)) {
         throw error;
       }
-      return facilitatorClient.settle(settlePayload, effectiveRequirements);
+      retryable = true;
     }
 
-    if (!isRetryableSettlementPendingResult(result)) {
-      return result;
+    if (!retryable) {
+      return result!;
     }
     return facilitatorClient.settle(settlePayload, effectiveRequirements);
   }

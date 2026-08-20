@@ -384,13 +384,13 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Decode the transaction to compute the message hash used as the cache key.
-    // Must remain synchronous (before any await) so concurrent settle calls for
-    // the same payment are caught before any async work begins.
-    const decodedTx = decodeTransactionFromPayload(exactSvmPayload);
-
-    // Duplicate settlement check keyed on message hash (immune to mutable fee-payer sig at slot 0).
-    txKey = transactionMessageHash(decodedTx);
+    // Duplicate settlement check keyed on message hash (immune to mutable fee-payer sig at slot
+    // 0). Reuses the txKey decoded/hashed synchronously above (before the _verify await) instead
+    // of decoding a third time: the transaction content is unchanged, and a decode failure here
+    // would imply _verify's identical decode already failed and returned isValid:false, so this
+    // point is unreachable with txKey undefined. The fallback recompute only exists to satisfy
+    // the type checker without an unsafe non-null assertion.
+    txKey ??= transactionMessageHash(decodeTransactionFromPayload(exactSvmPayload));
     if (this.settlementCache.isDuplicate(txKey)) {
       return {
         success: false,

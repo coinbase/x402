@@ -50,7 +50,7 @@ from ..constants import (  # noqa: E402
 )
 from ..data_suffix import resolve_data_suffix  # noqa: E402
 from ..erc6492 import parse_erc6492_signature  # noqa: E402
-from ..settle_receipt import wait_for_receipt_and_build_response  # noqa: E402
+from ..settle_receipt import ReceiptWaiter, wait_for_receipt_and_build_response  # noqa: E402
 from ..signer import ClientEvmSigner, FacilitatorEvmSigner  # noqa: E402
 from ..types import (  # noqa: E402
     ExactPermit2Authorization,
@@ -406,7 +406,7 @@ def resolve_permit2_receipt_wait_signer(
     signer: FacilitatorEvmSigner,
     payload: PaymentPayload,
     context: FacilitatorContext | None,
-) -> Any:
+) -> ReceiptWaiter:
     """Return the signer that should wait for the settlement receipt.
 
     The ERC-20-approval-gas-sponsoring extension's signer when that extension provided the
@@ -430,6 +430,46 @@ def resolve_permit2_receipt_wait_signer(
         return signer
     extension_signer = ext.resolve_signer(str(payload.accepted.network))
     return extension_signer if extension_signer is not None else signer
+
+
+def reconcile_pending_permit2(
+    signer: FacilitatorEvmSigner,
+    payload: PaymentPayload,
+    context: FacilitatorContext | None,
+    pending_store: PendingSettlementStore | None,
+    signature: str | None,
+    network: str,
+    payer: str,
+    failed_reason: str,
+    amount: str | None = None,
+) -> SettleResponse | None:
+    """Reconciles a PendingSettlementStore cache hit for a Permit2 signature.
+
+    Shared by the exact and upto Permit2 schemes' settle() fast paths: a prior settle
+    attempt for this exact payload already broadcast a transaction whose receipt wait
+    failed (settlement_pending), so this re-awaits that same transaction instead of
+    re-verifying and re-broadcasting.
+
+    Returns None when there is nothing to reconcile (no store configured, no
+    signature, or no cache entry), telling the caller to fall through to full
+    verification.
+    """
+    if pending_store is None or not signature:
+        return None
+    cached_tx_hash = pending_store.get(signature)
+    if cached_tx_hash is None:
+        return None
+    receipt_wait_signer = resolve_permit2_receipt_wait_signer(signer, payload, context)
+    return wait_for_receipt_and_build_response(
+        receipt_wait_signer,
+        cached_tx_hash,
+        network,
+        payer,
+        failed_reason=failed_reason,
+        amount=amount,
+        pending_store=pending_store,
+        pending_key=signature,
+    )
 
 
 def settle_permit2(
@@ -472,19 +512,18 @@ def settle_permit2(
     # Fast path: a prior settle attempt for this exact payload already broadcast a
     # transaction whose receipt wait failed (settlement_pending). Reconcile against it
     # instead of re-verifying/re-broadcasting.
-    if pending_store is not None and permit2_payload.signature:
-        cached_tx_hash = pending_store.get(permit2_payload.signature)
-        if cached_tx_hash is not None:
-            receipt_wait_signer = resolve_permit2_receipt_wait_signer(signer, payload, context)
-            return wait_for_receipt_and_build_response(
-                receipt_wait_signer,
-                cached_tx_hash,
-                network,
-                payer,
-                failed_reason=ERR_TRANSACTION_FAILED,
-                pending_store=pending_store,
-                pending_key=permit2_payload.signature,
-            )
+    reconciled = reconcile_pending_permit2(
+        signer,
+        payload,
+        context,
+        pending_store,
+        permit2_payload.signature,
+        network,
+        payer,
+        ERR_TRANSACTION_FAILED,
+    )
+    if reconciled is not None:
+        return reconciled
 
     # Re-verify before settling
     verify_result = verify_permit2(signer, payload, requirements, context)

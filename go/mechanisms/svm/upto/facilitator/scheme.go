@@ -302,6 +302,52 @@ func (f *UptoSvmScheme) Settle(
 		"a partial settlement requires a receiver-authorizer voucher")
 }
 
+// uptoDepositCacheKey and uptoClaimCacheKey return the PendingSettlementStore
+// key for one phase of an upto channel. Deposit and claim are scoped
+// separately so a pending deposit never blocks the later claim on the same
+// channel.
+func uptoDepositCacheKey(network, channelId string) string {
+	return fmt.Sprintf("upto:deposit:%s:%s", network, channelId)
+}
+
+func uptoClaimCacheKey(network, channelId string) string {
+	return fmt.Sprintf("upto:%s:%s", network, channelId)
+}
+
+// reconcilePendingUpto checks the PendingSettlementStore for a signature
+// previously recorded under cacheKey by a broadcast that couldn't confirm in
+// time, shared by the deposit and claim fast paths in settleDeposit and
+// settleClaim. hit is false when there is nothing to reconcile (no store
+// configured or no entry), telling the caller to fall through to full
+// validation; hit is true whenever a reconciliation attempt was made,
+// regardless of whether it succeeded.
+func (f *UptoSvmScheme) reconcilePendingUpto(
+	ctx context.Context,
+	cacheKey string,
+	payer string,
+	amountStr string,
+	network x402.Network,
+	networkStr string,
+) (resp *x402.SettleResponse, hit bool, err error) {
+	if f.pendingStore == nil {
+		return nil, false, nil
+	}
+	sigStr, ok, _ := f.pendingStore.Get(ctx, cacheKey)
+	if !ok {
+		return nil, false, nil
+	}
+	if err := f.awaitPendingUptoSignature(ctx, cacheKey, sigStr, payer, network, networkStr); err != nil {
+		return nil, true, err
+	}
+	return &x402.SettleResponse{
+		Success:     true,
+		Transaction: sigStr,
+		Network:     network,
+		Amount:      amountStr,
+		Payer:       payer,
+	}, true, nil
+}
+
 // awaitPendingUptoSignature re-awaits confirmation of a signature previously
 // recorded in the PendingSettlementStore under cacheKey, without
 // re-verifying, re-signing, or re-broadcasting. Re-broadcasting is not a safe
@@ -349,21 +395,10 @@ func (f *UptoSvmScheme) settleDeposit(
 	// time. Reconcile against that signature instead of re-validating and
 	// re-broadcasting — a second open attempt would hit ErrChannelAlreadyOpen
 	// even though the original payment is (or will be) fine.
-	if f.pendingStore != nil {
-		if uptoPayload, parseErr := svm.UptoPayloadFromMap(payload.Payload); parseErr == nil {
-			depositKey := fmt.Sprintf("upto:deposit:%s:%s", requirements.Network, uptoPayload.ChannelId)
-			if sigStr, hit, _ := f.pendingStore.Get(ctx, depositKey); hit {
-				if err := f.awaitPendingUptoSignature(ctx, depositKey, sigStr, uptoPayload.From, network, string(requirements.Network)); err != nil {
-					return nil, err
-				}
-				return &x402.SettleResponse{
-					Success:     true,
-					Transaction: sigStr,
-					Network:     network,
-					Amount:      uptoPayload.MaxAmount,
-					Payer:       uptoPayload.From,
-				}, nil
-			}
+	if uptoPayload, parseErr := svm.UptoPayloadFromMap(payload.Payload); parseErr == nil {
+		depositKey := uptoDepositCacheKey(string(requirements.Network), uptoPayload.ChannelId)
+		if resp, hit, err := f.reconcilePendingUpto(ctx, depositKey, uptoPayload.From, uptoPayload.MaxAmount, network, string(requirements.Network)); hit {
+			return resp, err
 		}
 	}
 
@@ -397,7 +432,7 @@ func (f *UptoSvmScheme) settleDeposit(
 	// Two concurrent deposit settles can both observe a missing channel and
 	// both broadcast the same open. The key is deposit-scoped so it does not
 	// block the later claim on the same channel.
-	depositKey := fmt.Sprintf("upto:deposit:%s:%s", requirements.Network, uptoPayload.ChannelId)
+	depositKey := uptoDepositCacheKey(string(requirements.Network), uptoPayload.ChannelId)
 	if f.settlementCache.IsDuplicate(depositKey) {
 		return nil, x402.NewSettleError(ErrDuplicateSettlement, uptoPayload.From, network, "",
 			"a deposit settlement for this channel is already in flight")
@@ -498,20 +533,9 @@ func (f *UptoSvmScheme) settleClaim(
 	// successful settle_and_seal, so a second claim attempt would fail
 	// fetchAndVerifyOpenChannel's "channel is not open" check even though the
 	// original payment succeeded.
-	settlementKey := fmt.Sprintf("upto:%s:%s", requirements.Network, uptoPayload.ChannelId)
-	if f.pendingStore != nil {
-		if sigStr, hit, _ := f.pendingStore.Get(ctx, settlementKey); hit {
-			if err := f.awaitPendingUptoSignature(ctx, settlementKey, sigStr, uptoPayload.From, network, string(requirements.Network)); err != nil {
-				return nil, err
-			}
-			return &x402.SettleResponse{
-				Success:     true,
-				Transaction: sigStr,
-				Network:     network,
-				Amount:      strconv.FormatUint(actual, 10),
-				Payer:       uptoPayload.From,
-			}, nil
-		}
+	settlementKey := uptoClaimCacheKey(string(requirements.Network), uptoPayload.ChannelId)
+	if resp, hit, err := f.reconcilePendingUpto(ctx, settlementKey, uptoPayload.From, strconv.FormatUint(actual, 10), network, string(requirements.Network)); hit {
+		return resp, err
 	}
 
 	if uptoPayload.VoucherSignature == "" {

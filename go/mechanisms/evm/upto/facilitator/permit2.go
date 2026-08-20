@@ -217,8 +217,8 @@ func SettleUptoPermit2(
 	if store != nil && permit2Payload.Signature != "" {
 		if txHash, ok, _ := store.Get(ctx, permit2Payload.Signature); ok {
 			receiptWaitSigner := exactfacilitator.ResolvePermit2ReceiptWaitSigner(signer, facilCtx, payload.Extensions, payload.Accepted.Network)
-			return awaitUptoPermit2Settlement(
-				ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network, settlementAmount.String(),
+			return exactfacilitator.AwaitPermit2Settlement(
+				ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network, ErrUptoTransactionFailed, settlementAmount.String(),
 			)
 		}
 	}
@@ -373,32 +373,9 @@ func SettleUptoPermit2(
 	}
 
 	receiptWaitSigner := exactfacilitator.ResolvePermit2ReceiptWaitSigner(signer, facilCtx, payload.Extensions, payload.Accepted.Network)
-	return awaitUptoPermit2Settlement(
-		ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, verifyResp.Payer, network, settlementAmount.String(),
+	return exactfacilitator.AwaitPermit2Settlement(
+		ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, verifyResp.Payer, network, ErrUptoTransactionFailed, settlementAmount.String(),
 	)
-}
-
-// awaitUptoPermit2Settlement waits for the broadcast transaction's receipt
-// (with PendingSettlementStore bookkeeping) and builds the settle response,
-// shared by both the pending-settlement reconciliation fast path and the
-// normal broadcast path above. pendingKey may be "" (no signature
-// available), which disables the bookkeeping while still waiting for the
-// receipt.
-func awaitUptoPermit2Settlement(
-	ctx context.Context,
-	store x402.PendingSettlementStore,
-	receiptWaitSigner evm.FacilitatorEvmSigner,
-	pendingKey string,
-	txHash string,
-	payer string,
-	network x402.Network,
-	amount string,
-) (*x402.SettleResponse, error) {
-	if _, err := evm.WaitForSettleReceiptWithPendingStore(ctx, store, pendingKey, receiptWaitSigner, txHash, payer, network,
-		ErrUptoTransactionFailed, ErrUptoTransactionFailed); err != nil {
-		return nil, err
-	}
-	return &x402.SettleResponse{Success: true, Transaction: txHash, Network: network, Payer: payer, Amount: amount}, nil
 }
 
 func verifyUptoPermit2Signature(

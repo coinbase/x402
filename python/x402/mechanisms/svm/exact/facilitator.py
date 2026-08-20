@@ -476,30 +476,9 @@ class ExactSvmScheme:
                 payer=verify_result.payer or "",
             )
 
-        try:
-            # Wait for confirmation
-            self._signer.confirm_transaction(signature, network)
-        except Exception as e:
-            # Broadcast succeeded but confirmation timed out — non-terminal, so
-            # leave the dedup lock in place and remember the signature so a
-            # retry reconciles via the pending-settlement fast path above.
-            self._pending_store.set(tx_key, signature)
-            return SettleResponse(
-                success=False,
-                error_reason=ERR_SETTLEMENT_PENDING,
-                error_message=str(e),
-                transaction=signature,
-                network=network,
-                payer=verify_result.payer or "",
-            )
-
-        self._pending_store.delete(tx_key)
-        return SettleResponse(
-            success=True,
-            transaction=signature,
-            network=network,
-            payer=verify_result.payer,
-        )
+        # Wait for confirmation, shared with the pending-settlement reconciliation
+        # path in _reconcile_pending_settlement() below.
+        return self._await_confirmation(tx_key, signature, verify_result.payer or "", network)
 
     def _reconcile_pending_settlement(
         self,
@@ -515,6 +494,22 @@ class ExactSvmScheme:
         settlement_pending. Re-awaits confirmation of that same signature rather than
         re-verifying/re-signing/re-sending — see the fast-path comment in settle() for
         why re-sending is unsafe here.
+        """
+        return self._await_confirmation(tx_key, signature, payer, network)
+
+    def _await_confirmation(
+        self,
+        tx_key: str,
+        signature: str,
+        payer: str,
+        network: str,
+    ) -> SettleResponse:
+        """Waits for confirmation of an already-broadcast signature and builds the
+        settle response, shared by the fresh-broadcast path in settle() and the
+        pending-settlement reconciliation path in _reconcile_pending_settlement().
+
+        On confirm failure, records/refreshes the pending-settlement entry so a
+        retry reconciles via the fast path instead of re-verifying/re-sending.
         """
         try:
             self._signer.confirm_transaction(signature, network)

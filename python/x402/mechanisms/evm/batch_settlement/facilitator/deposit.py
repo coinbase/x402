@@ -24,7 +24,7 @@ from .....schemas import (
 from ...constants import ERR_SETTLEMENT_PENDING, TX_STATUS_SUCCESS
 from ...erc6492 import has_deployment_info, parse_erc6492_signature
 from ...multicall import MulticallCall, multicall
-from ...settle_receipt import wait_for_receipt_and_build_response
+from ...settle_receipt import ReceiptWaiter, wait_for_receipt_and_build_response
 from ...signer import FacilitatorEvmSigner
 from ...types import ERC6492SignatureData, TransactionReceipt
 from ...utils import (
@@ -209,7 +209,7 @@ def _resolve_deposit_receipt_wait_signer(
     payload: DepositPayload,
     requirements: PaymentRequirements,
     context: FacilitatorContext | None,
-) -> FacilitatorEvmSigner | Any:
+) -> ReceiptWaiter:
     """Return the signer that should await the deposit's settlement receipt.
 
     The ERC-20-approval-gas-sponsoring extension's signer when that extension would
@@ -226,7 +226,7 @@ def _resolve_deposit_receipt_wait_signer(
 
 
 def _reconcile_pending_deposit(
-    receipt_waiter: FacilitatorEvmSigner | Any,
+    receipt_waiter: ReceiptWaiter,
     signer: FacilitatorEvmSigner,
     payload: DepositPayload,
     network: str,

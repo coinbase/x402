@@ -128,7 +128,6 @@ export class UptoEvmScheme implements SchemeNetworkFacilitator {
       requirements,
       rawPayload as UptoPermit2Payload,
       context,
-      undefined,
       this.pendingStore,
     );
   }

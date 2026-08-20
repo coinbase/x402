@@ -20,13 +20,12 @@ import (
 // reconcilePendingDeposit. Mirrors the TS/Python batch-settlement deposit
 // pending-settlement test suites.
 
-func pendingDepositPayload() (batchsettlement.ChannelConfig, string, *batchsettlement.BatchSettlementDepositPayload) {
-	cfg := goodErc3009Config()
+func pendingDepositPayload() (string, *batchsettlement.BatchSettlementDepositPayload) {
 	channelId := testErc3009ChannelId
 	auth := goodErc3009Auth()
 	payload := &batchsettlement.BatchSettlementDepositPayload{
 		Type:          "deposit",
-		ChannelConfig: cfg,
+		ChannelConfig: goodErc3009Config(),
 		Voucher: batchsettlement.BatchSettlementVoucherFields{
 			ChannelId:          channelId,
 			MaxClaimableAmount: "100",
@@ -39,7 +38,7 @@ func pendingDepositPayload() (batchsettlement.ChannelConfig, string, *batchsettl
 			},
 		},
 	}
-	return cfg, auth.Signature, payload
+	return auth.Signature, payload
 }
 
 // depositConfirmedChannelStateReader reports an empty channel pre-broadcast and
@@ -63,7 +62,7 @@ func depositConfirmedChannelStateReader(t *testing.T, writeSeen *bool) func(func
 }
 
 func TestSettleDeposit_PendingSettlementStore_CacheMissSuccessLeavesNoEntry(t *testing.T) {
-	_, sig, payload := pendingDepositPayload()
+	sig, payload := pendingDepositPayload()
 	store := x402.NewInMemoryPendingSettlementStore()
 	writeSeen := false
 	signer := &fakeFacilitatorSigner{
@@ -92,7 +91,7 @@ func TestSettleDeposit_PendingSettlementStore_CacheMissSuccessLeavesNoEntry(t *t
 }
 
 func TestSettleDeposit_PendingSettlementStore_CacheMissReceiptFailurePopulatesStore(t *testing.T) {
-	_, sig, payload := pendingDepositPayload()
+	sig, payload := pendingDepositPayload()
 	store := x402.NewInMemoryPendingSettlementStore()
 	wantTxHash := "0x" + strings.Repeat("ab", 32)
 	signer := &fakeFacilitatorSigner{
@@ -123,7 +122,7 @@ func TestSettleDeposit_PendingSettlementStore_CacheMissReceiptFailurePopulatesSt
 }
 
 func TestSettleDeposit_PendingSettlementStore_CacheHitReconcilesWithoutRebroadcast(t *testing.T) {
-	_, sig, payload := pendingDepositPayload()
+	sig, payload := pendingDepositPayload()
 	store := x402.NewInMemoryPendingSettlementStore()
 	priorTxHash := "0x" + strings.Repeat("ab", 32)
 	if err := store.Set(context.Background(), sig, priorTxHash); err != nil {
@@ -154,7 +153,7 @@ func TestSettleDeposit_PendingSettlementStore_CacheHitReconcilesWithoutRebroadca
 }
 
 func TestSettleDeposit_PendingSettlementStore_CacheHitStillPendingReturnsAgainWithoutRebroadcast(t *testing.T) {
-	_, sig, payload := pendingDepositPayload()
+	sig, payload := pendingDepositPayload()
 	store := x402.NewInMemoryPendingSettlementStore()
 	priorTxHash := "0x" + strings.Repeat("ab", 32)
 	if err := store.Set(context.Background(), sig, priorTxHash); err != nil {
@@ -185,7 +184,7 @@ func TestSettleDeposit_PendingSettlementStore_CacheHitStillPendingReturnsAgainWi
 }
 
 func TestSettleDeposit_PendingSettlementStore_NilStoreDisablesFastPath(t *testing.T) {
-	_, _, payload := pendingDepositPayload()
+	_, payload := pendingDepositPayload()
 	writeSeen := false
 	signer := &fakeFacilitatorSigner{
 		addresses:    []string{"0xfacilitator"},

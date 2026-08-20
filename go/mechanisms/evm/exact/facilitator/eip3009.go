@@ -262,13 +262,14 @@ func (f *ExactEvmScheme) reconcilePendingEIP3009(
 	return f.awaitEIP3009Settlement(ctx, evmPayload.Signature, tokenAddress, parsedAuthorization, network, evmPayload.Authorization.From, txHash)
 }
 
-// awaitEIP3009Settlement waits for the broadcast transaction's receipt and
-// verifies its Transfer event, shared by both the normal broadcast path and
-// the pending-settlement reconciliation path above. On a receipt-wait
-// failure (or an unparseable-but-successful receipt), the broadcast hash is
-// recorded in the pending-settlement store, keyed by the EIP-3009 signature,
-// so a subsequent settle attempt for the same payload can reconcile against
-// it instead of broadcasting again.
+// awaitEIP3009Settlement waits for the broadcast transaction's receipt (via
+// WaitForSettleReceiptWithPendingStore) and additionally verifies its
+// Transfer event, shared by both the normal broadcast path and the
+// pending-settlement reconciliation path above. A confirmed-but-mismatched
+// receipt is terminal and clears the pending entry (unlike a receipt-wait
+// failure, which WaitForSettleReceiptWithPendingStore already records for
+// reconciliation); an unparseable-but-successful receipt re-records it as
+// non-terminal, since the transfer's effect is unknown.
 func (f *ExactEvmScheme) awaitEIP3009Settlement(
 	ctx context.Context,
 	pendingKey string,
@@ -278,17 +279,9 @@ func (f *ExactEvmScheme) awaitEIP3009Settlement(
 	payer string,
 	txHash string,
 ) (*x402.SettleResponse, error) {
-	// An invalid hash means nothing usable was ever broadcast: clear any
-	// stale entry instead of caching the garbage hash.
-	if !evm.IsValidTxHash(txHash) {
-		_ = f.pendingStore.Delete(ctx, pendingKey)
-		return nil, evm.InvalidBroadcastHashError(ErrTransactionFailed, payer, network, txHash)
-	}
-
-	receipt, err := evm.WaitForSettleReceipt(ctx, f.signer, txHash, payer, network,
+	receipt, err := evm.WaitForSettleReceiptWithPendingStore(ctx, f.pendingStore, pendingKey, f.signer, txHash, payer, network,
 		ErrTransactionFailed, ErrTransactionFailed)
 	if err != nil {
-		_ = f.pendingStore.Set(ctx, pendingKey, txHash)
 		return nil, err
 	}
 
@@ -311,7 +304,6 @@ func (f *ExactEvmScheme) awaitEIP3009Settlement(
 		}
 	}
 
-	_ = f.pendingStore.Delete(ctx, pendingKey)
 	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,

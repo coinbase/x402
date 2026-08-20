@@ -43,20 +43,17 @@ import { USDC_DEVNET_ADDRESS, USDC_MAINNET_ADDRESS } from "../../src/defaultAsse
 import { buildOpenPaymentChannelTransaction } from "../../src/payment-channels/open";
 import { signVoucher } from "../../src/payment-channels/voucher";
 import { toFacilitatorSvmSigner } from "../../src/signer";
-import { ErrSettlementPending, UptoSvmScheme } from "../../src/upto/facilitator/scheme";
+import { UptoSvmScheme } from "../../src/upto/facilitator/scheme";
+import { ErrSettlementPending } from "../../src/exact/facilitator/errors";
 import {
   ChannelOpenConfirmationError,
   SettlementConfirmationTimeoutError,
 } from "../../src/upto/facilitator/channel";
 import type { UptoSvmPayloadV2 } from "../../src/types";
+import { challengeExpiresAt, MAX_TIMEOUT_SECONDS } from "./upto.testUtils";
 
 const OPEN_SLOT = 123_456_789n;
 const WITHDRAW_DELAY = 900;
-const MAX_TIMEOUT_SECONDS = 300;
-
-function challengeExpiresAt(maxTimeoutSeconds = MAX_TIMEOUT_SECONDS): number {
-  return Math.floor(Date.now() / 1000) + maxTimeoutSeconds;
-}
 
 /**
  * Wires a real (unmocked-at-the-signature-level) open channel + payload fixture

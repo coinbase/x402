@@ -347,19 +347,20 @@ export async function settleEIP3009(
   store: PendingSettlementStore = new InMemoryPendingSettlementStore(),
 ): Promise<SettleResponse> {
   const payer = eip3009Payload.authorization.from;
+  const signature = eip3009Payload.signature;
 
   // Fast path: a prior settle attempt for this exact payload already broadcast
   // a transaction whose receipt wait failed (settlement_pending). The resource
   // server's single automatic retry resends the identical payload, so check the
   // pending-settlement store before re-verifying/re-broadcasting — reconcile
   // against the already-broadcast transaction instead of creating a second one.
-  if (eip3009Payload.signature) {
-    const cachedTx = await store.get(eip3009Payload.signature);
+  if (signature) {
+    const cachedTx = await store.get(signature);
     if (cachedTx) {
       return awaitEIP3009Settlement(
         signer,
         store,
-        eip3009Payload.signature,
+        signature,
         cachedTx as `0x${string}`,
         payload.accepted.network,
         payer,
@@ -392,7 +393,7 @@ export async function settleEIP3009(
     // Parse ERC-6492 signature if applicable (for optional deployment).
     // Keep the full result so we can access the inner signature later for
     // the post-deploy transfer simulation.
-    const settleErc6492Data = parseErc6492Signature(eip3009Payload.signature!);
+    const settleErc6492Data = parseErc6492Signature(signature!);
     const {
       address: factoryAddress,
       data: factoryCalldata,
@@ -464,7 +465,7 @@ export async function settleEIP3009(
     // extracted inner signature for the on-chain transferWithAuthorization call.
     // FiatTokenV2_2's isValidSignature on the deployed contract expects the compact inner signature
     const settlePayload =
-      erc6492InnerSig && erc6492InnerSig !== eip3009Payload.signature
+      erc6492InnerSig && erc6492InnerSig !== signature
         ? { ...eip3009Payload, signature: erc6492InnerSig }
         : eip3009Payload;
 
@@ -473,11 +474,11 @@ export async function settleEIP3009(
 
     // Receipt status only proves the tx did not revert.
     // When logs are present, require the expected ERC-20 Transfer event.
-    if (eip3009Payload.signature) {
+    if (signature) {
       return await awaitEIP3009Settlement(
         signer,
         store,
-        eip3009Payload.signature,
+        signature,
         tx,
         payload.accepted.network,
         payer,

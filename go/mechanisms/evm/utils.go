@@ -106,10 +106,10 @@ func WaitForSettleReceipt(
 // disables the bookkeeping while still waiting for the receipt.
 //
 // Mirrors the TypeScript SDK's withPendingSettlementStore and the Python
-// SDK's wait_for_receipt_and_build_response. Used by Permit2 (exact + upto)
-// and batch-settlement deposit; EIP-3009's post-receipt Transfer-event check
-// needs its own wrapper (see awaitEIP3009Settlement in
-// exact/facilitator/eip3009.go) because a confirmed-but-mismatched receipt
+// SDK's wait_for_receipt_and_build_response. Used directly by Permit2
+// (exact + upto) and batch-settlement deposit; EIP-3009 wraps this to add a
+// post-receipt Transfer-event check (see awaitEIP3009Settlement in
+// exact/facilitator/eip3009.go), since a confirmed-but-mismatched receipt
 // must clear the pending entry (terminal), not set it.
 func WaitForSettleReceiptWithPendingStore(
 	ctx context.Context,

@@ -1,6 +1,5 @@
 export {
   DEFAULT_MAX_CHANNEL_LIFETIME_SECS,
-  ErrSettlementPending,
   ERR_CHANNEL_ALREADY_OPEN,
   ERR_CHANNEL_LIFETIME_EXCEEDED,
   ERR_EXPIRES_AT_MISMATCH,
@@ -9,6 +8,7 @@ export {
   UptoSvmScheme,
 } from "./scheme";
 export type { UptoChannelStorageErrorContext, UptoSvmFacilitatorConfig } from "./scheme";
+export { ErrSettlementPending } from "../../exact/facilitator/errors";
 export { ChannelOpenConfirmationError, SettlementConfirmationTimeoutError } from "./channel";
 export type { UptoSvmSigner } from "./channel";
 export { InMemoryUptoChannelStorage } from "./channelStorage";

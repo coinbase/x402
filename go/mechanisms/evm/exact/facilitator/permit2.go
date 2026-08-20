@@ -273,7 +273,7 @@ func SettlePermit2(
 	if permit2Payload.Signature != "" {
 		if txHash, ok, _ := store.Get(ctx, permit2Payload.Signature); ok {
 			receiptWaitSigner := ResolvePermit2ReceiptWaitSigner(signer, facilCtx, payload.Extensions, payload.Accepted.Network)
-			return awaitPermit2Settlement(ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network)
+			return AwaitPermit2Settlement(ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network, ErrTransactionFailed, "")
 		}
 	}
 
@@ -408,15 +408,19 @@ func SettlePermit2(
 
 	// Wait for transaction confirmation
 	receiptWaitSigner := ResolvePermit2ReceiptWaitSigner(signer, facilCtx, payload.Extensions, payload.Accepted.Network)
-	return awaitPermit2Settlement(ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network)
+	return AwaitPermit2Settlement(ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network, ErrTransactionFailed, "")
 }
 
-// awaitPermit2Settlement waits for the broadcast transaction's receipt (with
+// AwaitPermit2Settlement waits for the broadcast transaction's receipt (with
 // PendingSettlementStore bookkeeping) and builds the settle response, shared
 // by both the pending-settlement reconciliation fast path and the normal
-// broadcast path above. pendingKey may be "" (no signature available),
-// which disables the bookkeeping while still waiting for the receipt.
-func awaitPermit2Settlement(
+// broadcast path above, and reused by the upto Permit2 scheme (which shares
+// this settlement shape modulo a variable amount and error reason). pendingKey
+// may be "" (no signature available), which disables the bookkeeping while
+// still waiting for the receipt. amount may be "" for schemes without a
+// variable settlement amount (e.g. exact) — SettleResponse.Amount has
+// `omitempty`, so this is a no-op.
+func AwaitPermit2Settlement(
 	ctx context.Context,
 	store x402.PendingSettlementStore,
 	receiptWaitSigner evm.FacilitatorEvmSigner,
@@ -424,12 +428,14 @@ func awaitPermit2Settlement(
 	txHash string,
 	payer string,
 	network x402.Network,
+	failedReason string,
+	amount string,
 ) (*x402.SettleResponse, error) {
 	if _, err := evm.WaitForSettleReceiptWithPendingStore(ctx, store, pendingKey, receiptWaitSigner, txHash, payer, network,
-		ErrTransactionFailed, ErrTransactionFailed); err != nil {
+		failedReason, failedReason); err != nil {
 		return nil, err
 	}
-	return &x402.SettleResponse{Success: true, Transaction: txHash, Network: network, Payer: payer}, nil
+	return &x402.SettleResponse{Success: true, Transaction: txHash, Network: network, Payer: payer, Amount: amount}, nil
 }
 
 // verifyPermit2Signature verifies the Permit2 EIP-712 signature.

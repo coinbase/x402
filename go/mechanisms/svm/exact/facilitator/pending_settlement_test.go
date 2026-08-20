@@ -23,13 +23,13 @@ import (
 // configurable so tests can force the settlement_pending / reconciliation
 // paths deterministically.
 type mockExactSvmSigner struct {
-	addresses       []solana.PublicKey
-	sendSignature   solana.Signature
-	sendErr         error
-	confirmErr      error
-	sendCalls       int
-	confirmCalls    int
-	confirmedSigsMu []solana.Signature
+	addresses     []solana.PublicKey
+	sendSignature solana.Signature
+	sendErr       error
+	confirmErr    error
+	sendCalls     int
+	confirmCalls  int
+	confirmedSigs []solana.Signature
 }
 
 func (m *mockExactSvmSigner) GetAddresses(_ context.Context, _ string) []solana.PublicKey {
@@ -50,7 +50,7 @@ func (m *mockExactSvmSigner) SendTransaction(_ context.Context, _ *solana.Transa
 }
 func (m *mockExactSvmSigner) ConfirmTransaction(_ context.Context, sig solana.Signature, _ string) error {
 	m.confirmCalls++
-	m.confirmedSigsMu = append(m.confirmedSigsMu, sig)
+	m.confirmedSigs = append(m.confirmedSigs, sig)
 	return m.confirmErr
 }
 

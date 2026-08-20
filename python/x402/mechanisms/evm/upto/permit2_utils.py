@@ -56,10 +56,10 @@ from ..constants import (  # noqa: E402
 from ..data_suffix import resolve_data_suffix  # noqa: E402
 from ..erc6492 import parse_erc6492_signature  # noqa: E402
 
-# Reuse exact's allowance verification, receipt-wait signer resolution, and settle error mapping
+# Reuse exact's allowance verification, pending-settlement reconciliation, and settle error mapping
 from ..exact.permit2_utils import (  # noqa: E402
     _verify_permit2_allowance,
-    resolve_permit2_receipt_wait_signer,
+    reconcile_pending_permit2,
 )
 from ..settle_receipt import wait_for_receipt_and_build_response  # noqa: E402
 from ..signer import FacilitatorEvmSigner  # noqa: E402
@@ -515,20 +515,19 @@ def settle_upto_permit2(
     # transaction whose receipt wait failed (settlement_pending). Reconcile against it
     # instead of re-verifying/re-broadcasting. The resource server's retry resends the
     # identical requirements, so settlement_amount above still matches the original attempt.
-    if pending_store is not None and permit2_payload.signature:
-        cached_tx_hash = pending_store.get(permit2_payload.signature)
-        if cached_tx_hash is not None:
-            receipt_wait_signer = resolve_permit2_receipt_wait_signer(signer, payload, context)
-            return wait_for_receipt_and_build_response(
-                receipt_wait_signer,
-                cached_tx_hash,
-                network,
-                payer,
-                failed_reason=ERR_UPTO_TRANSACTION_FAILED,
-                amount=str(settlement_amount),
-                pending_store=pending_store,
-                pending_key=permit2_payload.signature,
-            )
+    reconciled = reconcile_pending_permit2(
+        signer,
+        payload,
+        context,
+        pending_store,
+        permit2_payload.signature,
+        network,
+        payer,
+        ERR_UPTO_TRANSACTION_FAILED,
+        amount=str(settlement_amount),
+    )
+    if reconciled is not None:
+        return reconciled
 
     # Re-verify with permitted.amount (the authorized max), not the settlement amount
     verify_requirements = PaymentRequirements(

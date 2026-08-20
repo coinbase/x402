@@ -41,7 +41,6 @@ import { signVoucher } from "../../src/payment-channels/voucher";
 import { toFacilitatorSvmSigner } from "../../src/signer";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import {
-  ErrSettlementPending,
   ERR_CHANNEL_ALREADY_OPEN,
   ERR_CHANNEL_BROADCAST,
   ERR_EXPIRES_AT_MISMATCH,
@@ -49,19 +48,15 @@ import {
   ERR_UNEXPECTED_VOUCHER,
   UptoSvmScheme,
 } from "../../src/upto/facilitator/scheme";
+import { ErrSettlementPending } from "../../src/exact/facilitator/errors";
 import { SettlementConfirmationTimeoutError } from "../../src/upto/facilitator/channel";
 import type { UptoChannelStorage } from "../../src/upto/facilitator/channelStorage";
 import { UptoSvmRentCleanupManager } from "../../src/upto/facilitator/rentCleanupManager";
 import type { UptoSvmPayloadV2 } from "../../src/types";
+import { challengeExpiresAt, MAX_TIMEOUT_SECONDS } from "./upto.testUtils";
 
 const OPEN_SLOT = 123_456_789n;
 const WITHDRAW_DELAY = 900;
-const MAX_TIMEOUT_SECONDS = 300;
-
-/** Challenge-bound expiry used by facilitator lifecycle tests. */
-function challengeExpiresAt(maxTimeoutSeconds = MAX_TIMEOUT_SECONDS): number {
-  return Math.floor(Date.now() / 1000) + maxTimeoutSeconds;
-}
 
 describe("UptoSvmScheme facilitator channel lifecycle", () => {
   beforeEach(() => {
