@@ -1,4 +1,5 @@
 import { Network, SettleResponse } from "@x402/core/types";
+import { PendingSettlementStore } from "@x402/core/facilitator";
 import { invalidBroadcastHashResponse, isValidTxHash, truncateErrorMessage } from "../utils";
 import { ErrInvalidTransactionState, ErrSettlementPending } from "../exact/facilitator/errors";
 import { FacilitatorEvmSigner } from "../signer";
@@ -94,6 +95,46 @@ export async function waitAndReturnSettleResponse(
     // terminal; this does not.
     return settlementPendingResponse(tx, network, payer, error);
   }
+}
+
+/**
+ * Wraps a settle attempt with `PendingSettlementStore` bookkeeping: on
+ * success, clears any pending entry for `pendingKey`; on a failure that
+ * carries a broadcast transaction hash (a post-broadcast receipt-wait or
+ * validation failure — including `settlement_pending`), records that hash so
+ * a subsequent settle attempt for the same payload can reconcile against it
+ * instead of re-broadcasting. A pre-broadcast failure (empty `transaction`,
+ * e.g. a verify rejection or a `writeContract` throw) leaves the store
+ * untouched, since there is nothing to reconcile against.
+ *
+ * Used by mechanisms whose failure reasons need no special-casing beyond
+ * "did this attempt broadcast a transaction" (Permit2 exact/upto,
+ * batch-settlement deposit). EIP-3009's post-receipt Transfer-event check
+ * needs its own wrapper (see `awaitEIP3009Settlement` in
+ * `exact/facilitator/eip3009.ts`) because a confirmed-but-mismatched receipt
+ * must delete the pending entry (terminal), not set it.
+ *
+ * @param store - The pending-settlement store to update
+ * @param pendingKey - Deterministic key for this payload (e.g. a signature); when
+ *   undefined, the store is left untouched entirely
+ * @param settle - Thunk that performs the settle attempt (broadcast + receipt wait)
+ * @returns The settle result from `settle()`, unmodified
+ */
+export async function withPendingSettlementStore(
+  store: PendingSettlementStore,
+  pendingKey: string | undefined,
+  settle: () => Promise<SettleResponse>,
+): Promise<SettleResponse> {
+  const result = await settle();
+  if (!pendingKey) {
+    return result;
+  }
+  if (result.success) {
+    await store.delete(pendingKey);
+  } else if (result.transaction) {
+    await store.set(pendingKey, result.transaction);
+  }
+  return result;
 }
 
 /**

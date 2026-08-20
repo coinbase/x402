@@ -5,6 +5,7 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
+import { InMemoryPendingSettlementStore, PendingSettlementStore } from "@x402/core/facilitator";
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature } from "viem";
 import { authorizationTypes } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
@@ -251,6 +252,76 @@ export async function verifyEIP3009(
 }
 
 /**
+ * Waits for the broadcast transaction's receipt (and, when logs are present,
+ * verifies its Transfer event), shared by both the normal broadcast path and
+ * the pending-settlement reconciliation path in {@link settleEIP3009}. On a
+ * receipt-wait failure, the broadcast hash is recorded in `store` (keyed by
+ * the EIP-3009 signature) so a subsequent settle attempt for the same
+ * payload can reconcile against it instead of broadcasting again. A receipt
+ * that confirms with a mismatched Transfer event is terminal — the entry is
+ * removed instead, mirroring Go's `awaitEIP3009Settlement`.
+ *
+ * @param signer - The facilitator signer for the receipt wait
+ * @param store - Pending-settlement store keyed by the EIP-3009 signature
+ * @param pendingKey - The EIP-3009 signature used as the store key
+ * @param tx - The broadcast transaction hash to await
+ * @param network - The network the transaction was broadcast to
+ * @param payer - The payer address
+ * @param asset - The ERC-20 asset address (checksummed)
+ * @param auth - The authorization fields used to validate the Transfer event
+ * @param auth.from - Authorization sender
+ * @param auth.to - Authorization recipient
+ * @param auth.value - Authorization value (atomic units)
+ * @returns Promise resolving to the settlement response
+ */
+async function awaitEIP3009Settlement(
+  signer: FacilitatorEvmSigner,
+  store: PendingSettlementStore,
+  pendingKey: string,
+  tx: `0x${string}`,
+  network: PaymentRequirements["network"],
+  payer: string,
+  asset: `0x${string}`,
+  auth: { from: string; to: string; value: string },
+): Promise<SettleResponse> {
+  const result = await waitAndReturnSettleResponse(signer, tx, network, payer, {
+    failedStatusReason: Errors.ErrTransactionFailed,
+    validateReceipt: receipt => {
+      if (
+        receipt.logs != null &&
+        !verifyEip3009TransferEvent(receipt.logs, asset, {
+          from: getAddress(auth.from),
+          to: getAddress(auth.to),
+          value: BigInt(auth.value),
+        })
+      ) {
+        return {
+          success: false,
+          errorReason: Errors.ErrTransferEventMismatch,
+          transaction: tx,
+          network,
+          payer,
+        };
+      }
+      return undefined;
+    },
+  });
+
+  if (result.success || result.errorReason === Errors.ErrTransferEventMismatch) {
+    // Confirmed (success, or confirmed-but-mismatched — terminal either way).
+    await store.delete(pendingKey);
+  } else if (result.transaction) {
+    // `result.transaction` is empty for an invalid-broadcast-hash terminal failure (nothing
+    // usable was ever broadcast, so there is nothing to reconcile against) — checking it
+    // instead of the raw `tx` parameter avoids caching that garbage hash.
+    await store.set(pendingKey, result.transaction);
+  } else {
+    await store.delete(pendingKey);
+  }
+  return result;
+}
+
+/**
  * Settles an EIP-3009 payment by executing transferWithAuthorization.
  *
  * @param signer - The facilitator signer for contract writes
@@ -259,6 +330,11 @@ export async function verifyEIP3009(
  * @param eip3009Payload - The EIP-3009 specific payload
  * @param config - Facilitator configuration
  * @param context - Optional facilitator context for extension capabilities
+ * @param store - Pending-settlement store. A prior settle attempt for this exact
+ *   payload that broadcast a transaction whose receipt wait failed
+ *   (settlement_pending) is reconciled against here instead of re-verifying and
+ *   re-broadcasting. Defaults to a fresh in-memory store when omitted (no
+ *   cross-call sharing).
  * @returns Promise resolving to settlement response
  */
 export async function settleEIP3009(
@@ -268,8 +344,30 @@ export async function settleEIP3009(
   eip3009Payload: ExactEIP3009Payload,
   config: EIP3009FacilitatorConfig,
   context?: FacilitatorContext,
+  store: PendingSettlementStore = new InMemoryPendingSettlementStore(),
 ): Promise<SettleResponse> {
   const payer = eip3009Payload.authorization.from;
+
+  // Fast path: a prior settle attempt for this exact payload already broadcast
+  // a transaction whose receipt wait failed (settlement_pending). The resource
+  // server's single automatic retry resends the identical payload, so check the
+  // pending-settlement store before re-verifying/re-broadcasting — reconcile
+  // against the already-broadcast transaction instead of creating a second one.
+  if (eip3009Payload.signature) {
+    const cachedTx = await store.get(eip3009Payload.signature);
+    if (cachedTx) {
+      return awaitEIP3009Settlement(
+        signer,
+        store,
+        eip3009Payload.signature,
+        cachedTx as `0x${string}`,
+        payload.accepted.network,
+        payer,
+        getAddress(requirements.asset),
+        eip3009Payload.authorization,
+      );
+    }
+  }
 
   // Re-verify before settling
   const valid = await verifyEIP3009(
@@ -375,16 +473,27 @@ export async function settleEIP3009(
 
     // Receipt status only proves the tx did not revert.
     // When logs are present, require the expected ERC-20 Transfer event.
-    const auth = eip3009Payload.authorization;
+    if (eip3009Payload.signature) {
+      return await awaitEIP3009Settlement(
+        signer,
+        store,
+        eip3009Payload.signature,
+        tx,
+        payload.accepted.network,
+        payer,
+        asset,
+        eip3009Payload.authorization,
+      );
+    }
     return await waitAndReturnSettleResponse(signer, tx, payload.accepted.network, payer, {
       failedStatusReason: Errors.ErrTransactionFailed,
       validateReceipt: receipt => {
         if (
           receipt.logs != null &&
           !verifyEip3009TransferEvent(receipt.logs, asset, {
-            from: getAddress(auth.from),
-            to: getAddress(auth.to),
-            value: BigInt(auth.value),
+            from: getAddress(eip3009Payload.authorization.from),
+            to: getAddress(eip3009Payload.authorization.to),
+            value: BigInt(eip3009Payload.authorization.value),
           })
         ) {
           return {
