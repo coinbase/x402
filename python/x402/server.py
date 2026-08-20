@@ -41,6 +41,8 @@ from .server_base import (
     SyncOnSettleFailureHook,
     SyncOnVerifiedPaymentCanceledHook,
     SyncOnVerifyFailureHook,
+    settle_with_pending_retry,
+    settle_with_pending_retry_async,
     x402ResourceServerBase,
 )
 
@@ -286,7 +288,7 @@ class x402ResourceServer(x402ResourceServerBase):
                     if method_name == "verify":
                         result = await target.verify(p, r)
                     else:
-                        result = await target.settle(p, r)
+                        result = await settle_with_pending_retry_async(target, p, r)
                 else:
                     result = await self._execute_hook(target, ctx)
         except StopIteration as e:
@@ -567,7 +569,7 @@ class x402ResourceServerSync(x402ResourceServerBase):
                     if method_name == "verify":
                         result = target.verify(p, r)
                     else:
-                        result = target.settle(p, r)
+                        result = settle_with_pending_retry(target, p, r)
                 else:
                     result = self._execute_hook_sync(target, ctx)
         except StopIteration as e:
