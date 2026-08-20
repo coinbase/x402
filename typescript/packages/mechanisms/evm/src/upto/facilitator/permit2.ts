@@ -5,11 +5,13 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
+import { InMemoryPendingSettlementStore, PendingSettlementStore } from "@x402/core/facilitator";
 import {
   extractEip2612GasSponsoringInfo,
   extractErc20ApprovalGasSponsoringInfo,
   ERC20_APPROVAL_GAS_SPONSORING_KEY,
   resolveErc20ApprovalExtensionSigner,
+  resolvePermit2ReceiptWaitSigner,
   type Erc20ApprovalGasSponsoringFacilitatorExtension,
   type Erc20ApprovalGasSponsoringSigner,
 } from "../../exact/extensions";
@@ -48,7 +50,10 @@ import {
   validateEip2612PermitForPayment,
   type Permit2ProxyConfig,
 } from "../../shared/permit2";
-import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
+import {
+  waitAndReturnSettleResponse,
+  withPendingSettlementStore,
+} from "../../shared/settleReceipt";
 import type { Eip2612GasSponsoringInfo } from "../../exact/extensions";
 
 const uptoProxyConfig: Permit2ProxyConfig = {
@@ -341,6 +346,11 @@ export async function verifyUptoPermit2(
  * @param permit2Payload - The upto Permit2 specific payload with witness data
  * @param context - Optional facilitator context for extension-provided capabilities
  * @param config - Optional facilitator configuration (e.g., simulation settings for settle)
+ * @param store - Pending-settlement store. A prior settle attempt for this exact
+ *   payload that broadcast a transaction whose receipt wait failed
+ *   (settlement_pending) is reconciled against here instead of re-verifying and
+ *   re-broadcasting. Defaults to a fresh in-memory store when omitted (no
+ *   cross-call sharing).
  * @returns Promise resolving to a settlement response indicating success or failure
  */
 export async function settleUptoPermit2(
@@ -350,9 +360,29 @@ export async function settleUptoPermit2(
   permit2Payload: UptoPermit2Payload,
   context?: FacilitatorContext,
   config?: UptoPermit2FacilitatorConfig,
+  store: PendingSettlementStore = new InMemoryPendingSettlementStore(),
 ): Promise<SettleResponse> {
   const payer = permit2Payload.permit2Authorization.from;
   const settlementAmount = BigInt(requirements.amount);
+
+  // Fast path: a prior settle attempt for this exact payload already
+  // broadcast a transaction whose receipt wait failed (settlement_pending).
+  // Reconcile against it instead of re-verifying/re-broadcasting.
+  if (permit2Payload.signature) {
+    const cachedTx = await store.get(permit2Payload.signature);
+    if (cachedTx) {
+      const receiptWaitSigner = resolvePermit2ReceiptWaitSigner(signer, payload, context);
+      return withPendingSettlementStore(store, permit2Payload.signature, () =>
+        waitAndReturnSettleResponse(
+          receiptWaitSigner,
+          cachedTx as `0x${string}`,
+          payload.accepted.network,
+          payer,
+          { failedStatusReason: ErrUptoTransactionFailed, amount: settlementAmount.toString() },
+        ),
+      );
+    }
+  }
 
   // Re-verify the signature before settling. We override `requirements.amount`
   // with the *authorized maximum* (`permitted.amount`) — NOT the actual
@@ -415,14 +445,16 @@ export async function settleUptoPermit2(
   // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
   if (eip2612Info) {
-    return settleUptoWithEIP2612(
-      signer,
-      payload,
-      permit2Payload,
-      eip2612Info,
-      settlementAmount,
-      facilitatorAddress,
-      dataSuffix,
+    return withPendingSettlementStore(store, permit2Payload.signature, () =>
+      settleUptoWithEIP2612(
+        signer,
+        payload,
+        permit2Payload,
+        eip2612Info,
+        settlementAmount,
+        facilitatorAddress,
+        dataSuffix,
+      ),
     );
   }
 
@@ -438,26 +470,30 @@ export async function settleUptoPermit2(
       payload.accepted.network,
     );
     if (extensionSigner) {
-      return settleUptoWithERC20Approval(
-        extensionSigner,
-        payload,
-        permit2Payload,
-        erc20Info,
-        settlementAmount,
-        facilitatorAddress,
-        dataSuffix,
+      return withPendingSettlementStore(store, permit2Payload.signature, () =>
+        settleUptoWithERC20Approval(
+          extensionSigner,
+          payload,
+          permit2Payload,
+          erc20Info,
+          settlementAmount,
+          facilitatorAddress,
+          dataSuffix,
+        ),
       );
     }
   }
 
   // Branch: standard settle (allowance already on-chain)
-  return settleUptoDirect(
-    signer,
-    payload,
-    permit2Payload,
-    settlementAmount,
-    facilitatorAddress,
-    dataSuffix,
+  return withPendingSettlementStore(store, permit2Payload.signature, () =>
+    settleUptoDirect(
+      signer,
+      payload,
+      permit2Payload,
+      settlementAmount,
+      facilitatorAddress,
+      dataSuffix,
+    ),
   );
 }
 

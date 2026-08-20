@@ -7,6 +7,10 @@ import type {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
+import {
+  InMemoryPendingSettlementStore,
+  type PendingSettlementStore,
+} from "@x402/core/facilitator";
 
 import {
   buildDistributeInstruction,
@@ -19,6 +23,7 @@ import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { isUptoSvmPayload, type UptoSvmPayloadV2 } from "../../types";
 import { createRpcClient, validateSvmAddress } from "../../utils";
+import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import {
   resolveTokenProgram,
   resolveUptoSvmMemo,
@@ -29,6 +34,7 @@ import {
 import {
   broadcastOpen,
   channelExists,
+  ChannelOpenConfirmationError,
   fetchAndVerifyOpenChannel,
   SettlementConfirmationTimeoutError,
   simulateOpenSettleDistribute,
@@ -42,6 +48,7 @@ import {
   type UptoChannelStorage,
 } from "./channelStorage";
 import { UptoSvmRentCleanupManager } from "./rentCleanupManager";
+export { ErrSettlementPending } from "../../exact/facilitator/errors";
 
 /** Scheme-specific error returned when the settlement amount exceeds the ceiling. */
 export const ERR_SETTLEMENT_EXCEEDS_AMOUNT = "invalid_upto_svm_payload_settlement_exceeds_amount";
@@ -64,15 +71,6 @@ export const ERR_CHANNEL_LIFETIME_EXCEEDED = "invalid_upto_svm_payload_channel_l
 
 /** Payload `expiresAt` later than `now + maxTimeoutSeconds` (+ skew). */
 export const ERR_EXPIRES_AT_MISMATCH = "invalid_upto_svm_payload_expires_at_mismatch";
-
-/**
- * A claim's settle_and_seal + distribute transaction broadcast but did not
- * reach `confirmed` within the polling budget. Unlike `transaction_failed`,
- * the outcome is unknown, not a rejection — the transaction may still land.
- * The settlement dedup entry is kept (not deleted) so a caller retrying the
- * same claim cannot race a second settle_and_seal against the first.
- */
-export const ERR_SETTLEMENT_CONFIRMATION_TIMEOUT = "settlement_confirmation_timeout";
 
 /** Default facilitator `maxChannelLifetimeSecs` (1 hour). */
 export const DEFAULT_MAX_CHANNEL_LIFETIME_SECS = 3_600;
@@ -171,6 +169,16 @@ export interface UptoSvmFacilitatorConfig {
    * Default: `DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT` (100,000)
    */
   settleComputeUnitLimit?: number;
+  /**
+   * Lets a retried deposit (open) or claim (settle_and_seal + distribute)
+   * settle for the same channel reconcile against an already-broadcast
+   * signature instead of re-broadcasting (see {@link PendingSettlementStore}).
+   * Defaults to a fresh in-memory store shared across all settle calls on
+   * this scheme instance. Inject a shared, network-backed implementation
+   * (e.g. Redis) for a multi-instance facilitator so a settle retry landing
+   * on a different replica still reconciles correctly.
+   */
+  pendingSettlementStore?: PendingSettlementStore;
 }
 
 type OpenAuthFailure = {
@@ -212,6 +220,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
   private readonly config: UptoSvmFacilitatorConfig;
   private readonly channelStorage: UptoChannelStorage;
   private readonly settlementCache = new SettlementCache();
+  private readonly pendingStore: PendingSettlementStore;
 
   private readonly getKitSigner: (feePayer: Address) => FacilitatorSigningCapabilities;
 
@@ -245,6 +254,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     assertLimit("settleComputeUnitLimit", config.settleComputeUnitLimit, 1);
     this.config = config;
     this.channelStorage = config.channelStorage ?? new InMemoryUptoChannelStorage();
+    this.pendingStore = config.pendingSettlementStore ?? new InMemoryPendingSettlementStore();
   }
 
   /**
@@ -372,9 +382,52 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       return this.settleClaim(payload, requirements, p, actual, payloadMaxAmount);
     }
     if (actual === payloadMaxAmount) {
-      return this.settleDeposit(payload, requirements);
+      return this.settleDeposit(payload, requirements, p);
     }
     return this.settleFailure(payload, "invalid_upto_svm_payload_missing_voucher", p.from);
+  }
+
+  /**
+   * Re-awaits confirmation of a signature previously recorded in the
+   * `PendingSettlementStore` under `cacheKey`, without re-verifying,
+   * re-signing, or re-broadcasting. Re-broadcasting is not a safe fallback
+   * here: the deposit's channel PDA is one-shot (a second open would hit
+   * `ERR_CHANNEL_ALREADY_OPEN`) and a claim seals the channel (a second
+   * claim attempt would fail the "channel is not open" check) — either of
+   * which would misreport an already-successful payment as failed. Mirrors
+   * Go's `awaitPendingUptoSignature`.
+   *
+   * @param cacheKey - The pending-settlement store key for this deposit/claim
+   * @param signature - The previously broadcast signature to re-await
+   * @param payer - Payer address for the response
+   * @param network - The network the transaction was broadcast to
+   * @returns `{ ok: true }` on confirmation (store entry cleared), or
+   *   `{ ok: false, response }` with a `settlement_pending` response to surface
+   */
+  private async awaitPendingUptoSignature(
+    cacheKey: string,
+    signature: string,
+    payer: string,
+    network: PaymentRequirements["network"],
+  ): Promise<{ ok: true } | { ok: false; response: SettleResponse }> {
+    try {
+      await this.signer.confirmTransaction(signature, network);
+    } catch (error) {
+      await this.pendingStore.set(cacheKey, signature);
+      return {
+        ok: false,
+        response: {
+          success: false,
+          network,
+          transaction: signature,
+          errorReason: ErrSettlementPending,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          payer,
+        },
+      };
+    }
+    await this.pendingStore.delete(cacheKey);
+    return { ok: true };
   }
 
   /**
@@ -383,12 +436,40 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
    *
    * @param payload - The payment payload
    * @param requirements - Requirements with amount = authorized ceiling
+   * @param p - Typed upto payload (channelId is needed before open validation)
    * @returns Deposit settlement response
    */
   private async settleDeposit(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
+    p: UptoSvmPayloadV2,
   ): Promise<SettleResponse> {
+    // Pending-settlement fast path: a prior deposit settle for this exact
+    // channel broadcast the open successfully but couldn't confirm it in
+    // time. Reconcile against that signature instead of re-validating and
+    // re-broadcasting — a second open attempt would hit ERR_CHANNEL_ALREADY_OPEN
+    // even though the original payment is (or will be) fine.
+    const depositKey = `upto:deposit:${requirements.network}:${p.channelId}`;
+    const cachedDepositSignature = await this.pendingStore.get(depositKey);
+    if (cachedDepositSignature) {
+      const pending = await this.awaitPendingUptoSignature(
+        depositKey,
+        cachedDepositSignature,
+        p.from,
+        payload.accepted.network,
+      );
+      if (!pending.ok) {
+        return pending.response;
+      }
+      return {
+        success: true,
+        transaction: cachedDepositSignature,
+        network: requirements.network,
+        amount: p.maxAmount,
+        payer: p.from,
+      };
+    }
+
     const auth = await this.validateOpenAuthorization(payload, requirements, {
       rejectVoucher: true,
     });
@@ -403,7 +484,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const { p, channelConfig, feePayerSigner, maxAmount, tokenProgram } = auth.ctx;
+    const { channelConfig, feePayerSigner, maxAmount, tokenProgram } = auth.ctx;
     const feePayer = channelConfig.feePayer;
     const rpc = this.config.rpc ?? createRpcClient(requirements.network, this.config.rpcUrl);
 
@@ -417,7 +498,6 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     // Race: two deposit settles can both see "channel missing", broadcast the
     // same open, and both get success back from RPC. Dedup here so only one
     // proceeds. Key is deposit-scoped so this does not block the later claim.
-    const depositKey = `upto:deposit:${requirements.network}:${p.channelId}`;
     if (this.settlementCache.isDuplicate(depositKey)) {
       return this.settleFailure(payload, "duplicate_settlement", p.from);
     }
@@ -485,6 +565,22 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         p.openTransaction,
       );
     } catch (error) {
+      // A ChannelOpenConfirmationError means the open broadcast successfully
+      // but confirmation couldn't be observed in time: leave the deposit dedup
+      // lock in place (a fresh broadcast would double-open) and record the
+      // signature so a retry reconciles via the fast path above instead of
+      // re-validating.
+      if (error instanceof ChannelOpenConfirmationError) {
+        await this.pendingStore.set(depositKey, error.signature);
+        return {
+          success: false,
+          network: payload.accepted.network,
+          transaction: error.signature,
+          errorReason: ErrSettlementPending,
+          errorMessage: error.message,
+          payer: p.from,
+        };
+      }
       this.settlementCache.delete(depositKey);
       return {
         success: false,
@@ -519,6 +615,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
+    await this.pendingStore.delete(depositKey);
     return {
       success: true,
       transaction: openSignature,
@@ -546,6 +643,34 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     actual: bigint,
     payloadMaxAmount: bigint,
   ): Promise<SettleResponse> {
+    // Pending-settlement fast path: a prior claim settle for this exact
+    // channel broadcast settle_and_seal + distribute successfully but
+    // couldn't confirm it in time. Reconcile against that signature instead
+    // of re-verifying and re-submitting — the channel is sealed by a
+    // successful settle_and_seal, so a second claim attempt would fail
+    // fetchAndVerifyOpenChannel's "channel is not open" check even though
+    // the original payment succeeded.
+    const settlementKey = `upto:${requirements.network}:${p.channelId}`;
+    const cachedClaimSignature = await this.pendingStore.get(settlementKey);
+    if (cachedClaimSignature) {
+      const pending = await this.awaitPendingUptoSignature(
+        settlementKey,
+        cachedClaimSignature,
+        p.from,
+        payload.accepted.network,
+      );
+      if (!pending.ok) {
+        return pending.response;
+      }
+      return {
+        success: true,
+        transaction: cachedClaimSignature,
+        network: requirements.network,
+        amount: actual.toString(),
+        payer: p.from,
+      };
+    }
+
     if (typeof p.voucherSignature !== "string" || p.voucherSignature.length === 0) {
       return this.settleFailure(payload, "invalid_upto_svm_payload_missing_voucher", p.from);
     }
@@ -638,7 +763,6 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     // vouchers — must fail after the first claim so only one settle_and_seal +
     // distribute is submitted. Failures above (invalid voucher / not open) do
     // not insert into the cache.
-    const settlementKey = `upto:${network}:${p.channelId}`;
     if (this.settlementCache.isDuplicate(settlementKey)) {
       return this.settleFailure(payload, "duplicate_settlement", p.from);
     }
@@ -687,6 +811,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         expiresAt: p.expiresAt,
       });
 
+      await this.pendingStore.delete(settlementKey);
       return {
         success: true,
         transaction: signature,
@@ -698,13 +823,16 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       // A confirmation timeout leaves the transaction's fate unknown, not
       // failed: it may still land. The dedup entry is kept, not deleted, so
       // a caller retrying this claim cannot race a second settle_and_seal
-      // against the first while the outcome is still unresolved.
+      // against the first while the outcome is still unresolved. The
+      // broadcast signature is recorded so that retry reconciles via the
+      // fast path above instead of re-verifying/re-submitting.
       if (error instanceof SettlementConfirmationTimeoutError) {
+        await this.pendingStore.set(settlementKey, error.signature);
         return {
           success: false,
           network: payload.accepted.network,
-          transaction: "",
-          errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
+          transaction: error.signature,
+          errorReason: ErrSettlementPending,
           errorMessage: error.message,
           payer: p.from,
         };

@@ -237,17 +237,51 @@ export function verifyOpenChannelAccount(
 }
 
 /**
+ * Thrown by {@link broadcastOpen} when the open transaction broadcast
+ * successfully but `confirmTransaction` couldn't observe its confirmation.
+ * Distinct from a sign/send failure (nothing reached the chain, safe to
+ * retry with a fresh broadcast): this carries the broadcast `signature` so
+ * the caller can cache it and reconcile against it instead of
+ * re-broadcasting (a second open would hit the channel-already-open check
+ * even though the original open is, or will be, fine).
+ */
+export class ChannelOpenConfirmationError extends Error {
+  /**
+   * Create the error for an open broadcast whose confirmation failed.
+   *
+   * @param signature - The broadcast signature whose confirmation failed
+   * @param cause - The underlying confirmation error
+   */
+  constructor(
+    readonly signature: string,
+    cause: unknown,
+  ) {
+    super(
+      `failed to confirm channel open ${signature}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+    this.name = "ChannelOpenConfirmationError";
+  }
+}
+
+/**
  * Co-sign the fee-payer slot of a partially-signed open transaction,
  * broadcast it, and wait for confirmation. No-op skip is the caller's job
  * (see {@link channelExists}).
  *
  * Uses the wire-level FacilitatorSvmSigner methods (same path as exact).
  *
+ * On a confirmation failure the broadcast signature is still surfaced (via
+ * {@link ChannelOpenConfirmationError}), unlike a sign/send failure — so the
+ * caller can distinguish "never landed, safe to retry with a fresh
+ * broadcast" from "broadcast successfully but unconfirmed, must reconcile
+ * against this signature instead of re-broadcasting."
+ *
  * @param facilitator - Facilitator signer with wire sign/send/confirm
  * @param feePayer - Fee-payer address to co-sign with
  * @param network - CAIP-2 network identifier
  * @param openTransactionBase64 - The client-signed open transaction
  * @returns The broadcast signature
+ * @throws {ChannelOpenConfirmationError} If the transaction broadcast but confirmation failed
  */
 export async function broadcastOpen(
   facilitator: Pick<
@@ -260,7 +294,11 @@ export async function broadcastOpen(
 ): Promise<string> {
   const wire = await facilitator.signTransaction(openTransactionBase64, feePayer, network);
   const signature = await facilitator.sendTransaction(wire, network);
-  await facilitator.confirmTransaction(signature, network);
+  try {
+    await facilitator.confirmTransaction(signature, network);
+  } catch (error) {
+    throw new ChannelOpenConfirmationError(signature, error);
+  }
   return signature;
 }
 
