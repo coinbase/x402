@@ -1,0 +1,7 @@
+{
+  "name": "base-tx-explain",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/base-tx-explain.png",
+  "description": "Explains any Base mainnet transaction in plain English over MCP: strict JSON with assets moved, labeled counterparties, risk flags, and gas in USD. Deterministic decode, no LLM, $0.02 per call via x402.",
+  "websiteUrl": "https://github.com/0200project/base-tx-explain"
+}
