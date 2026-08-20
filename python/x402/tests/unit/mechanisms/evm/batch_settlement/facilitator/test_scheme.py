@@ -97,6 +97,21 @@ class TestFacilitatorMetadata:
         )
         assert fac.get_signers(NETWORK) == ["0xabc"]
 
+    def test_uses_provided_pending_store_instead_of_a_fresh_default(self):
+        """A caller-supplied PendingSettlementStore must be the instance actually used,
+        not merely accepted and ignored in favor of the default. This is what lets a
+        multi-instance facilitator inject a shared, network-backed store."""
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        custom_store = InMemoryPendingSettlementStore()
+
+        fac = BatchSettlementEvmFacilitator(
+            _FakeFacilitatorSigner(),  # type: ignore[arg-type]
+            pending_store=custom_store,
+        )
+
+        assert fac._pending_store is custom_store
+
 
 class TestVerifyDispatchErrors:
     def _fac(self):
@@ -509,6 +524,193 @@ class TestSettleReceiptWait:
         assert out.success is False
         assert out.error_reason == ERR_SETTLEMENT_PENDING
         assert out.transaction == _SUCCESSFUL_TX_HASH
+
+
+_CHANNEL_CONFIG = SimpleNamespace(
+    payer="0x1111111111111111111111111111111111111111",
+    payer_authorizer="0x0000000000000000000000000000000000000000",
+    receiver="0x2222222222222222222222222222222222222222",
+    receiver_authorizer="0x3333333333333333333333333333333333333333",
+    token="0x4444444444444444444444444444444444444444",
+    withdraw_delay=86400,
+    salt="0x" + "00" * 32,
+)
+
+
+def _deposit_payload(signature: str = "0x" + "aa" * 65) -> SimpleNamespace:
+    """A minimal deposit payload with an ERC-3009 authorization signature, used to key
+    the PendingSettlementStore. Not cryptographically valid — verify_deposit and
+    surrounding branch-resolution helpers are monkeypatched in the tests below."""
+    return SimpleNamespace(
+        channel_config=_CHANNEL_CONFIG,
+        voucher=SimpleNamespace(channel_id="0x" + "11" * 32),
+        deposit=SimpleNamespace(
+            amount="100",
+            authorization=SimpleNamespace(
+                erc3009_authorization=SimpleNamespace(signature=signature),
+                permit2_authorization=None,
+            ),
+        ),
+    )
+
+
+class TestDepositPendingSettlementStore:
+    """Pending-settlement store integration for the batch-settlement deposit path."""
+
+    def _patch_common(self, monkeypatch, deposit_mod, *, balance_after_deposit: int = 100):
+        monkeypatch.setattr(
+            deposit_mod,
+            "verify_deposit",
+            lambda *args: VerifyResponse(
+                is_valid=True,
+                extra={
+                    "balance": "0",
+                    "totalClaimed": "0",
+                    "withdrawRequestedAt": 0,
+                    "refundNonce": "0",
+                },
+            ),
+        )
+        monkeypatch.setattr(
+            deposit_mod,
+            "_resolve_deposit_execution",
+            lambda *args: deposit_mod._DepositExecution(
+                kind="direct",
+                collector="0x6666666666666666666666666666666666666666",
+                collector_data=b"",
+            ),
+        )
+        monkeypatch.setattr(
+            deposit_mod, "_resolve_deposit_transfer_method", lambda *args: "eip3009"
+        )
+        monkeypatch.setattr(
+            deposit_mod,
+            "read_channel_state",
+            lambda *args: SimpleNamespace(
+                balance=balance_after_deposit,
+                total_claimed=0,
+                withdraw_requested_at=0,
+                refund_nonce=0,
+            ),
+        )
+
+    def test_cache_miss_broadcast_success_leaves_store_empty(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        self._patch_common(monkeypatch, deposit_mod, balance_after_deposit=100)
+        store = InMemoryPendingSettlementStore()
+        payload = _deposit_payload()
+
+        out = deposit_mod.settle_deposit(
+            _SuccessfulSigner(),  # type: ignore[arg-type]
+            SimpleNamespace(),
+            payload,
+            _requirements(),
+            pending_store=store,
+        )
+
+        assert out.success is True
+        assert store.entries == {}
+
+    def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        self._patch_common(monkeypatch, deposit_mod)
+        store = InMemoryPendingSettlementStore()
+        payload = _deposit_payload()
+
+        out = deposit_mod.settle_deposit(
+            _ReceiptWaitFailsSigner(),  # type: ignore[arg-type]
+            SimpleNamespace(),
+            payload,
+            _requirements(),
+            pending_store=store,
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+        signature = payload.deposit.authorization.erc3009_authorization.signature
+        assert store.get(signature) == _SUCCESSFUL_TX_HASH
+
+    def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        self._patch_common(monkeypatch, deposit_mod, balance_after_deposit=100)
+        monkeypatch.setattr(
+            deposit_mod,
+            "verify_deposit",
+            lambda *args: (_ for _ in ()).throw(
+                AssertionError("verify_deposit must be skipped on a pending-store hit")
+            ),
+        )
+        store = InMemoryPendingSettlementStore()
+        payload = _deposit_payload()
+        signature = payload.deposit.authorization.erc3009_authorization.signature
+        store.set(signature, _SUCCESSFUL_TX_HASH)
+
+        out = deposit_mod.settle_deposit(
+            _SuccessfulSigner(),  # type: ignore[arg-type]
+            SimpleNamespace(),
+            payload,
+            _requirements(),
+            pending_store=store,
+        )
+
+        assert out.success is True
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+        assert out.amount == "100"
+        assert store.entries == {}
+
+    def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        self._patch_common(monkeypatch, deposit_mod)
+        store = InMemoryPendingSettlementStore()
+        payload = _deposit_payload()
+        signature = payload.deposit.authorization.erc3009_authorization.signature
+        store.set(signature, _SUCCESSFUL_TX_HASH)
+
+        out = deposit_mod.settle_deposit(
+            _ReceiptWaitFailsSigner(),  # type: ignore[arg-type]
+            SimpleNamespace(),
+            payload,
+            _requirements(),
+            pending_store=store,
+        )
+
+        assert out.success is False
+        assert out.error_reason == ERR_SETTLEMENT_PENDING
+        assert out.transaction == _SUCCESSFUL_TX_HASH
+        assert store.get(signature) == _SUCCESSFUL_TX_HASH
+
+    def test_verify_only_failure_is_terminal_and_never_touches_store(self, monkeypatch):
+        from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        monkeypatch.setattr(
+            deposit_mod,
+            "verify_deposit",
+            lambda *args: VerifyResponse(is_valid=False, invalid_reason="bad_signature"),
+        )
+        store = InMemoryPendingSettlementStore()
+        payload = _deposit_payload()
+
+        out = deposit_mod.settle_deposit(
+            _SuccessfulSigner(),  # type: ignore[arg-type]
+            SimpleNamespace(),
+            payload,
+            _requirements(),
+            pending_store=store,
+        )
+
+        assert out.success is False
+        assert out.error_reason == "bad_signature"
+        assert store.entries == {}
 
 
 class TestClaimReceiptWait:
