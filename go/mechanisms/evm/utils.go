@@ -97,6 +97,55 @@ func WaitForSettleReceipt(
 	return receipt, nil
 }
 
+// WaitForSettleReceiptWithPendingStore wraps WaitForSettleReceipt with the
+// PendingSettlementStore bookkeeping shared by every EVM settle path that
+// supports settlement_pending reconciliation: on a wait failure, record
+// txHash under pendingKey so a subsequent settle attempt for the same
+// payload can reconcile against it instead of re-broadcasting; on success,
+// clear any stale entry. store may be nil and pendingKey may be "" — either
+// disables the bookkeeping while still waiting for the receipt.
+//
+// Mirrors the TypeScript SDK's withPendingSettlementStore and the Python
+// SDK's wait_for_receipt_and_build_response. Used by Permit2 (exact + upto)
+// and batch-settlement deposit; EIP-3009's post-receipt Transfer-event check
+// needs its own wrapper (see awaitEIP3009Settlement in
+// exact/facilitator/eip3009.go) because a confirmed-but-mismatched receipt
+// must clear the pending entry (terminal), not set it.
+func WaitForSettleReceiptWithPendingStore(
+	ctx context.Context,
+	store x402.PendingSettlementStore,
+	pendingKey string,
+	signer receiptWaiter,
+	txHash string,
+	payer string,
+	network x402.Network,
+	invalidHashReason string,
+	revertedReason string,
+) (*TransactionReceipt, error) {
+	// An invalid hash means nothing usable was ever broadcast: clear any stale
+	// entry instead of caching the garbage hash. Checked here (rather than
+	// relying on WaitForSettleReceipt) to distinguish this from a genuine
+	// wait failure below.
+	if !IsValidTxHash(txHash) {
+		if store != nil && pendingKey != "" {
+			_ = store.Delete(ctx, pendingKey)
+		}
+		return nil, InvalidBroadcastHashError(invalidHashReason, payer, network, txHash)
+	}
+
+	receipt, err := WaitForSettleReceipt(ctx, signer, txHash, payer, network, invalidHashReason, revertedReason)
+	if err != nil {
+		if store != nil && pendingKey != "" {
+			_ = store.Set(ctx, pendingKey, txHash)
+		}
+		return nil, err
+	}
+	if store != nil && pendingKey != "" {
+		_ = store.Delete(ctx, pendingKey)
+	}
+	return receipt, nil
+}
+
 // GetEvmChainId returns the chain ID for a given CAIP-2 network identifier (eip155:CHAIN_ID).
 func GetEvmChainId(network string) (*big.Int, error) {
 	if strings.HasPrefix(network, "eip155:") {

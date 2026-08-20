@@ -1297,6 +1297,60 @@ func (s *x402ResourceServer) runAfterVerifyHooks(
 	return verifyResult, nil
 }
 
+// settleWithPendingRetry calls facilitator.Settle once, then retries exactly
+// once with the identical payload/requirements bytes when the outcome is a
+// non-terminal settlement_pending failure carrying a broadcast transaction
+// hash. This sits above all scheme/network dispatch — the mechanism that
+// actually handles the retry (via its own PendingSettlementStore check, see
+// go/pending_settlement_store.go) reconciles against the already-broadcast
+// transaction instead of verifying and broadcasting a second one. No
+// mutation, backoff, or sleep: the mechanism layer owns any bounded waiting.
+// Any other outcome (success, or a different failure reason) short-circuits
+// after the first call. Capped at exactly one retry regardless of the second
+// outcome, so this can never loop.
+func settleWithPendingRetry(
+	ctx context.Context,
+	facilitator FacilitatorClient,
+	payloadBytes []byte,
+	requirementsBytes []byte,
+) (*SettleResponse, error) {
+	settleResult, settleErr := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+	if !isRetryableSettlementPending(settleResult, settleErr) {
+		return settleResult, settleErr
+	}
+	return facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+}
+
+// isRetryableSettlementPending reports whether a settle outcome is a
+// retryable settlement_pending: either a thrown *SettleError (the local/
+// in-process FacilitatorClient path) or a returned SettleResponse with
+// success:false (the HTTP/remote FacilitatorClient path), in both cases with
+// errorReason=="settlement_pending" and a non-empty transaction hash.
+func isRetryableSettlementPending(result *SettleResponse, err error) bool {
+	if err != nil {
+		var se *SettleError
+		if errors.As(err, &se) {
+			return se.ErrorReason == ErrSettlementPending && se.Transaction != ""
+		}
+		return false
+	}
+	return result != nil && !result.Success &&
+		result.ErrorReason == ErrSettlementPending && result.Transaction != ""
+}
+
+// settleResponseToError synthesizes an error from a returned success:false
+// SettleResponse so it can flow through the same SettleFailureContext/
+// OnSettleFailureHook path as a thrown *SettleError. Mirrors Python's
+// `Exception(settle_result.error_reason or "Settlement failed")` fallback
+// (python/x402/server_base.py).
+func settleResponseToError(result *SettleResponse) error {
+	reason := result.ErrorReason
+	if reason == "" {
+		reason = "Settlement failed"
+	}
+	return NewSettleError(reason, result.Payer, result.Network, result.Transaction, result.ErrorMessage)
+}
+
 // SettlePayment settles a V2 payment with no declared extensions.
 // Equivalent to SettlePaymentWithExtensions(ctx, payload, requirements, overrides, nil, SettlePhaseAfterHandler).
 func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, overrides *SettlementOverrides) (*SettleResponse, error) {
@@ -1459,9 +1513,9 @@ func (s *x402ResourceServer) SettlePaymentWithExtensions(
 		return nil, NewSettleError("failed_to_marshal_payload", "", Network(effectiveRequirements.Network), "", err.Error())
 	}
 
-	settleResult, settleErr := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+	settleResult, settleErr := settleWithPendingRetry(ctx, facilitator, payloadBytes, requirementsBytes)
 
-	// Handle failure
+	// Handle failure (thrown error from a local/in-process facilitator).
 	if settleErr != nil {
 		failureCtx := SettleFailureContext{SettleContext: hookCtx, Error: settleErr}
 		for _, lh := range settleFailureHooks {
@@ -1471,6 +1525,22 @@ func (s *x402ResourceServer) SettlePaymentWithExtensions(
 			}
 		}
 		return settleResult, settleErr
+	}
+
+	// A returned (non-thrown) settleResult with success:false — e.g. from a
+	// remote/HTTP facilitator — silently looked like a success before this
+	// check: afterSettle hooks would run and callers would treat the response
+	// as settled. Route it through onSettleFailure like a thrown error so
+	// hooks get a chance to recover, matching the Python SDK.
+	if settleResult != nil && !settleResult.Success {
+		failureCtx := SettleFailureContext{SettleContext: hookCtx, Error: settleResponseToError(settleResult)}
+		for _, lh := range settleFailureHooks {
+			result, _ := lh.Hook(failureCtx)
+			if result != nil && result.Recovered {
+				return result.Result, nil
+			}
+		}
+		return settleResult, nil
 	}
 
 	// Execute afterSettle hooks
