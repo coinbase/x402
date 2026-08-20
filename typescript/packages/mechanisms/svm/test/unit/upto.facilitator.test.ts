@@ -41,11 +41,11 @@ import { signVoucher } from "../../src/payment-channels/voucher";
 import { toFacilitatorSvmSigner } from "../../src/signer";
 import type { FacilitatorSvmSigner } from "../../src/signer";
 import {
+  ErrSettlementPending,
   ERR_CHANNEL_ALREADY_OPEN,
   ERR_CHANNEL_BROADCAST,
   ERR_EXPIRES_AT_MISMATCH,
   ERR_CHANNEL_LIFETIME_EXCEEDED,
-  ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
   ERR_UNEXPECTED_VOUCHER,
   UptoSvmScheme,
 } from "../../src/upto/facilitator/scheme";
@@ -826,10 +826,13 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     });
 
     // A confirmation timeout means the transaction's fate is unknown, not
-    // failed — it must be reported distinctly from a definite broadcast
-    // failure so an operator does not treat a possibly-landed settlement as
-    // safe to blindly retry.
-    it("returns settlement_confirmation_timeout when confirmation times out", async () => {
+    // failed — it is reported as the generic, non-terminal settlement_pending
+    // reason (unified with EVM/the wire spec) with the broadcast signature
+    // preserved, instead of the previous terminal-looking distinct reason, so
+    // the resource server's automatic retry (and, on a subsequent settle
+    // call, this scheme's own pending-settlement fast path) can reconcile
+    // against it.
+    it("returns settlement_pending with the broadcast signature when confirmation times out", async () => {
       const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
         await buildFixture();
       channelMocks.submitSettle.mockRejectedValue(
@@ -849,15 +852,18 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
         ),
       ).resolves.toMatchObject({
         success: false,
-        errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
-        transaction: "",
+        errorReason: ErrSettlementPending,
+        transaction: "Sig11111111111111111111111111111111111111111",
       });
     });
 
     // The claim cache must survive a confirmation timeout: the first
     // transaction may still land, so a retry must not be allowed to race a
     // second settle_and_seal against it while the outcome is unresolved.
-    it("keeps the claim cache entry after a confirmation timeout, blocking a retry", async () => {
+    // (Reconciliation of the cached signature on a subsequent settle call is
+    // covered by dedicated pending-settlement-store tests, which mock the
+    // signer's confirmTransaction directly rather than exercising a real RPC.)
+    it("keeps the claim cache entry after a confirmation timeout, blocking a fresh re-submit", async () => {
       const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
         await buildFixture();
       channelMocks.submitSettle.mockRejectedValue(
@@ -875,11 +881,7 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
 
       await expect(facilitator.settle(claimPayload, claimRequirements)).resolves.toMatchObject({
         success: false,
-        errorReason: ERR_SETTLEMENT_CONFIRMATION_TIMEOUT,
-      });
-      await expect(facilitator.settle(claimPayload, claimRequirements)).resolves.toMatchObject({
-        success: false,
-        errorReason: "duplicate_settlement",
+        errorReason: ErrSettlementPending,
       });
       expect(channelMocks.submitSettle).toHaveBeenCalledTimes(1);
     });
