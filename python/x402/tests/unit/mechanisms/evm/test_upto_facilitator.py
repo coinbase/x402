@@ -208,6 +208,19 @@ class TestUptoEvmSchemeConstructor:
         assert facilitator.scheme == "upto"
         assert facilitator.caip_family == "eip155:*"
 
+    def test_uses_provided_pending_store_instead_of_a_fresh_default(self):
+        """A caller-supplied PendingSettlementStore must be the instance actually used,
+        not merely accepted and ignored in favor of the default. This is what lets a
+        multi-instance facilitator inject a shared, network-backed store."""
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        signer = MockFacilitatorSigner()
+        custom_store = InMemoryPendingSettlementStore()
+
+        facilitator = UptoEvmFacilitatorScheme(signer, pending_store=custom_store)
+
+        assert facilitator._pending_store is custom_store
+
 
 class TestGetExtra:
     def test_returns_facilitator_address(self):
@@ -869,3 +882,110 @@ class TestMapUptoSettleError:
 
     def test_default_maps_to_upto_transaction_failed(self):
         assert self._call("some unknown revert") == "invalid_upto_evm_transaction_failed"
+
+
+class TestUptoPermit2PendingSettlementStore:
+    """Pending-settlement store integration for the upto Permit2 settle path."""
+
+    def test_cache_miss_broadcast_success_leaves_store_empty(self):
+        from unittest.mock import patch
+
+        signer = MockFacilitatorSigner(sig_valid=True)
+        facilitator = UptoEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is True
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
+        from unittest.mock import patch
+
+        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        signer = _ReceiptTimeoutSigner()
+        facilitator = UptoEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(payload, make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        signature = payload.payload["signature"]
+        assert facilitator._pending_store.get(signature) == result.transaction
+
+    def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
+        from unittest.mock import patch
+
+        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        signer = _ReceiptTimeoutSigner()
+        facilitator = UptoEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+        assert first.success is False
+        write_calls_after_first = len(signer.write_calls)
+
+        signer.wait_for_transaction_receipt = lambda tx_hash: TransactionReceipt(
+            status=1, block_number=1, tx_hash=tx_hash
+        )
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils.verify_upto_permit2",
+            side_effect=AssertionError("verify must be skipped on a pending-store hit"),
+        ):
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is True
+        assert second.transaction == first.transaction
+        assert second.amount == AMOUNT
+        assert len(signer.write_calls) == write_calls_after_first  # no second broadcast
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
+        from unittest.mock import patch
+
+        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        signer = _ReceiptTimeoutSigner()
+        facilitator = UptoEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.upto.permit2_utils._verify_upto_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is False
+        assert second.error_reason == ERR_SETTLEMENT_PENDING
+        assert second.transaction == first.transaction
+        assert len(signer.write_calls) == 1  # never re-broadcast
+
+    def test_verify_only_failure_is_terminal_and_never_touches_store(self):
+        facilitator = UptoEvmFacilitatorScheme(MockFacilitatorSigner(sig_valid=False))
+
+        result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert facilitator._pending_store.entries == {}
