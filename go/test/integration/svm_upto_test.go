@@ -6,6 +6,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -577,4 +578,247 @@ func TestSVMIntegrationV2Upto(t *testing.T) {
 			t.Fatalf("Expected %d tracked channels after cleanup, got %d", len(records), len(after))
 		}
 	})
+}
+
+// newUptoSvmStackWithForcedPendingSigner builds the same client/server/facilitator
+// trio as newUptoSvmStack, except the facilitator's signer is wrapped in a
+// forcedPendingConfirmSigner so ConfirmTransaction can be made to fail on
+// demand (for settlement-pending-auto-recovery tests) while every other
+// signer method — including broadcast — delegates to the real signer.
+func newUptoSvmStackWithForcedPendingSigner(t *testing.T, ctx context.Context) (*uptoSvmStack, *forcedPendingConfirmSigner) {
+	t.Helper()
+
+	clientPrivateKey := os.Getenv("SVM_CLIENT_PRIVATE_KEY")
+	facilitatorPrivateKey := os.Getenv("SVM_FACILITATOR_PRIVATE_KEY")
+	authorizerPrivateKey := os.Getenv("SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY")
+	resourceServerAddress := os.Getenv("SVM_RESOURCE_SERVER_ADDRESS")
+
+	if clientPrivateKey == "" || facilitatorPrivateKey == "" || resourceServerAddress == "" {
+		t.Skip("Skipping SVM upto settlement_pending test: SVM_CLIENT_PRIVATE_KEY, " +
+			"SVM_FACILITATOR_PRIVATE_KEY, and SVM_RESOURCE_SERVER_ADDRESS must be set")
+	}
+	// The receiver authorizer only ever signs vouchers as raw Ed25519 messages
+	// (never a transaction, per its interface docs) — it needs no SOL/token
+	// balance, and every test built on this stack owns both the client and
+	// server sides of that signature (the server signs, the facilitator
+	// verifies), so any keypair is internally consistent even when it reaches
+	// the voucher/claim path. So unlike newUptoSvmStack, a missing env var
+	// here falls back to an ephemeral keypair instead of skipping.
+	if authorizerPrivateKey == "" {
+		authorizerPrivateKey = solana.NewWallet().PrivateKey.String()
+	}
+
+	clientSigner, err := newRealClientSvmSigner(clientPrivateKey)
+	if err != nil {
+		t.Fatalf("Failed to create client signer: %v", err)
+	}
+	client := x402.Newx402Client()
+	// This test drives BuildPaymentRequirementsFromConfig/SelectPaymentRequirements
+	// directly rather than a full HTTP round trip, which otherwise trips the
+	// client's default allowed-assets spend control (see http_test.go /
+	// core_test.go for the same pattern).
+	client.DisableSpendControls()
+	client.Register(svm.SolanaDevnetCAIP2, uptosvmclient.NewUptoSvmScheme(clientSigner, &svm.ClientConfig{
+		RPCURL: uptoSvmRPCURL(),
+	}))
+
+	realFacilitatorSigner, err := newRealFacilitatorSvmSigner(facilitatorPrivateKey, uptoSvmRPCURL())
+	if err != nil {
+		t.Fatalf("Failed to create facilitator signer: %v", err)
+	}
+	facilitatorSigner := &forcedPendingConfirmSigner{FacilitatorSvmSigner: realFacilitatorSigner}
+	uptoFacilitator := uptosvmfacilitator.NewUptoSvmScheme(facilitatorSigner, &uptosvmfacilitator.Config{
+		RPCURL: uptoSvmRPCURL(),
+	})
+	facilitator := x402.Newx402Facilitator()
+	facilitator.Register([]x402.Network{svm.SolanaDevnetCAIP2}, uptoFacilitator)
+
+	authorizer, err := svmsigners.NewReceiverAuthorizerSignerFromPrivateKey(authorizerPrivateKey)
+	if err != nil {
+		t.Fatalf("Failed to create receiver authorizer signer: %v", err)
+	}
+	server := x402.Newx402ResourceServer(x402.WithFacilitatorClient(&localSvmFacilitatorClient{
+		facilitator: facilitator,
+		signer:      realFacilitatorSigner,
+	}))
+	server.Register(svm.SolanaDevnetCAIP2, uptosvmserver.NewUptoSvmScheme(&uptosvmserver.Config{
+		ReceiverAuthorizerSigner: authorizer,
+		RPCURL:                   uptoSvmRPCURL(),
+	}))
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	return &uptoSvmStack{
+		client:      client,
+		server:      server,
+		facilitator: uptoFacilitator,
+		payer:       clientSigner.Address(),
+		authorizer:  authorizer.Address(),
+		payTo:       resourceServerAddress,
+	}, facilitatorSigner
+}
+
+// TestSVMIntegrationV2Upto_DepositSettlementPendingReconciliation exercises
+// the settlement-pending-auto-recovery mechanism layer against a real
+// on-chain SVM upto channel-open (deposit): the first deposit settle
+// broadcasts the open for real but is forced (via forcedPendingConfirmSigner)
+// to fail ConfirmTransaction, producing a settlement_pending SettleError with
+// the broadcast signature attached and a PendingSettlementStore entry
+// populated (keyed on the channel id). A second settle with the identical
+// payload, now with confirmation no longer forced to fail, must hit the
+// pending-store fast path (skip re-validate/re-broadcast — re-opening the
+// same channel PDA would otherwise hit ErrChannelAlreadyOpen) and reconcile
+// against that already-broadcast open — succeeding once it actually
+// confirms on-chain, with the SAME signature as the first attempt, proving
+// the channel was only ever opened once.
+func TestSVMIntegrationV2Upto_DepositSettlementPendingReconciliation(t *testing.T) {
+	ctx := context.Background()
+	stack, facilitatorSigner := newUptoSvmStackWithForcedPendingSigner(t, ctx)
+
+	accepts, err := stack.server.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
+		Scheme:            svm.SchemeUpto,
+		Network:           svm.SolanaDevnetCAIP2,
+		PayTo:             stack.payTo,
+		Price:             "$0.001",
+		MaxTimeoutSeconds: 300,
+	})
+	if err != nil {
+		t.Fatalf("Failed to build payment requirements: %v", err)
+	}
+	resource := &types.ResourceInfo{
+		URL:         "https://api.example.com/upto-svm-pending",
+		Description: "Upto SVM settlement-pending test",
+		MimeType:    "application/json",
+	}
+	paymentRequired := stack.server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+
+	selected, err := stack.client.SelectPaymentRequirements(accepts)
+	if err != nil {
+		t.Fatalf("Failed to select payment requirements: %v", err)
+	}
+	payload, err := retryWhileRateLimited(ctx, func() (types.PaymentPayload, error) {
+		return stack.client.CreatePaymentPayload(ctx, selected, resource, paymentRequired.Extensions)
+	})
+	if err != nil {
+		t.Fatalf("Failed to create payment payload: %v", err)
+	}
+	accepted := stack.server.FindMatchingRequirements(accepts, payload)
+	if accepted == nil {
+		t.Fatal("No matching payment requirements found")
+	}
+
+	// Attempt 1: the open broadcast is real; confirmation is forced to fail
+	// regardless of real devnet confirmation speed.
+	facilitatorSigner.forcePending.Store(true)
+
+	_, settleErr := retryWhileRateLimited(ctx, func() (*x402.SettleResponse, error) {
+		return stack.server.SettlePaymentWithExtensions(ctx, payload, *accepted, nil, nil, x402.SettlePhaseBeforeHandler)
+	})
+	if settleErr == nil {
+		t.Fatal("Expected settlement_pending error from a deliberately forced confirmation failure, got nil error")
+	}
+	var se *x402.SettleError
+	if !errors.As(settleErr, &se) {
+		t.Fatalf("Expected a *x402.SettleError, got %T: %v", settleErr, settleErr)
+	}
+	if se.ErrorReason != uptosvmfacilitator.ErrSettlementPending {
+		t.Fatalf("Expected errorReason %q, got %q (%v)", uptosvmfacilitator.ErrSettlementPending, se.ErrorReason, se)
+	}
+	if se.Transaction == "" {
+		t.Fatal("Expected a broadcast transaction signature on the settlement_pending error")
+	}
+	firstSignature := se.Transaction
+
+	// Attempt 2: identical deposit payload, confirmation no longer forced to
+	// fail. Must reconcile against firstSignature (pending-store hit) rather
+	// than re-validating and re-opening the channel.
+	facilitatorSigner.forcePending.Store(false)
+
+	settleResponse, settleErr := retryWhileRateLimited(ctx, func() (*x402.SettleResponse, error) {
+		return stack.server.SettlePaymentWithExtensions(ctx, payload, *accepted, nil, nil, x402.SettlePhaseBeforeHandler)
+	})
+	if settleErr != nil {
+		t.Fatalf("Expected the reconciliation settle to succeed once the original open tx confirms, got error: %v", settleErr)
+	}
+	if !settleResponse.Success {
+		t.Fatalf("Expected reconciled deposit settlement to succeed, got: %+v", settleResponse)
+	}
+	if settleResponse.Transaction != firstSignature {
+		t.Fatalf("Reconciliation must reuse the already-broadcast open transaction (channel can only be opened once): first=%s second=%s",
+			firstSignature, settleResponse.Transaction)
+	}
+}
+
+// TestSVMIntegrationV2Upto_ClaimSettlementPendingReconciliation exercises the
+// settlement-pending-auto-recovery mechanism layer against a real on-chain
+// SVM upto claim (distribute): after a normal, successful deposit opens the
+// channel, the claim settle broadcasts the voucher-authorized distribute for
+// real but is forced (via forcedPendingConfirmSigner) to fail
+// ConfirmTransaction, producing a settlement_pending SettleError with the
+// broadcast signature attached and a PendingSettlementStore entry populated
+// (keyed on the channel's settlement, distinct from the deposit's open key —
+// see TestDepositCacheDoesNotBlockTheLaterClaim). A second settle with the
+// identical payload, now with confirmation no longer forced to fail, must
+// hit the pending-store fast path (skip re-validate/re-broadcast — signing
+// and submitting a second distribute for an already-distributed channel
+// would otherwise fail) and reconcile against that already-broadcast claim —
+// succeeding once it actually confirms on-chain, with the SAME signature as
+// the first attempt, proving the channel was only ever distributed once.
+func TestSVMIntegrationV2Upto_ClaimSettlementPendingReconciliation(t *testing.T) {
+	ctx := context.Background()
+	stack, facilitatorSigner := newUptoSvmStackWithForcedPendingSigner(t, ctx)
+
+	// Deposit normally (confirmation not forced to fail) so the channel is
+	// genuinely open before the claim step under test.
+	payload, requirements, before := stack.openChannel(t, ctx, "$0.001")
+
+	// Attempt 1: the distribute broadcast is real; confirmation is forced to
+	// fail regardless of real devnet confirmation speed.
+	facilitatorSigner.forcePending.Store(true)
+
+	_, settleErr := retryWhileRateLimited(ctx, func() (*x402.SettleResponse, error) {
+		return stack.server.SettlePaymentWithExtensions(ctx, payload, requirements, nil, nil, x402.SettlePhaseAfterHandler)
+	})
+	if settleErr == nil {
+		t.Fatal("Expected settlement_pending error from a deliberately forced confirmation failure, got nil error")
+	}
+	var se *x402.SettleError
+	if !errors.As(settleErr, &se) {
+		t.Fatalf("Expected a *x402.SettleError, got %T: %v", settleErr, settleErr)
+	}
+	if se.ErrorReason != uptosvmfacilitator.ErrSettlementPending {
+		t.Fatalf("Expected errorReason %q, got %q (%v)", uptosvmfacilitator.ErrSettlementPending, se.ErrorReason, se)
+	}
+	if se.Transaction == "" {
+		t.Fatal("Expected a broadcast transaction signature on the settlement_pending error")
+	}
+	firstSignature := se.Transaction
+
+	// Attempt 2: identical claim payload, confirmation no longer forced to
+	// fail. Must reconcile against firstSignature (pending-store hit) rather
+	// than re-signing and re-submitting the distribute.
+	facilitatorSigner.forcePending.Store(false)
+
+	settleResponse, settleErr := retryWhileRateLimited(ctx, func() (*x402.SettleResponse, error) {
+		return stack.server.SettlePaymentWithExtensions(ctx, payload, requirements, nil, nil, x402.SettlePhaseAfterHandler)
+	})
+	if settleErr != nil {
+		t.Fatalf("Expected the reconciliation settle to succeed once the original distribute tx confirms, got error: %v", settleErr)
+	}
+	if !settleResponse.Success {
+		t.Fatalf("Expected reconciled claim settlement to succeed, got: %+v", settleResponse)
+	}
+	if settleResponse.Transaction != firstSignature {
+		t.Fatalf("Reconciliation must reuse the already-broadcast distribute transaction (channel can only be distributed once): first=%s second=%s",
+			firstSignature, settleResponse.Transaction)
+	}
+	if channel := fetchChannel(t, ctx, payload); channel.Status != paymentchannels.StatusDistributed {
+		t.Errorf("Expected a distributed channel, got %s", channel.Status)
+	}
+	charged, err := strconv.ParseUint(requirements.Amount, 10, 64)
+	if err != nil {
+		t.Fatalf("Failed to parse the authorized amount: %v", err)
+	}
+	stack.assertSettled(t, ctx, requirements, before, charged)
 }
