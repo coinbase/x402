@@ -1,0 +1,7 @@
+{
+  "name": "Magpie Capital",
+  "category": "Services & Endpoints",
+  "logoUrl": "/logos/magpie-capital.png",
+  "description": "Permissionless lending on Solana for humans and AI agents. Agents pay per-call via x402 (SVM exact rail) to screen collateral, take fixed-term SOL loans against 160+ tokens — memecoins, tokenized stocks, gold and silver — and manage repayments programmatically. No accounts, no API keys: discover the price, pay on-chain, borrow.",
+  "websiteUrl": "https://magpie.capital/x402"
+}
