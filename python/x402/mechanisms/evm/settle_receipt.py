@@ -105,8 +105,10 @@ def wait_for_receipt_and_build_response(
         receipt = signer.wait_for_transaction_receipt(tx_hash)
     except Exception as e:
         override = _mark_pending()
-        return override if override is not None else _settlement_pending_response(
-            tx_hash, network, payer, e
+        return (
+            override
+            if override is not None
+            else _settlement_pending_response(tx_hash, network, payer, e)
         )
 
     try:
@@ -140,8 +142,10 @@ def wait_for_receipt_and_build_response(
         )
     except Exception as e:
         override = _mark_pending()
-        return override if override is not None else _settlement_pending_response(
-            tx_hash, network, payer, e
+        return (
+            override
+            if override is not None
+            else _settlement_pending_response(tx_hash, network, payer, e)
         )
 
 
