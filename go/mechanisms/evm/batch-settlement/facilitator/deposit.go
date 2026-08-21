@@ -383,6 +383,11 @@ func SettleDeposit(
 	// — the authorization's nonce/signature has already been consumed onchain).
 	if store != nil && cacheKey != "" {
 		if txHash, hit, _ := store.Get(ctx, cacheKey); hit {
+			// Remove before reconciling (rather than after) so a concurrent retry
+			// of the same payload misses here instead of also reconciling: it
+			// falls through to the normal broadcast path, which independently
+			// rejects it as an on-chain replay (nonce already consumed).
+			_ = store.Delete(ctx, cacheKey)
 			return reconcilePendingDeposit(ctx, depositSettleContext{
 				signer:            signer,
 				receiptWaitSigner: receiptWaitSigner,
@@ -598,7 +603,13 @@ func finishDepositSettle(
 					"bundle, but the resulting channel balance does not reflect the deposit")
 		}
 		if sc.store != nil && sc.cacheKey != "" {
-			_ = sc.store.Set(ctx, sc.cacheKey, sc.txHash)
+			if setErr := sc.store.Set(ctx, sc.cacheKey, sc.txHash); setErr != nil {
+				// Can't guarantee a later retry will find this to reconcile against — a
+				// blind retry could re-verify/re-broadcast and double-send. Downgrade to
+				// terminal, preserving the transaction hash for manual reconciliation.
+				return nil, x402.NewSettleError(ErrDepositTransactionFailed, sc.config.Payer, sc.network, sc.txHash,
+					fmt.Sprintf("settlement_pending, but failed to persist for retry: %s", setErr.Error()))
+			}
 		}
 		return nil, x402.NewSettleError(ErrSettlementPending, sc.config.Payer, sc.network, sc.txHash,
 			"extension signer returned a single transaction hash for the erc20 approval + deposit "+

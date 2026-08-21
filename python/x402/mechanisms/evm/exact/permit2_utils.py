@@ -459,6 +459,11 @@ def reconcile_pending_permit2(
     cached_tx_hash = pending_store.get(signature)
     if cached_tx_hash is None:
         return None
+    # Remove before reconciling (rather than after) so a concurrent retry of
+    # the same payload misses here instead of also reconciling: it falls
+    # through to the normal broadcast path, which independently rejects it
+    # as an on-chain replay (nonce already consumed).
+    pending_store.delete(signature)
     receipt_wait_signer = resolve_permit2_receipt_wait_signer(signer, payload, context)
     return wait_for_receipt_and_build_response(
         receipt_wait_signer,

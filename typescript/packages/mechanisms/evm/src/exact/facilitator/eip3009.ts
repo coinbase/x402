@@ -21,7 +21,10 @@ import {
   simulateEip3009TransferResult,
   verifyEip3009TransferEvent,
 } from "./eip3009-utils";
-import { waitAndReturnSettleResponse } from "../../shared/settleReceipt";
+import {
+  waitAndReturnSettleResponse,
+  withPendingSettlementStore,
+} from "../../shared/settleReceipt";
 
 export interface VerifyEIP3009Options {
   /** Run onchain simulation. Defaults to true. */
@@ -254,12 +257,12 @@ export async function verifyEIP3009(
 /**
  * Waits for the broadcast transaction's receipt (and, when logs are present,
  * verifies its Transfer event), shared by both the normal broadcast path and
- * the pending-settlement reconciliation path in {@link settleEIP3009}. On a
- * receipt-wait failure, the broadcast hash is recorded in `store` (keyed by
- * the EIP-3009 signature) so a subsequent settle attempt for the same
- * payload can reconcile against it instead of broadcasting again. A receipt
- * that confirms with a mismatched Transfer event is terminal — the entry is
- * removed instead, mirroring Go's `awaitEIP3009Settlement`.
+ * the pending-settlement reconciliation path in {@link settleEIP3009}.
+ * Delegates `PendingSettlementStore` bookkeeping to
+ * {@link withPendingSettlementStore}: only a `settlement_pending` outcome
+ * (a receipt-wait failure, or a confirmed receipt whose logs couldn't be
+ * parsed) is recorded; a confirmed receipt with a mismatched Transfer event
+ * is terminal and clears the entry instead.
  *
  * @param signer - The facilitator signer for the receipt wait
  * @param store - Pending-settlement store keyed by the EIP-3009 signature
@@ -284,41 +287,34 @@ async function awaitEIP3009Settlement(
   asset: `0x${string}`,
   auth: { from: string; to: string; value: string },
 ): Promise<SettleResponse> {
-  const result = await waitAndReturnSettleResponse(signer, tx, network, payer, {
-    failedStatusReason: Errors.ErrTransactionFailed,
-    validateReceipt: receipt => {
-      if (
-        receipt.logs != null &&
-        !verifyEip3009TransferEvent(receipt.logs, asset, {
-          from: getAddress(auth.from),
-          to: getAddress(auth.to),
-          value: BigInt(auth.value),
-        })
-      ) {
-        return {
-          success: false,
-          errorReason: Errors.ErrTransferEventMismatch,
-          transaction: tx,
-          network,
-          payer,
-        };
-      }
-      return undefined;
-    },
-  });
-
-  if (result.success || result.errorReason === Errors.ErrTransferEventMismatch) {
-    // Confirmed (success, or confirmed-but-mismatched — terminal either way).
-    await store.delete(pendingKey);
-  } else if (result.transaction) {
-    // `result.transaction` is empty for an invalid-broadcast-hash terminal failure (nothing
-    // usable was ever broadcast, so there is nothing to reconcile against) — checking it
-    // instead of the raw `tx` parameter avoids caching that garbage hash.
-    await store.set(pendingKey, result.transaction);
-  } else {
-    await store.delete(pendingKey);
-  }
-  return result;
+  return withPendingSettlementStore(
+    store,
+    pendingKey,
+    () =>
+      waitAndReturnSettleResponse(signer, tx, network, payer, {
+        failedStatusReason: Errors.ErrTransactionFailed,
+        validateReceipt: receipt => {
+          if (
+            receipt.logs != null &&
+            !verifyEip3009TransferEvent(receipt.logs, asset, {
+              from: getAddress(auth.from),
+              to: getAddress(auth.to),
+              value: BigInt(auth.value),
+            })
+          ) {
+            return {
+              success: false,
+              errorReason: Errors.ErrTransferEventMismatch,
+              transaction: tx,
+              network,
+              payer,
+            };
+          }
+          return undefined;
+        },
+      }),
+    Errors.ErrTransactionFailed,
+  );
 }
 
 /**
@@ -357,6 +353,11 @@ export async function settleEIP3009(
   if (signature) {
     const cachedTx = await store.get(signature);
     if (cachedTx) {
+      // Remove before reconciling (rather than after) so a concurrent retry
+      // of the same payload misses here instead of also reconciling: it
+      // falls through to the normal broadcast path, which independently
+      // rejects it as an on-chain replay (nonce already consumed).
+      await store.delete(signature);
       return awaitEIP3009Settlement(
         signer,
         store,

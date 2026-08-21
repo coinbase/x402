@@ -474,6 +474,11 @@ export async function settleDeposit(
   if (cacheKey) {
     const cachedTx = await store.get(cacheKey);
     if (cachedTx) {
+      // Remove before reconciling (rather than after) so a concurrent retry
+      // of the same payload misses here instead of also reconciling: it
+      // falls through to the normal broadcast path, which independently
+      // rejects it as an on-chain replay (nonce already consumed).
+      await store.delete(cacheKey);
       return reconcilePendingDeposit(
         signer,
         payment,

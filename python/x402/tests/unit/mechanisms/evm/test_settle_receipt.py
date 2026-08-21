@@ -195,12 +195,12 @@ def test_receipt_wait_failure_marks_pending_when_store_provided():
     assert store.get(_KEY) == _TX
 
 
-def test_reverted_receipt_marks_pending_when_store_provided():
-    """A reverted receipt is a terminal SettleResponse (failed_reason, not
-    settlement_pending), but the broadcast still happened, so the hash is still recorded
-    — an identical retried payload's cache-hit reconciliation will observe the same
-    reverted receipt again and return the same terminal failure, never a false success."""
+def test_reverted_receipt_clears_pending_when_store_provided():
+    """A reverted receipt is terminal (failed_reason, not settlement_pending). It must not
+    be cached — only settlement_pending is safe to reconcile against — or it would linger
+    as a false "pending" entry until TTL expiry."""
     store = InMemoryPendingSettlementStore()
+    store.set(_KEY, _TX)
     out = wait_for_receipt_and_build_response(
         _Signer(receipt=_receipt(status=0)),
         _TX,
@@ -212,7 +212,7 @@ def test_reverted_receipt_marks_pending_when_store_provided():
     )
     assert out.success is False
     assert out.error_reason == _FAILED
-    assert store.get(_KEY) == _TX
+    assert store.get(_KEY) is None
 
 
 def test_clean_validation_failure_clears_pending_when_store_provided():

@@ -413,6 +413,11 @@ class ExactSvmScheme:
         # now spuriously fail (funds already moved).
         cached_signature = self._pending_store.get(tx_key)
         if cached_signature is not None:
+            # Remove before reconciling (rather than after) so a concurrent
+            # retry of the same payload misses here instead of also
+            # reconciling: it falls through to the settlement_cache dedup
+            # check below, which independently rejects it as a duplicate.
+            self._pending_store.delete(tx_key)
             # Best-effort payer for the response; a lookup failure here doesn't block
             # reconciliation (the payload already broadcast successfully).
             try:
@@ -514,7 +519,23 @@ class ExactSvmScheme:
         try:
             self._signer.confirm_transaction(signature, network)
         except Exception as e:
-            self._pending_store.set(tx_key, signature)
+            try:
+                self._pending_store.set(tx_key, signature)
+            except Exception as store_error:
+                # Can't guarantee a later retry will find this to reconcile
+                # against — a blind retry could re-verify/re-broadcast and
+                # double-send. Downgrade to terminal, preserving the signature
+                # for manual reconciliation.
+                return SettleResponse(
+                    success=False,
+                    error_reason=ERR_TRANSACTION_FAILED,
+                    error_message=(
+                        f"settlement_pending, but failed to persist for retry: {store_error}"
+                    ),
+                    transaction=signature,
+                    network=network,
+                    payer=payer,
+                )
             return SettleResponse(
                 success=False,
                 error_reason=ERR_SETTLEMENT_PENDING,
@@ -524,7 +545,10 @@ class ExactSvmScheme:
                 payer=payer,
             )
 
-        self._pending_store.delete(tx_key)
+        try:
+            self._pending_store.delete(tx_key)
+        except Exception:
+            pass  # best-effort; a stale entry merely lingers until TTL expiry
         return SettleResponse(
             success=True,
             transaction=signature,

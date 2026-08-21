@@ -294,6 +294,11 @@ func (f *ExactSvmScheme) Settle(
 	// simulation could now spuriously fail (funds already moved).
 	if f.pendingStore != nil {
 		if sigStr, hit, _ := f.pendingStore.Get(ctx, txKey); hit {
+			// Remove before reconciling (rather than after) so a concurrent
+			// retry of the same payload misses here instead of also
+			// reconciling: it falls through to the settlementCache dedup check
+			// below, which independently rejects it as a duplicate.
+			_ = f.pendingStore.Delete(ctx, txKey)
 			// Best-effort payer for the response; a decode failure here doesn't
 			// block reconciliation (the payload already broadcast successfully).
 			payer, _ := svm.GetTokenPayerFromTransaction(tx)
@@ -366,10 +371,7 @@ func (f *ExactSvmScheme) Settle(
 		// risk double-sending) and record the signature so a retry reconciles
 		// via the pending-settlement fast path above instead of re-verifying
 		// and re-sending.
-		if f.pendingStore != nil {
-			_ = f.pendingStore.Set(ctx, txKey, signature.String())
-		}
-		return nil, x402.NewSettleError(ErrSettlementPending, verifyResp.Payer, network, signature.String(), err.Error())
+		return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, txKey, signature.String(), verifyResp.Payer, network, ErrTransactionFailed, err)
 	}
 	if f.pendingStore != nil {
 		_ = f.pendingStore.Delete(ctx, txKey)
@@ -406,8 +408,7 @@ func (f *ExactSvmScheme) reconcilePendingSettlement(
 	}
 
 	if err := f.signer.ConfirmTransaction(ctx, signature, networkStr); err != nil {
-		_ = f.pendingStore.Set(ctx, txKey, sigStr)
-		return nil, x402.NewSettleError(ErrSettlementPending, payer, network, sigStr, err.Error())
+		return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, txKey, sigStr, payer, network, ErrTransactionFailed, err)
 	}
 	_ = f.pendingStore.Delete(ctx, txKey)
 

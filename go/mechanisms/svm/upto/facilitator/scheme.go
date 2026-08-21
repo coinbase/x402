@@ -336,6 +336,11 @@ func (f *UptoSvmScheme) reconcilePendingUpto(
 	if !ok {
 		return nil, false, nil
 	}
+	// Remove before reconciling (rather than after) so a concurrent retry of
+	// the same payload misses here instead of also reconciling: it falls
+	// through to the settlementCache dedup check, which independently rejects
+	// it as a duplicate.
+	_ = f.pendingStore.Delete(ctx, cacheKey)
 	if err := f.awaitPendingUptoSignature(ctx, cacheKey, sigStr, payer, network, networkStr); err != nil {
 		return nil, true, err
 	}
@@ -374,8 +379,7 @@ func (f *UptoSvmScheme) awaitPendingUptoSignature(
 		return x402.NewSettleError(ErrChannelBroadcast, payer, network, "", err.Error())
 	}
 	if err := f.signer.ConfirmTransaction(ctx, signature, networkStr); err != nil {
-		_ = f.pendingStore.Set(ctx, cacheKey, sigStr)
-		return x402.NewSettleError(ErrSettlementPending, payer, network, sigStr, err.Error())
+		return svm.RecordPendingOrTerminal(ctx, f.pendingStore, cacheKey, sigStr, payer, network, ErrTransactionFailed, err)
 	}
 	_ = f.pendingStore.Delete(ctx, cacheKey)
 	return nil
@@ -482,10 +486,7 @@ func (f *UptoSvmScheme) settleDeposit(
 		// and record the signature so a retry reconciles via the fast path
 		// above instead of re-validating.
 		if openSignature != "" {
-			if f.pendingStore != nil {
-				_ = f.pendingStore.Set(ctx, depositKey, openSignature)
-			}
-			return nil, x402.NewSettleError(ErrSettlementPending, uptoPayload.From, network, openSignature, err.Error())
+			return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, depositKey, openSignature, uptoPayload.From, network, ErrChannelBroadcast, err)
 		}
 		f.settlementCache.Delete(depositKey)
 		return nil, x402.NewSettleError(ErrChannelBroadcast, uptoPayload.From, network, "", err.Error())
@@ -624,10 +625,7 @@ func (f *UptoSvmScheme) settleClaim(
 		// would double-seal) and record the signature so a retry reconciles
 		// via the fast path above instead of re-verifying.
 		if signature != "" {
-			if f.pendingStore != nil {
-				_ = f.pendingStore.Set(ctx, settlementKey, signature)
-			}
-			return nil, x402.NewSettleError(ErrSettlementPending, uptoPayload.From, network, signature, err.Error())
+			return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, settlementKey, signature, uptoPayload.From, network, ErrTransactionFailed, err)
 		}
 		f.settlementCache.Delete(settlementKey)
 		return nil, x402.NewSettleError(ErrTransactionFailed, uptoPayload.From, network, "", err.Error())

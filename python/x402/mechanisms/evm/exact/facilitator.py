@@ -387,6 +387,12 @@ class ExactEvmScheme:
         if fast_path_payload.signature:
             cached_tx_hash = self._pending_store.get(fast_path_payload.signature)
             if cached_tx_hash is not None:
+                # Remove before reconciling (rather than after) so a concurrent
+                # retry of the same payload misses here instead of also
+                # reconciling: it falls through to the normal broadcast path,
+                # which independently rejects it as an on-chain replay (nonce
+                # already consumed).
+                self._pending_store.delete(fast_path_payload.signature)
                 return self._reconcile_pending_eip3009(
                     fast_path_payload, requirements, network, cached_tx_hash
                 )

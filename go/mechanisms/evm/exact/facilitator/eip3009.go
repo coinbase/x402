@@ -168,6 +168,11 @@ func (f *ExactEvmScheme) settleEIP3009(
 	// against the already-broadcast transaction instead of creating a second one.
 	if evmPayload, parseErr := evm.PayloadFromMap(payload.Payload); parseErr == nil && evmPayload.Signature != "" {
 		if txHash, ok, _ := f.pendingStore.Get(ctx, evmPayload.Signature); ok {
+			// Remove before reconciling (rather than after) so a concurrent retry
+			// of the same payload misses here instead of also reconciling: it
+			// falls through to the normal broadcast path, which independently
+			// rejects it as an on-chain replay (nonce already consumed).
+			_ = f.pendingStore.Delete(ctx, evmPayload.Signature)
 			return f.reconcilePendingEIP3009(ctx, evmPayload, requirements, network, txHash)
 		}
 	}
@@ -294,7 +299,13 @@ func (f *ExactEvmScheme) awaitEIP3009Settlement(
 		if err != nil {
 			// The receipt succeeded but its logs could not be parsed, so the transfer's effect
 			// is unknown. A parsed-but-absent event below is terminal; this is not.
-			_ = f.pendingStore.Set(ctx, pendingKey, txHash)
+			if setErr := f.pendingStore.Set(ctx, pendingKey, txHash); setErr != nil {
+				// Can't guarantee a later retry will find this to reconcile against — a
+				// blind retry could re-verify/re-broadcast and double-send. Downgrade to
+				// terminal, preserving the transaction hash for manual reconciliation.
+				return nil, x402.NewSettleError(ErrTransactionFailed, payer, network, txHash,
+					fmt.Sprintf("settlement_pending, but failed to persist for retry: %s", setErr.Error()))
+			}
 			return nil, x402.NewSettleError(ErrSettlementPending, payer, network, txHash,
 				evm.TruncateErrorMessage(err.Error()))
 		}

@@ -354,15 +354,24 @@ export async function settlePermit2(
   if (signature) {
     const cachedTx = await store.get(signature);
     if (cachedTx) {
+      // Remove before reconciling (rather than after) so a concurrent retry
+      // of the same payload misses here instead of also reconciling: it
+      // falls through to the normal broadcast path, which independently
+      // rejects it as an on-chain replay (nonce already consumed).
+      await store.delete(signature);
       const receiptWaitSigner = resolvePermit2ReceiptWaitSigner(signer, payload, context);
-      return withPendingSettlementStore(store, signature, () =>
-        waitAndReturnSettleResponse(
-          receiptWaitSigner,
-          cachedTx as `0x${string}`,
-          payload.accepted.network,
-          payer,
-          { failedStatusReason: Errors.ErrTransactionFailed },
-        ),
+      return withPendingSettlementStore(
+        store,
+        signature,
+        () =>
+          waitAndReturnSettleResponse(
+            receiptWaitSigner,
+            cachedTx as `0x${string}`,
+            payload.accepted.network,
+            payer,
+            { failedStatusReason: Errors.ErrTransactionFailed },
+          ),
+        Errors.ErrTransactionFailed,
       );
     }
   }
@@ -388,15 +397,19 @@ export async function settlePermit2(
   // Branch: EIP-2612 gas sponsoring (atomic settleWithPermit via contract)
   const eip2612Info = extractEip2612GasSponsoringInfo(payload);
   if (eip2612Info) {
-    return withPendingSettlementStore(store, signature, () =>
-      settlePermit2WithEIP2612(
-        exactProxyConfig,
-        signer,
-        payload,
-        permit2Payload,
-        eip2612Info,
-        dataSuffix,
-      ),
+    return withPendingSettlementStore(
+      store,
+      signature,
+      () =>
+        settlePermit2WithEIP2612(
+          exactProxyConfig,
+          signer,
+          payload,
+          permit2Payload,
+          eip2612Info,
+          dataSuffix,
+        ),
+      Errors.ErrTransactionFailed,
     );
   }
 
@@ -412,22 +425,29 @@ export async function settlePermit2(
       payload.accepted.network,
     );
     if (extensionSigner) {
-      return withPendingSettlementStore(store, signature, () =>
-        settlePermit2WithERC20Approval(
-          exactProxyConfig,
-          extensionSigner,
-          payload,
-          permit2Payload,
-          erc20Info,
-          dataSuffix,
-        ),
+      return withPendingSettlementStore(
+        store,
+        signature,
+        () =>
+          settlePermit2WithERC20Approval(
+            exactProxyConfig,
+            extensionSigner,
+            payload,
+            permit2Payload,
+            erc20Info,
+            dataSuffix,
+          ),
+        Errors.ErrTransactionFailed,
       );
     }
   }
 
   // Branch: standard settle (allowance already on-chain)
-  return withPendingSettlementStore(store, signature, () =>
-    settlePermit2Direct(exactProxyConfig, signer, payload, permit2Payload, dataSuffix),
+  return withPendingSettlementStore(
+    store,
+    signature,
+    () => settlePermit2Direct(exactProxyConfig, signer, payload, permit2Payload, dataSuffix),
+    Errors.ErrTransactionFailed,
   );
 }
 

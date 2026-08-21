@@ -335,6 +335,12 @@ def settle_deposit(
         if cache_key:
             cached_tx_hash = pending_store.get(cache_key)
             if cached_tx_hash is not None:
+                # Remove before reconciling (rather than after) so a
+                # concurrent retry of the same payload misses here instead of
+                # also reconciling: it falls through to the normal broadcast
+                # path, which independently rejects it as an on-chain replay
+                # (nonce already consumed).
+                pending_store.delete(cache_key)
                 receipt_waiter = _resolve_deposit_receipt_wait_signer(
                     signer, payment, payload, requirements, context
                 )
@@ -482,7 +488,23 @@ def settle_deposit(
                 # the deposit's effect on the channel balance couldn't be confirmed — re-mark
                 # pending so a retry reconciles against this same transaction.
                 if pending_store is not None and cache_key:
-                    pending_store.set(cache_key, tx)
+                    try:
+                        pending_store.set(cache_key, tx)
+                    except Exception as e:
+                        # Can't guarantee a later retry will find this to reconcile
+                        # against — a blind retry could re-verify/re-broadcast and
+                        # double-send. Downgrade to terminal, preserving the
+                        # transaction hash for manual reconciliation.
+                        return SettleResponse(
+                            success=False,
+                            error_reason=ERR_DEPOSIT_TRANSACTION_FAILED,
+                            error_message=(
+                                f"settlement_pending, but failed to persist for retry: {e}"
+                            ),
+                            transaction=tx,
+                            network=network,
+                            payer=payer,
+                        )
                 return SettleResponse(
                     success=False,
                     error_reason=ERR_SETTLEMENT_PENDING,

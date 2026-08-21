@@ -22,7 +22,7 @@ import { encodeVoucherMessageBytes, verifyVoucherSignature } from "../../payment
 import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { isUptoSvmPayload, type UptoSvmPayloadV2 } from "../../types";
-import { createRpcClient, validateSvmAddress } from "../../utils";
+import { createRpcClient, recordPendingOrTerminal, validateSvmAddress } from "../../utils";
 import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import {
   resolveTokenProgram,
@@ -412,20 +412,26 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     try {
       await this.signer.confirmTransaction(signature, network);
     } catch (error) {
-      await this.pendingStore.set(cacheKey, signature);
       return {
         ok: false,
-        response: {
-          success: false,
-          network,
-          transaction: signature,
-          errorReason: ErrSettlementPending,
-          errorMessage: error instanceof Error ? error.message : String(error),
+        response: await recordPendingOrTerminal(
+          this.pendingStore,
+          cacheKey,
+          signature,
           payer,
-        },
+          network,
+          ErrSettlementPending,
+          "transaction_failed",
+          error,
+        ),
       };
     }
-    await this.pendingStore.delete(cacheKey);
+    try {
+      await this.pendingStore.delete(cacheKey);
+    } catch {
+      // Best-effort cleanup; the confirmed settlement is correct regardless
+      // and must not be masked by a storage hiccup.
+    }
     return { ok: true };
   }
 
@@ -451,6 +457,11 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     const depositKey = `upto:deposit:${requirements.network}:${p.channelId}`;
     const cachedDepositSignature = await this.pendingStore.get(depositKey);
     if (cachedDepositSignature) {
+      // Remove before reconciling (rather than after) so a concurrent retry
+      // of the same payload misses here instead of also reconciling: it
+      // falls through to the settlementCache dedup check, which
+      // independently rejects it as a duplicate.
+      await this.pendingStore.delete(depositKey);
       const pending = await this.awaitPendingUptoSignature(
         depositKey,
         cachedDepositSignature,
@@ -570,15 +581,16 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       // signature so a retry reconciles via the fast path above instead of
       // re-validating.
       if (error instanceof ChannelOpenConfirmationError) {
-        await this.pendingStore.set(depositKey, error.signature);
-        return {
-          success: false,
-          network: payload.accepted.network,
-          transaction: error.signature,
-          errorReason: ErrSettlementPending,
-          errorMessage: error.message,
-          payer: p.from,
-        };
+        return recordPendingOrTerminal(
+          this.pendingStore,
+          depositKey,
+          error.signature,
+          p.from,
+          payload.accepted.network,
+          ErrSettlementPending,
+          ERR_CHANNEL_BROADCAST,
+          error,
+        );
       }
       this.settlementCache.delete(depositKey);
       return {
@@ -614,7 +626,12 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    await this.pendingStore.delete(depositKey);
+    try {
+      await this.pendingStore.delete(depositKey);
+    } catch {
+      // Best-effort cleanup; the confirmed deposit is correct regardless and
+      // must not be masked by a storage hiccup.
+    }
     return {
       success: true,
       transaction: openSignature,
@@ -652,6 +669,11 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     const settlementKey = `upto:${requirements.network}:${p.channelId}`;
     const cachedClaimSignature = await this.pendingStore.get(settlementKey);
     if (cachedClaimSignature) {
+      // Remove before reconciling (rather than after) so a concurrent retry
+      // of the same payload misses here instead of also reconciling: it
+      // falls through to the settlementCache dedup check, which
+      // independently rejects it as a duplicate.
+      await this.pendingStore.delete(settlementKey);
       const pending = await this.awaitPendingUptoSignature(
         settlementKey,
         cachedClaimSignature,
@@ -810,7 +832,12 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         expiresAt: p.expiresAt,
       });
 
-      await this.pendingStore.delete(settlementKey);
+      try {
+        await this.pendingStore.delete(settlementKey);
+      } catch {
+        // Best-effort cleanup, per the comment above: settlement is already
+        // confirmed onchain and must not be masked by a storage hiccup.
+      }
       return {
         success: true,
         transaction: signature,
@@ -826,15 +853,16 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       // broadcast signature is recorded so that retry reconciles via the
       // fast path above instead of re-verifying/re-submitting.
       if (error instanceof SettlementConfirmationTimeoutError) {
-        await this.pendingStore.set(settlementKey, error.signature);
-        return {
-          success: false,
-          network: payload.accepted.network,
-          transaction: error.signature,
-          errorReason: ErrSettlementPending,
-          errorMessage: error.message,
-          payer: p.from,
-        };
+        return recordPendingOrTerminal(
+          this.pendingStore,
+          settlementKey,
+          error.signature,
+          p.from,
+          payload.accepted.network,
+          ErrSettlementPending,
+          "transaction_failed",
+          error,
+        );
       }
       this.settlementCache.delete(settlementKey);
       return {

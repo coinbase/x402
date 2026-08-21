@@ -272,6 +272,11 @@ func SettlePermit2(
 	// Reconcile against it instead of re-verifying/re-broadcasting.
 	if permit2Payload.Signature != "" {
 		if txHash, ok, _ := store.Get(ctx, permit2Payload.Signature); ok {
+			// Remove before reconciling (rather than after) so a concurrent retry
+			// of the same payload misses here instead of also reconciling: it
+			// falls through to the normal broadcast path, which independently
+			// rejects it as an on-chain replay (nonce already consumed).
+			_ = store.Delete(ctx, permit2Payload.Signature)
 			receiptWaitSigner := ResolvePermit2ReceiptWaitSigner(signer, facilCtx, payload.Extensions, payload.Accepted.Network)
 			return AwaitPermit2Settlement(ctx, store, receiptWaitSigner, permit2Payload.Signature, txHash, payer, network, ErrTransactionFailed, "")
 		}

@@ -39,6 +39,7 @@ import type { ExactSvmPayloadV2 } from "../../types";
 import {
   decodeTransactionFromPayload,
   getTokenPayerFromTransaction,
+  recordPendingOrTerminal,
   transactionMessageHash,
 } from "../../utils";
 import {
@@ -361,6 +362,11 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     if (txKey) {
       const cachedSignature = await this.pendingStore.get(txKey);
       if (cachedSignature) {
+        // Remove before reconciling (rather than after) so a concurrent
+        // retry of the same payload misses here instead of also
+        // reconciling: it falls through to the settlementCache dedup check
+        // below, which independently rejects it as a duplicate.
+        await this.pendingStore.delete(txKey);
         // Best-effort payer for the response; a decode failure here doesn't
         // block reconciliation (the payload already broadcast successfully).
         let payer = "";
@@ -473,18 +479,25 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       // Non-terminal: leave the dedup lock in place (a fresh broadcast would
       // double-spend) and record the signature so a retry reconciles via the
       // fast path above instead of re-verifying/re-sending.
-      await this.pendingStore.set(txKey, signature);
       console.error("Failed to confirm transaction:", error);
-      return {
-        success: false,
-        errorReason: ErrSettlementPending,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        transaction: signature,
-        network: payload.accepted.network,
-        payer: valid.payer || "",
-      };
+      return recordPendingOrTerminal(
+        this.pendingStore,
+        txKey,
+        signature,
+        valid.payer || "",
+        payload.accepted.network,
+        ErrSettlementPending,
+        "transaction_failed",
+        error,
+      );
     }
-    await this.pendingStore.delete(txKey);
+    try {
+      await this.pendingStore.delete(txKey);
+    } catch {
+      // Best-effort cleanup; the confirmed settlement below is correct
+      // regardless and must not be masked by a storage hiccup. A stale entry
+      // merely lingers until TTL expiry.
+    }
 
     // Post-settlement verification for smart wallet transactions.
     // Confirms the TransferChecked actually executed on-chain (TOCTOU defense).
@@ -542,17 +555,23 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     try {
       await this.signer.confirmTransaction(cachedSignature, network);
     } catch (error) {
-      await this.pendingStore.set(txKey, cachedSignature);
-      return {
-        success: false,
-        errorReason: ErrSettlementPending,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        transaction: cachedSignature,
-        network,
+      return recordPendingOrTerminal(
+        this.pendingStore,
+        txKey,
+        cachedSignature,
         payer,
-      };
+        network,
+        ErrSettlementPending,
+        "transaction_failed",
+        error,
+      );
     }
-    await this.pendingStore.delete(txKey);
+    try {
+      await this.pendingStore.delete(txKey);
+    } catch {
+      // Best-effort cleanup; see the confirmTransaction catch above for why
+      // a storage hiccup must not mask a confirmed settlement.
+    }
 
     return {
       success: true,

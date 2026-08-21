@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -135,12 +136,25 @@ func WaitForSettleReceiptWithPendingStore(
 
 	receipt, err := WaitForSettleReceipt(ctx, signer, txHash, payer, network, invalidHashReason, revertedReason)
 	if err != nil {
-		if store != nil && pendingKey != "" {
-			_ = store.Set(ctx, pendingKey, txHash)
+		// Only a receipt-wait failure (settlement_pending) is safe to cache for
+		// reconciliation. A reverted receipt is terminal and must not be cached —
+		// otherwise it lingers as a false "pending" entry until TTL expiry.
+		var se *x402.SettleError
+		if store != nil && pendingKey != "" && errors.As(err, &se) && se.ErrorReason == ErrSettlementPending {
+			if setErr := store.Set(ctx, pendingKey, txHash); setErr != nil {
+				// Can't guarantee a later retry will find this to reconcile
+				// against — a blind retry could re-verify/re-broadcast and
+				// double-send. Downgrade to the terminal reason, preserving the
+				// transaction hash for manual reconciliation.
+				return nil, x402.NewSettleError(revertedReason, payer, network, txHash,
+					fmt.Sprintf("settlement_pending, but failed to persist for retry: %s", setErr.Error()))
+			}
 		}
 		return nil, err
 	}
 	if store != nil && pendingKey != "" {
+		// Best-effort: a failed delete only leaves a stale entry that expires
+		// via TTL. The receipt is already confirmed and must still be returned.
 		_ = store.Delete(ctx, pendingKey)
 	}
 	return receipt, nil

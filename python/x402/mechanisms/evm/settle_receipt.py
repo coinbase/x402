@@ -58,23 +58,44 @@ def wait_for_receipt_and_build_response(
 
     When pending_store and pending_key are both provided, they key a store that a subsequent
     settle attempt for the same payload (typically the resource server's single automatic
-    retry) uses to reconcile against tx_hash instead of re-broadcasting. An outcome that
-    leaves the broadcast's effect unresolved or permanently on-chain — wait failure/timeout,
-    a reverted receipt, or an exception while processing a confirmed receipt — records
-    tx_hash (a reverted receipt is terminal but still recorded, so an identical-payload
-    retry reconciles against the same already-mined receipt instead of re-broadcasting,
-    mirroring the Go and TypeScript SDKs). A resolved outcome with nothing left to
-    reconcile — success, an invalid hash, or an explicit validate_receipt rejection —
-    clears it instead.
+    retry) uses to reconcile against tx_hash instead of re-broadcasting. Only a
+    settlement_pending outcome (wait failure/timeout, or an exception while processing a
+    confirmed receipt) is recorded — it is the only outcome safe to retry against. Every
+    other outcome — success, an invalid hash, a reverted receipt, or an explicit
+    validate_receipt rejection — is terminal and clears the entry instead; a reverted
+    receipt still has a transaction hash but is not safe to reconcile against indefinitely,
+    so it must not be cached until TTL expiry.
+
+    If persisting the pending entry itself fails, a later retry has no record to reconcile
+    against — blindly returning settlement_pending would let it re-verify/re-broadcast and
+    risk a double-send. That case is downgraded to failed_reason, preserving tx_hash for
+    manual reconciliation. A failure to clear the entry is swallowed instead: the settle
+    outcome is already correct and must not be masked by a storage hiccup, and a stale entry
+    merely lingers until TTL expiry.
     """
 
-    def _mark_pending() -> None:
-        if pending_store is not None and pending_key:
+    def _mark_pending() -> SettleResponse | None:
+        if pending_store is None or not pending_key:
+            return None
+        try:
             pending_store.set(pending_key, tx_hash)
+        except Exception as e:
+            return SettleResponse(
+                success=False,
+                error_reason=failed_reason,
+                error_message=f"settlement_pending, but failed to persist for retry: {e}",
+                transaction=tx_hash,
+                network=network,
+                payer=payer,
+            )
+        return None
 
     def _clear_pending() -> None:
         if pending_store is not None and pending_key:
-            pending_store.delete(pending_key)
+            try:
+                pending_store.delete(pending_key)
+            except Exception:
+                pass  # best-effort; a stale entry merely lingers until TTL expiry
 
     if not is_valid_tx_hash(tx_hash):
         _clear_pending()
@@ -83,12 +104,14 @@ def wait_for_receipt_and_build_response(
     try:
         receipt = signer.wait_for_transaction_receipt(tx_hash)
     except Exception as e:
-        _mark_pending()
-        return _settlement_pending_response(tx_hash, network, payer, e)
+        override = _mark_pending()
+        return override if override is not None else _settlement_pending_response(
+            tx_hash, network, payer, e
+        )
 
     try:
         if receipt.status != TX_STATUS_SUCCESS:
-            _mark_pending()
+            _clear_pending()
             return SettleResponse(
                 success=False,
                 error_reason=failed_reason,
@@ -116,8 +139,10 @@ def wait_for_receipt_and_build_response(
             amount=amount,
         )
     except Exception as e:
-        _mark_pending()
-        return _settlement_pending_response(tx_hash, network, payer, e)
+        override = _mark_pending()
+        return override if override is not None else _settlement_pending_response(
+            tx_hash, network, payer, e
+        )
 
 
 def _settlement_pending_response(
