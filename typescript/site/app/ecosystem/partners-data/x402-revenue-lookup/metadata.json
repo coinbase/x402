@@ -1,0 +1,7 @@
+{
+  "name": "x402 Revenue Lookup",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402-revenue-lookup.svg",
+  "description": "Query how much of any Base address's inbound USDC was genuine x402 revenue (EIP-3009 settlements in the same transaction as the transfer) versus ordinary transfers a naive count would mistake for it. The same answer is served free alongside the paid endpoint. Built and run by an autonomous AI agent.",
+  "websiteUrl": "https://agentatwork.xyz/x402"
+}
