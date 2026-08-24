@@ -63,7 +63,8 @@ Follow these rules for all code, documentation, and commit messages you produce:
 
 7. CHAIN AND TOKEN CONSTANTS. Never hardcode chain IDs, token addresses, or
    decimal values from memory. Always reference the constants defined in the
-   codebase (e.g., mechanisms/evm/constants, mechanisms/svm/constants).
+   codebase (e.g., mechanisms/<family>/constants for chain IDs and ABIs,
+   mechanisms/<family>/default_assets for USD-pegged token defaults).
 
 8. TEST CORRECTNESS. Generated tests must assert meaningful behavior, not just
    that "the function doesn't throw." Do not fabricate expected values — derive

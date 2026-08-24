@@ -40,7 +40,7 @@ from .....schemas.hooks import (
     VerifyResultContext,
 )
 from ...default_assets import find_default_asset, get_default_asset
-from ...utils import get_asset_info, get_network_config, parse_amount
+from ...utils import get_asset_info, parse_amount
 from ..constants import MIN_WITHDRAW_DELAY, SCHEME_BATCH_SETTLEMENT
 from ..types import AuthorizerSigner
 from .storage import Channel, ChannelStorage, InMemoryChannelStorage
@@ -384,9 +384,7 @@ class BatchSettlementEvmScheme:
                 "Use create_channel_manager_sync with a sync facilitator client."
             )
 
-        config = get_network_config(str(network))
-        default_asset = config.get("default_asset") or {}
-        token = default_asset.get("address")
+        token = get_default_asset(str(network))["asset"]
         if not token:
             raise ValueError(f"No default asset configured for network {network}")
         return BatchSettlementChannelManager(
@@ -418,9 +416,7 @@ class BatchSettlementEvmScheme:
                 "Use create_channel_manager with an async facilitator client."
             )
 
-        config = get_network_config(str(network))
-        default_asset = config.get("default_asset") or {}
-        token = default_asset.get("address")
+        token = get_default_asset(str(network))["asset"]
         if not token:
             raise ValueError(f"No default asset configured for network {network}")
         return BatchSettlementChannelManagerSync(

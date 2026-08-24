@@ -217,6 +217,27 @@ func TestEnhancePaymentRequirements(t *testing.T) {
 	assert.NotContains(t, enhanced.Extra, upto.ExtraRecentBlockhash, "blockhash hints need a configured RPC")
 }
 
+func TestEnhancePaymentRequirementsRejectsUnsupportedNetwork(t *testing.T) {
+	scheme, _ := newTestScheme(t)
+	requirements := types.PaymentRequirements{
+		Scheme:            svm.SchemeUpto,
+		Network:           "solana:fake",
+		Amount:            "10000",
+		Asset:             svm.USDCDevnetAddress,
+		PayTo:             solana.SysVarRentPubkey.String(),
+		MaxTimeoutSeconds: 600,
+	}
+	supportedKind := types.SupportedKind{
+		Scheme:  svm.SchemeUpto,
+		Network: "solana:fake",
+		Extra:   map[string]interface{}{upto.ExtraFeePayer: solana.SysVarClockPubkey.String()},
+	}
+
+	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported Solana network")
+}
+
 // Token-2022 mints must be advertised with their own program: the client seals
 // the token program into the open, and the wrong one fails onchain.
 func TestEnhancePaymentRequirementsResolvesTheTokenProgramPerMint(t *testing.T) {

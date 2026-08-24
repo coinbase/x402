@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from x402.mechanisms.evm import get_network_config
+from x402.mechanisms.evm import get_default_asset
 from x402.mechanisms.evm.constants import (
     ERR_ASSET_NOT_DEPLOYED_CONTRACT,
     ERR_ERC20_APPROVAL_BROADCAST_FAILED,
@@ -35,7 +35,7 @@ from x402.mechanisms.evm.upto import UptoEvmFacilitatorScheme, UptoEvmSchemeConf
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo
 
 NETWORK = "eip155:8453"
-TOKEN_ADDRESS = get_network_config(NETWORK)["default_asset"]["address"]
+TOKEN_ADDRESS = get_default_asset(NETWORK)["asset"]
 PAYER = "0x1234567890123456789012345678901234567890"
 RECIPIENT = "0x0987654321098765432109876543210987654321"
 FACILITATOR = "0x1111111111111111111111111111111111111111"

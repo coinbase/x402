@@ -77,17 +77,7 @@ def normalize_network(network: str) -> str:
 
 
 def get_network_config(network: str) -> NetworkConfig:
-    """Get configuration for a network.
-
-    Args:
-        network: Network identifier (CAIP-2 or V1 format).
-
-    Returns:
-        Network configuration.
-
-    Raises:
-        ValueError: If network is not supported.
-    """
+    """Return transport endpoints for a supported Solana network."""
     caip2_network = normalize_network(network)
     config = NETWORK_CONFIGS.get(caip2_network)
     if not config:

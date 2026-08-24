@@ -229,27 +229,6 @@ func FormatAmount(amount *big.Int, decimals int) string {
 	return quotient.String() + "." + decStr
 }
 
-// GetNetworkConfig returns the configuration for a CAIP-2 network identifier (eip155:CHAIN_ID).
-// For networks with configured defaults, returns the full config.
-// For other valid EIP-155 networks, returns a config with just the chain ID (no default asset).
-func GetNetworkConfig(network string) (*NetworkConfig, error) {
-	if config, ok := NetworkConfigs[network]; ok {
-		return &config, nil
-	}
-
-	if strings.HasPrefix(network, "eip155:") {
-		chainIdStr := strings.TrimPrefix(network, "eip155:")
-		chainId, ok := new(big.Int).SetString(chainIdStr, 10)
-		if ok {
-			return &NetworkConfig{
-				ChainID: chainId,
-			}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("invalid network format: %s (expected eip155:CHAIN_ID)", network)
-}
-
 // GetAssetInfo returns information about an asset on a network.
 // If assetSymbolOrAddress is a valid address, returns info for that specific token.
 // If assetSymbolOrAddress is empty or a symbol, attempts to use the network's default asset.

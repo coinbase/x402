@@ -38,7 +38,6 @@ from .constants import (
     ERR_VALID_AFTER_FUTURE,
     ERR_VALID_BEFORE_EXPIRED,
     IS_VALID_SIGNATURE_ABI,
-    NETWORK_CONFIGS,
     SCHEME_EXACT,
     SCHEME_UPTO,
     TRANSFER_WITH_AUTHORIZATION_BYTES_ABI,
@@ -48,7 +47,6 @@ from .constants import (
     UPTO_PERMIT2_WITNESS_TYPES,
     X402_UPTO_PERMIT2_PROXY_ADDRESS,
     AssetInfo,
-    NetworkConfig,
 )
 
 # Default assets
@@ -102,7 +100,6 @@ from .utils import (
     format_amount,
     get_asset_info,
     get_evm_chain_id,
-    get_network_config,
     hex_to_bytes,
     is_valid_address,
     is_valid_network,
@@ -134,7 +131,6 @@ __all__ = [
     "TX_STATUS_FAILED",
     "ERC6492_MAGIC_VALUE",
     "EIP1271_MAGIC_VALUE",
-    "NETWORK_CONFIGS",
     "V1_NETWORKS",
     "V1_NETWORK_CHAIN_IDS",
     "ERR_INVALID_SIGNATURE",
@@ -174,7 +170,6 @@ __all__ = [
     "BALANCE_OF_ABI",
     "IS_VALID_SIGNATURE_ABI",
     "AssetInfo",
-    "NetworkConfig",
     # Types
     "ExactEIP3009Authorization",
     "ExactEIP3009Payload",
@@ -200,7 +195,6 @@ __all__ = [
     "FacilitatorWeb3Signer",
     # Utilities
     "get_evm_chain_id",
-    "get_network_config",
     "get_asset_info",
     "is_valid_network",
     "create_nonce",

@@ -1,0 +1,2 @@
+kind: changed
+body: SVM `GetNetworkConfig` and `NetworkConfig` now hold transport endpoints only (RPC/WS). Default assets stay in `default_assets.go`. EVM bundled network config remains removed; use `GetDefaultAsset` and `GetEvmChainId`.

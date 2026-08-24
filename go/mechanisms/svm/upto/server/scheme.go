@@ -197,7 +197,7 @@ func (s *UptoSvmScheme) RegisterMoneyParser(parser x402.MoneyParser) *UptoSvmSch
 // Falls back to default conversion if all custom parsers return nil.
 func (s *UptoSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	networkStr := string(network)
-	config, err := svm.GetNetworkConfig(networkStr)
+	defaultAsset, err := svm.GetDefaultAsset(networkStr, "")
 	if err != nil {
 		return x402.AssetAmount{}, err
 	}
@@ -209,7 +209,7 @@ func (s *UptoSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402
 				return x402.AssetAmount{}, errors.New(ErrAmountMustBeString)
 			}
 
-			asset := config.DefaultAsset.Address
+			asset := defaultAsset.Asset
 			if assetStr, ok := priceMap["asset"].(string); ok && assetStr != "" {
 				asset = assetStr
 			}
@@ -251,18 +251,22 @@ func (s *UptoSvmScheme) EnhancePaymentRequirements(
 	extensionKeys []string,
 ) (types.PaymentRequirements, error) {
 	networkStr := string(requirements.Network)
-	config, err := svm.GetNetworkConfig(networkStr)
-	if err != nil {
+	if _, err := svm.NormalizeNetwork(networkStr); err != nil {
 		return requirements, err
 	}
 
-	assetInfo := &config.DefaultAsset
+	var assetInfo *svm.AssetInfo
+	var err error
 	if requirements.Asset != "" {
 		assetInfo, err = svm.GetAssetInfo(networkStr, requirements.Asset)
 		if err != nil {
 			return requirements, err
 		}
 	} else {
+		assetInfo, err = svm.GetAssetInfo(networkStr, "")
+		if err != nil {
+			return requirements, err
+		}
 		requirements.Asset = assetInfo.Address
 	}
 

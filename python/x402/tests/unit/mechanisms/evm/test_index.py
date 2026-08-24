@@ -23,7 +23,6 @@ from x402.mechanisms.evm import (
     format_amount,
     get_asset_info,
     get_evm_chain_id,
-    get_network_config,
     hex_to_bytes,
     is_valid_address,
     is_valid_network,
@@ -182,28 +181,6 @@ class TestGetEvmChainId:
             get_evm_chain_id("unknown-network")
         with pytest.raises(ValueError, match="Invalid CAIP-2 network format"):
             get_evm_chain_id("eip155:")  # Invalid format
-
-
-class TestGetNetworkConfig:
-    """Test get_network_config function (CAIP-2 only)."""
-
-    def test_should_return_config_for_supported_networks(self):
-        """Should return config for supported networks."""
-        config = get_network_config("eip155:8453")
-
-        assert config is not None
-        assert config["chain_id"] == 8453
-        assert "default_asset" in config
-
-    def test_should_reject_legacy_names(self):
-        """Should reject legacy network names (use evm.v1.utils for v1)."""
-        with pytest.raises(ValueError, match="expected eip155:CHAIN_ID"):
-            get_network_config("base")
-
-    def test_should_return_minimal_config_for_unknown_networks(self):
-        """Should return a minimal config with chain_id for valid but unconfigured networks."""
-        config = get_network_config("eip155:99999")
-        assert config["chain_id"] == 99999
 
 
 class TestGetAssetInfo:

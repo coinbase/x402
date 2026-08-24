@@ -15,14 +15,6 @@ func GetEvmChainId(network string) (*big.Int, error) {
 	return nil, fmt.Errorf("unsupported v1 network: %s", network)
 }
 
-// GetNetworkConfig returns the full configuration for a v1 legacy network name.
-func GetNetworkConfig(network string) (*evm.NetworkConfig, error) {
-	if config, ok := NetworkConfigs[network]; ok {
-		return &config, nil
-	}
-	return nil, fmt.Errorf("no configuration for v1 network: %s", network)
-}
-
 // GetAssetInfo returns information about an asset on a v1 network.
 // If assetSymbolOrAddress is a valid address, returns info for that specific token.
 // If assetSymbolOrAddress is empty or a symbol, attempts to use the network's default asset.

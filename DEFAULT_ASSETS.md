@@ -4,17 +4,19 @@ When a server uses `price: "$0.10"` syntax (USD string pricing), x402 needs to k
 
 For networks without a configured default, servers can use `registerMoneyParser()` or specify prices directly as an `AssetAmount` with atomic units.
 
-## Per-family convention (TypeScript)
+## Per-family convention
 
-Every mechanism package that supports dollar-string pricing declares defaults in:
+Every mechanism package that supports dollar-string pricing declares defaults in a dedicated `default_assets` module (do not put default assets in `NETWORK_CONFIGS` or other endpoint maps):
 
-```
-typescript/packages/mechanisms/<family>/src/defaultAssets.ts
-```
+| SDK | File | Exports |
+|-----|------|---------|
+| **TypeScript** | `typescript/packages/mechanisms/<family>/src/defaultAssets.ts` | `DEFAULT_ASSETS`, `getDefaultAsset`, `findDefaultAsset` |
+| **Go** | `go/mechanisms/<family>/default_assets.go` | `DefaultAssets`, `GetDefaultAsset`, `FindDefaultAsset` |
+| **Python** | `python/x402/mechanisms/<family>/default_assets.py` | `DEFAULT_ASSETS`, `get_default_asset`, `find_default_asset` |
 
 ### Table shape
 
-Each file exports a `DEFAULT_ASSETS` map keyed by CAIP-2 network identifier. Values are **arrays** of asset entries:
+Each file exports a map keyed by CAIP-2 network identifier. Values are **arrays** of asset entries:
 
 ```typescript
 export const DEFAULT_ASSETS: DefaultAssetTable<MyAssetInfo> = {
@@ -24,16 +26,16 @@ export const DEFAULT_ASSETS: DefaultAssetTable<MyAssetInfo> = {
 };
 ```
 
-Each entry uses the `asset` field (not `address`) for the on-chain identifier. Family-specific fields (e.g. EIP-712 `name`/`version` on EVM, `issuer` on XRPL) extend the base `DefaultAsset` type. XRPL copies `issuer` into payment-requirements `extra` at parse time; the client scheme requires that value to match the table before signing RLUSD.
+Each entry uses the `asset` field (not `address`) for the on-chain identifier. Family-specific fields (e.g. EIP-712 `name`/`version` on EVM, `issuer` on XRPL) extend the base type. XRPL copies `issuer` into payment-requirements `extra` at parse time; the client scheme requires that value to match the table before signing RLUSD.
 
 ### Two lookups
 
 | Function | Purpose |
 |----------|---------|
 | `getDefaultAsset(network, symbol?)` | Forward lookup for money parsing. Omit `symbol` for the network default (first list entry). Pass a ticker (e.g. `"USDC"`) to resolve suffixed prices like `"$0.10 USDC"`. **Throws** when the network or symbol is unknown. |
-| `findDefaultAsset(asset, network)` | Reverse lookup for spend controls and client-side USD-cap checks. Returns the matching entry or **`undefined`** when the asset is not a known USD-pegged default. |
+| `findDefaultAsset(asset, network)` | Reverse lookup for spend controls and client-side USD-cap checks. Returns the matching entry or **`undefined`** / **`None`** when the asset is not a known USD-pegged default. |
 
-Scheme clients expose `findDefaultAsset` so `@x402/core`'s `x402Client` can enforce spend limits on recognized stablecoins.
+Scheme clients expose the reverse lookup so `@x402/core`'s `x402Client` can enforce spend limits on recognized stablecoins.
 
 ### First entry is the default
 
@@ -41,7 +43,7 @@ The **first** asset in each network's array is what a bare `"$0.10"` resolves to
 
 ### USD-peg invariant
 
-All entries in `DEFAULT_ASSETS` are treated as **USD-pegged**. By default the client only allows assets `findDefaultAsset` recognizes, with a `$1` USD spend cap (`maxAmountPerPayment`). Opt into other tokens via `spendControls.allowedAssets` (list or `true`), or pass `spendControls: false` to disable all spend controls.
+All entries in `DEFAULT_ASSETS` are treated as **USD-pegged**. By default the client only allows assets the reverse lookup recognizes, with a `$1` USD spend cap (`maxAmountPerPayment`). Opt into other tokens via `spendControls.allowedAssets` (list or `true`), or pass `spendControls: false` to disable all spend controls.
 
 Adding non-USD denominations (EUR, JPY, etc.) would require:
 
@@ -51,10 +53,9 @@ Adding non-USD denominations (EUR, JPY, etc.) would require:
 
 Until that exists, only list tokens intended to track USD.
 
+## SVM network endpoints
 
-### Go and Python
-
-Go and Python still use address-centric maps (`DEFAULT_STABLECOINS` / `NetworkConfigs.default_asset`) rather than the TypeScript `DEFAULT_ASSETS` table. A follow-up will align naming and multi-asset arrays across SDKs.
+SVM also exposes a per-network transport config (`NETWORK_CONFIGS` / `GetNetworkConfig`) for RPC and WebSocket URLs. Default assets stay in `default_assets.*` — do not add them to network config.
 
 ## EVM-specific: asset transfer methods
 
@@ -83,9 +84,9 @@ EVM entries may also include `assetTransferMethod: "permit2"` and EIP-712 `name`
 3. Check whether the token supports EIP-3009 (`transferWithAuthorization`)
 4. If not, check whether it supports EIP-2612 (`permit()`)
 
-### 2. Update the family `defaultAssets.ts`
+### 2. Update the family default asset table
 
-Add an array entry under the CAIP-2 network key in the relevant mechanism package. For EVM:
+Add an array entry under the CAIP-2 network key in each SDK you support (see table above). For EVM:
 
 ```typescript
 "eip155:YOUR_CHAIN_ID": [
@@ -103,7 +104,6 @@ Add an array entry under the CAIP-2 network key in the relevant mechanism packag
 
 Non-EVM families use the same `asset` / `decimals` / `symbol` core fields without EIP-712 metadata.
 
-Also update Go/Python constants when those SDKs support the network (see cross-SDK checklist below).
 
 ### 3. Regenerate the paywall when decimals ≠ 6 (EVM)
 
@@ -140,13 +140,3 @@ The default asset is chosen **per chain** based on:
 1. **Chain-endorsed stablecoin** — If the chain has officially selected or endorsed a stablecoin, use it.
 2. **No official stance** — We encourage the chain team to make the selection and submit a PR.
 3. **Community PRs welcome** — Chain teams and community members may submit PRs, provided domain parameters are correct and the selection aligns with the chain's ecosystem.
-
-## Cross-SDK checklist
-
-| SDK | File | Map/Dict |
-|-----|------|----------|
-| **TypeScript** | `typescript/packages/mechanisms/<family>/src/defaultAssets.ts` | `DEFAULT_ASSETS` |
-| **Go (EVM)** | `go/mechanisms/evm/constants.go` | `NetworkConfigs` |
-| **Python (EVM)** | `python/x402/mechanisms/evm/constants.py` | `NETWORK_CONFIGS` |
-
-TypeScript uses per-family tables; Go/Python EVM maps will converge in a follow-up.

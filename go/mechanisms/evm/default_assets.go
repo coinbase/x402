@@ -26,6 +26,12 @@ var DefaultAssets = map[string][]DefaultAssetInfo{
 	"eip155:84532": {
 		{Asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", Name: "USDC", Version: "2", Decimals: 6, Symbol: "USDC"},
 	},
+	"eip155:1": {
+		{Asset: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", Name: "USD Coin", Version: "2", Decimals: 6, Symbol: "USDC"},
+	},
+	"eip155:43114": {
+		{Asset: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", Name: "USD Coin", Version: "2", Decimals: 6, Symbol: "USDC"},
+	},
 	"eip155:4326": {
 		{Asset: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7", Name: "MegaUSD", Version: "1", Decimals: 18, Symbol: "MegaUSD", AssetTransferMethod: AssetTransferMethodPermit2, SupportsEip2612: true},
 	},

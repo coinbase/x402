@@ -173,20 +173,18 @@ type ReceiverAuthorizerSigner interface {
 	SignMessage(ctx context.Context, message []byte) ([]byte, error)
 }
 
+// NetworkConfig holds static transport endpoints for a Solana network.
+// Default assets live in DefaultAssets, not here.
+type NetworkConfig struct {
+	RPCURL string
+	WSURL  string
+}
+
 // AssetInfo contains information about a SPL token
 type AssetInfo struct {
 	Address  string // Mint address
 	Symbol   string // Token symbol (e.g., "USDC")
 	Decimals int    // Token decimals
-}
-
-// NetworkConfig contains network-specific configuration
-// See DEFAULT_ASSETS.md for guidelines on adding new chains
-type NetworkConfig struct {
-	Name         string    // Network name
-	CAIP2        string    // CAIP-2 identifier
-	RPCURL       string    // Default RPC URL
-	DefaultAsset AssetInfo // Default stablecoin
 }
 
 // ClientConfig contains optional client configuration
@@ -228,15 +226,6 @@ func PayloadFromMap(data map[string]interface{}) (*ExactSvmPayload, error) {
 
 // IsValidNetwork checks if the network is supported for Solana
 func IsValidNetwork(network string) bool {
-	// Check CAIP-2 format
-	if _, ok := NetworkConfigs[network]; ok {
-		return true
-	}
-
-	// Check V1 format
-	if _, ok := V1ToV2NetworkMap[network]; ok {
-		return true
-	}
-
-	return false
+	_, err := NormalizeNetwork(network)
+	return err == nil
 }

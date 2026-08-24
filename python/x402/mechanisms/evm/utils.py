@@ -13,9 +13,7 @@ except ImportError as e:
 
 from ...schemas.helpers import convert_to_token_amount
 from .constants import (
-    NETWORK_CONFIGS,
     AssetInfo,
-    NetworkConfig,
 )
 from .default_assets import ExactDefaultAssetInfo, find_default_asset
 
@@ -35,34 +33,6 @@ def get_evm_chain_id(network: str) -> int:
     if network.startswith("eip155:"):
         try:
             return int(network.split(":")[1])
-        except (IndexError, ValueError) as e:
-            raise ValueError(f"Invalid CAIP-2 network format: {network}") from e
-
-    raise ValueError(f"Unsupported network format: {network} (expected eip155:CHAIN_ID)")
-
-
-def get_network_config(network: str) -> NetworkConfig:
-    """Get configuration for a CAIP-2 network identifier (eip155:CHAIN_ID).
-
-    Returns a full config for known networks, or a minimal config (chain_id only)
-    for any valid but unknown eip155 network.
-
-    Args:
-        network: Network identifier in CAIP-2 format.
-
-    Returns:
-        Network configuration.
-
-    Raises:
-        ValueError: If the network format is invalid or not an eip155 network.
-    """
-    if network in NETWORK_CONFIGS:
-        return NETWORK_CONFIGS[network]
-
-    if network.startswith("eip155:"):
-        try:
-            chain_id = int(network.split(":")[1])
-            return {"chain_id": chain_id}
         except (IndexError, ValueError) as e:
             raise ValueError(f"Invalid CAIP-2 network format: {network}") from e
 

@@ -316,13 +316,6 @@ type AssetInfo struct {
 	SupportsEip2612     bool
 }
 
-// NetworkConfig contains network-specific configuration
-// See DEFAULT_ASSETS.md for guidelines on adding new chains
-type NetworkConfig struct {
-	ChainID      *big.Int
-	DefaultAsset AssetInfo
-}
-
 // PayloadToMap converts an ExactEIP3009Payload to a map for JSON marshaling
 func (p *ExactEIP3009Payload) ToMap() map[string]interface{} {
 	result := map[string]interface{}{

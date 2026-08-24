@@ -56,6 +56,24 @@ export const DEFAULT_ASSETS: DefaultAssetTable<ExactDefaultAssetInfo> = {
       symbol: "USDC",
     },
   ], // Base Sepolia USDC
+  "eip155:1": [
+    {
+      asset: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      name: "USD Coin",
+      version: "2",
+      decimals: 6,
+      symbol: "USDC",
+    },
+  ], // Ethereum mainnet USDC
+  "eip155:43114": [
+    {
+      asset: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      name: "USD Coin",
+      version: "2",
+      decimals: 6,
+      symbol: "USDC",
+    },
+  ], // Avalanche C-Chain USDC
   "eip155:4326": [
     {
       asset: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",

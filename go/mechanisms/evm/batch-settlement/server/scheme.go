@@ -718,8 +718,8 @@ func (s *BatchSettlementEvmScheme) SignClaimBatch(ctx context.Context, claims []
 // non-default settlement asset for this manager.
 func (s *BatchSettlementEvmScheme) CreateChannelManager(facilitator x402.FacilitatorClient, network x402.Network) *BatchSettlementChannelManager {
 	token := ""
-	if cfg, err := evm.GetNetworkConfig(string(network)); err == nil {
-		token = cfg.DefaultAsset.Address
+	if info, err := evm.GetDefaultAsset(string(network), ""); err == nil {
+		token = info.Asset
 	}
 	return NewBatchSettlementChannelManager(ChannelManagerConfig{
 		Scheme:      s,

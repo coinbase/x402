@@ -1,0 +1,1 @@
+SVM `get_network_config` and `NETWORK_CONFIGS` now hold transport endpoints only (`rpc_url`, `ws_url`). Default assets stay in `default_assets.py`. EVM bundled network config remains removed; use `get_default_asset` and `get_evm_chain_id`.

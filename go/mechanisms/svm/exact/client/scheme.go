@@ -68,8 +68,6 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 	if err != nil {
 		return types.PaymentPayload{}, err
 	}
-
-	// Get RPC URL (custom or default)
 	rpcURL := config.RPCURL
 	if c.config != nil && c.config.RPCURL != "" {
 		rpcURL = c.config.RPCURL

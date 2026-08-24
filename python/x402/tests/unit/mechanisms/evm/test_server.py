@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from x402.mechanisms.evm import (
-    get_network_config,
+    get_default_asset,
 )
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.schemas import AssetAmount, PaymentRequirements, SupportedKind
@@ -26,7 +26,7 @@ class TestParsePrice:
             result = server.parse_price("$0.10", network)
 
             assert result.amount == "100000"  # 0.10 USDC = 100000 smallest units
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
             assert result.extra == {"name": "USD Coin", "version": "2"}
 
         def test_should_parse_simple_number_string_prices(self):
@@ -37,7 +37,7 @@ class TestParsePrice:
             result = server.parse_price("0.10", network)
 
             assert result.amount == "100000"
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
 
         def test_should_parse_number_prices(self):
             """Should parse number prices."""
@@ -47,7 +47,7 @@ class TestParsePrice:
             result = server.parse_price(0.1, network)
 
             assert result.amount == "100000"
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
 
         def test_should_handle_larger_amounts(self):
             """Should handle larger amounts."""
@@ -70,10 +70,23 @@ class TestParsePrice:
     class TestEthereumMainnetNetwork:
         """Test Ethereum Mainnet network."""
 
+        def test_should_use_ethereum_usdc_address(self):
+            """Should use Ethereum mainnet USDC address."""
+            server = ExactEvmServerScheme()
+            network = "eip155:1"
+
+            result = server.parse_price("1.00", network)
+
+            assert result.asset == get_default_asset(network)["asset"]
+            assert result.amount == "1000000"
+
+    class TestUnknownNetwork:
+        """Test networks without a configured default stablecoin."""
+
         def test_should_raise_for_network_without_default_stablecoin(self):
             """Should raise ValueError when network has no default stablecoin configured."""
             server = ExactEvmServerScheme()
-            network = "eip155:1"
+            network = "eip155:999999"
 
             with pytest.raises(ValueError, match="No default asset configured"):
                 server.parse_price("1.00", network)
@@ -88,7 +101,7 @@ class TestParsePrice:
 
             result = server.parse_price("1.00", network)
 
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
             assert result.amount == "1000000"
 
     class TestHighPrecisionConversion:
@@ -171,7 +184,7 @@ class TestEnhancePaymentRequirements:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_network_config(network)["default_asset"]["address"],
+            asset=get_default_asset(network)["asset"],
             amount="100000",
             pay_to="0x1234567890123456789012345678901234567890",
             max_timeout_seconds=3600,
@@ -201,7 +214,7 @@ class TestEnhancePaymentRequirements:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_network_config(network)["default_asset"]["address"],
+            asset=get_default_asset(network)["asset"],
             amount="100000",
             pay_to="0x1234567890123456789012345678901234567890",
             max_timeout_seconds=3600,
@@ -229,7 +242,7 @@ class TestEnhancePaymentRequirements:
         requirements = PaymentRequirements(
             scheme="exact",
             network=network,
-            asset=get_network_config(network)["default_asset"]["address"],
+            asset=get_default_asset(network)["asset"],
             amount="1.5",  # Decimal amount
             pay_to="0x1234567890123456789012345678901234567890",
             max_timeout_seconds=3600,
@@ -271,8 +284,7 @@ class TestEnhancePaymentRequirements:
 
         result = server.enhance_payment_requirements(requirements, supported_kind, [])
 
-        config = get_network_config(network)
-        assert result.asset == config["default_asset"]["address"]
+        assert result.asset == get_default_asset(network)["asset"]
 
 
 class TestRegisterMoneyParser:
@@ -306,7 +318,7 @@ class TestRegisterMoneyParser:
 
             # Small amount should fall back to default (USDC)
             result2 = server.parse_price(50, network)
-            assert result2.asset == get_network_config(network)["default_asset"]["address"]
+            assert result2.asset == get_default_asset(network)["asset"]
             assert result2.amount == "50000000"  # 50 * 1e6
 
         def test_should_receive_decimal_string_not_raw_input(self):
@@ -371,7 +383,7 @@ class TestRegisterMoneyParser:
             result = server.parse_price(1, network)
 
             # Should use default USDC
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
             assert result.amount == "1000000"
 
     class TestMultipleParsersChainOfResponsibility:
@@ -446,7 +458,7 @@ class TestRegisterMoneyParser:
             result = server.parse_price(1, network)
 
             # Should use default USDC
-            assert result.asset == get_network_config(network)["default_asset"]["address"]
+            assert result.asset == get_default_asset(network)["asset"]
             assert result.amount == "1000000"
 
     class TestErrorHandling:
@@ -574,10 +586,7 @@ class TestRegisterMoneyParser:
             assert sepolia_result.asset == "0xTestToken123456789012345678901234567890"
 
             mainnet_result = server.parse_price(10, "eip155:8453")
-            assert (
-                mainnet_result.asset
-                == get_network_config("eip155:8453")["default_asset"]["address"]
-            )
+            assert mainnet_result.asset == get_default_asset("eip155:8453")["asset"]
 
         def test_should_support_tiered_pricing(self):
             """Should support tiered pricing."""
@@ -613,7 +622,7 @@ class TestRegisterMoneyParser:
             assert standard.extra.get("tier") == "standard"
 
             basic = server.parse_price(50, network)
-            assert basic.asset == get_network_config(network)["default_asset"]["address"]
+            assert basic.asset == get_default_asset(network)["asset"]
 
     class TestIntegrationWithParsePriceFlow:
         """Test integration with parsePrice flow."""
