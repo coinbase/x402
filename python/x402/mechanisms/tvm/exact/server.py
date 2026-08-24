@@ -24,6 +24,10 @@ class ExactTvmScheme:
     """TVM server implementation for the Exact payment scheme (V2)."""
 
     scheme = SCHEME_EXACT
+    default_asset_transfer_method = "default"
+    payment_flows = {
+        "default": {"supported": ("authorization",), "default": "authorization"},
+    }
 
     def __init__(self) -> None:
         self._money_parsers: list[MoneyParser] = []

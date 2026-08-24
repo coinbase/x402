@@ -51,6 +51,38 @@ def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:
         return None
 
 
+def post_enrichment_accepts(payment_required: Any, fallback: list) -> list:
+    """Use enriched 402 accepts when they are a real list (not a Mock)."""
+    enriched = getattr(payment_required, "accepts", None)
+    return enriched if isinstance(enriched, list) else fallback
+
+
+def validate_payment_wrapper_accepts(resource_server: Any, accepts: list) -> None:
+    """Raise if a wrapper accept is unregistered or has an unsupported payment flow.
+
+    Skips resolution when the registered scheme has no real ``payment_flows``
+    table (test doubles / MagicMock).
+    """
+    from collections.abc import Mapping
+
+    from ..payment_flow import resolve_payment_flow
+
+    getter = getattr(resource_server, "get_registered_scheme", None)
+    if not callable(getter):
+        return
+    for requirement in accepts:
+        scheme_server = getter(requirement.network, requirement.scheme)
+        if scheme_server is None:
+            raise ValueError(
+                f'[x402] No scheme implementation registered for "{requirement.scheme}" '
+                f'on network "{requirement.network}"'
+            )
+        flows = getattr(scheme_server, "payment_flows", None)
+        if not isinstance(flows, Mapping):
+            continue
+        resolve_payment_flow(scheme_server, requirement)
+
+
 def attach_payment_to_meta(params: dict[str, Any], payload: PaymentPayload) -> dict[str, Any]:
     """Attach payment payload to request params.
 

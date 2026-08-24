@@ -8,9 +8,9 @@ Note: All protocols are sync-first (matching legacy SDK pattern).
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, TypedDict
 
 from .schemas import (
     AssetAmount,
@@ -247,6 +247,38 @@ class OnVerifiedPaymentCanceledHookProvider(Protocol):
     ) -> None | Awaitable[None]: ...
 
 
+# ============================================================================
+# Payment Flow Types
+# ============================================================================
+
+
+PaymentFlowName = Literal["authorization", "upfront", "escrow"]
+
+
+@dataclass(frozen=True)
+class PaymentFlowPhases:
+    """Phase flags for a named payment flow."""
+
+    verify_before_handler: bool
+    settle_before_handler: bool
+    settle_after_handler: bool
+
+
+class PaymentFlowConfig(TypedDict):
+    """Supported payment flows for one assetTransferMethod, plus the default."""
+
+    supported: Sequence[PaymentFlowName]
+    default: PaymentFlowName
+
+
+@dataclass(frozen=True)
+class ResolvedPaymentFlow:
+    """Result of resolving ATM and payment flow from a scheme table."""
+
+    asset_transfer_method: str
+    payment_flow: PaymentFlowName
+
+
 class SchemeNetworkServer(Protocol):
     """V2 server-side payment mechanism.
 
@@ -278,6 +310,22 @@ class SchemeNetworkServer(Protocol):
     @property
     def scheme(self) -> str:
         """Payment scheme identifier."""
+        ...
+
+    @property
+    def default_asset_transfer_method(self) -> str:
+        """ATM used when ``requirements.extra.assetTransferMethod`` is absent.
+
+        Use ``"default"`` only as SDK plumbing when the scheme has no on-wire ATM.
+        """
+        ...
+
+    @property
+    def payment_flows(self) -> Mapping[str, PaymentFlowConfig]:
+        """Payment flows supported per assetTransferMethod.
+
+        Every ATM the scheme accepts must appear here.
+        """
         ...
 
     def parse_price(self, price: Price, network: Network) -> AssetAmount:

@@ -69,11 +69,23 @@ from .facilitator import x402Facilitator, x402FacilitatorSync
 
 # Interfaces (for implementing custom schemes)
 from .interfaces import (
+    PaymentFlowConfig,
+    PaymentFlowName,
+    PaymentFlowPhases,
+    ResolvedPaymentFlow,
     SchemeNetworkClient,
     SchemeNetworkClientV1,
     SchemeNetworkFacilitator,
     SchemeNetworkFacilitatorV1,
     SchemeNetworkServer,
+)
+from .payment_flow import (
+    PAYMENT_FLOWS,
+    SDK_DEFAULT_ASSET_TRANSFER_METHOD,
+    apply_payment_flow_wire_extra,
+    resolve_failure_path_settlement,
+    resolve_payment_flow,
+    resolve_payment_flow_phases,
 )
 
 # Types (re-export commonly used types)
@@ -83,6 +95,7 @@ from .schemas import (
     # Hooks
     AbortResult,
     AssetAmount,
+    CompletedSettlement,
     # Config
     FacilitatorConfig,
     Money,
@@ -119,6 +132,7 @@ from .schemas import (
     SettleContext,
     SettleError,
     SettleFailureContext,
+    SettlePhase,
     # Responses
     SettleResponse,
     SettleResultContext,
@@ -182,6 +196,16 @@ __all__ = [
     "SchemeNetworkServer",
     "SchemeNetworkFacilitator",
     "SchemeNetworkFacilitatorV1",
+    "PaymentFlowName",
+    "PaymentFlowPhases",
+    "PaymentFlowConfig",
+    "ResolvedPaymentFlow",
+    "PAYMENT_FLOWS",
+    "SDK_DEFAULT_ASSET_TRANSFER_METHOD",
+    "resolve_payment_flow",
+    "apply_payment_flow_wire_extra",
+    "resolve_payment_flow_phases",
+    "resolve_failure_path_settlement",
     # Types - Base
     "X402_VERSION",
     "Network",
@@ -223,6 +247,8 @@ __all__ = [
     "SettleContext",
     "SettleResultContext",
     "SettleFailureContext",
+    "SettlePhase",
+    "CompletedSettlement",
     "PaymentCreationContext",
     "PaymentCreatedContext",
     "PaymentCreationFailureContext",

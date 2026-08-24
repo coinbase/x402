@@ -34,6 +34,11 @@ class SettlementCache:
             self._entries[key] = time.monotonic()
             return False
 
+    def delete(self, key: str) -> None:
+        """Remove *key* so a later settle can retry before TTL expiry."""
+        with self._lock:
+            self._entries.pop(key, None)
+
     # Exposed for testing (e.g. backdating entries to simulate TTL expiry).
     @property
     def entries(self) -> dict[str, float]:

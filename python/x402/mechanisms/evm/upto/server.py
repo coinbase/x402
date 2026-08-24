@@ -24,6 +24,10 @@ class UptoEvmScheme:
     """
 
     scheme = SCHEME_UPTO
+    default_asset_transfer_method = "permit2"
+    payment_flows = {
+        "permit2": {"supported": ("authorization",), "default": "authorization"},
+    }
 
     def __init__(self):
         self._money_parsers: list[MoneyParser] = []

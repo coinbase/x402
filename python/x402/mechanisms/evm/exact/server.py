@@ -27,6 +27,11 @@ class ExactEvmScheme:
     """
 
     scheme = SCHEME_EXACT
+    default_asset_transfer_method = "eip3009"
+    payment_flows = {
+        "eip3009": {"supported": ("authorization",), "default": "authorization"},
+        "permit2": {"supported": ("authorization",), "default": "authorization"},
+    }
 
     def __init__(self):
         """Create ExactEvmScheme."""

@@ -433,12 +433,30 @@ class x402ClientBase:
         if not supported:
             raise NoMatchingRequirementsError("No payment requirements match registered schemes")
 
+        recognized: list[PaymentRequirements] = []
+        for req in supported:
+            flow = (req.extra or {}).get("paymentFlow")
+            if flow is None or flow in ("authorization", "upfront", "escrow"):
+                recognized.append(req)
+        if not recognized:
+            raise NoMatchingRequirementsError(
+                "No payment requirements with a recognized paymentFlow for x402 version: 2"
+            )
+
         # Enforce spend controls, then apply policies
-        filtered: list[RequirementsView] = self._apply_spend_controls(2, supported, self._schemes)
+        filtered: list[RequirementsView] = self._apply_spend_controls(2, recognized, self._schemes)
         for policy in self._policies:
             filtered = policy(2, filtered)
             if not filtered:
                 raise NoMatchingRequirementsError("All requirements filtered out by policies")
+
+        authorization_accepts = [
+            req
+            for req in filtered
+            if (req.extra or {}).get("paymentFlow") in (None, "authorization")
+        ]
+        if authorization_accepts:
+            filtered = authorization_accepts
 
         # Select final
         return self._selector(2, filtered)  # type: ignore[return-value]

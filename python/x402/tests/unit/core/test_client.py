@@ -10,6 +10,7 @@ from x402 import (
     x402ClientSync,
 )
 from x402.schemas import (
+    NoMatchingRequirementsError,
     PaymentPayload,
     PaymentRequired,
     PaymentRequirements,
@@ -1132,3 +1133,81 @@ class TestSpendControls:
             await client.create_payment_payload(
                 self._required(self._req(asset=rlusd["asset"], amount="1.01", network=xrpl))
             )
+
+
+class TestPaymentFlowSelection:
+    """Client selection drops unrecognized paymentFlow and prefers authorization."""
+
+    network = "eip155:8453"
+
+    def _req(self, *, amount: str = "100", extra: dict | None = None):
+        return PaymentRequirements(
+            scheme="exact",
+            network=self.network,
+            asset="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            amount=amount,
+            pay_to="0xpay",
+            max_timeout_seconds=60,
+            extra=extra or {},
+        )
+
+    def _required(self, *accepts):
+        return PaymentRequired(x402_version=2, accepts=list(accepts))
+
+    def _client(self):
+        mock_client = MockSchemeClient("exact")
+        client = x402Client().register(self.network, mock_client)
+        return client, mock_client
+
+    @pytest.mark.asyncio
+    async def test_drops_accepts_with_unrecognized_payment_flow(self):
+        client, mock_client = self._client()
+        known = self._req(amount="100")
+        unknown = self._req(amount="200", extra={"paymentFlow": "future-flow"})
+        await client.create_payment_payload(self._required(unknown, known))
+        assert mock_client.create_calls[0] == known
+
+    @pytest.mark.asyncio
+    async def test_throws_when_every_accept_has_unrecognized_payment_flow(self):
+        client, _ = self._client()
+        with pytest.raises(
+            NoMatchingRequirementsError,
+            match="No payment requirements with a recognized paymentFlow",
+        ):
+            await client.create_payment_payload(
+                self._required(self._req(extra={"paymentFlow": "future-flow"}))
+            )
+
+    @pytest.mark.asyncio
+    async def test_prefers_authorization_over_upfront(self):
+        client, mock_client = self._client()
+        upfront = self._req(amount="100", extra={"paymentFlow": "upfront"})
+        auth = self._req(amount="200")
+        await client.create_payment_payload(self._required(upfront, auth))
+        assert mock_client.create_calls[0] == auth
+
+    @pytest.mark.asyncio
+    async def test_prefers_explicit_authorization_over_escrow(self):
+        client, mock_client = self._client()
+        escrow = self._req(amount="100", extra={"paymentFlow": "escrow"})
+        auth = self._req(amount="200", extra={"paymentFlow": "authorization"})
+        await client.create_payment_payload(self._required(escrow, auth))
+        assert mock_client.create_calls[0] == auth
+
+    @pytest.mark.asyncio
+    async def test_selects_upfront_when_it_is_the_only_remaining_accept(self):
+        client, mock_client = self._client()
+        upfront = self._req(amount="100", extra={"paymentFlow": "upfront"})
+        await client.create_payment_payload(self._required(upfront))
+        assert mock_client.create_calls[0] == upfront
+
+    @pytest.mark.asyncio
+    async def test_custom_policies_override_authorization_preference(self):
+        client, mock_client = self._client()
+        upfront = self._req(amount="100", extra={"paymentFlow": "upfront"})
+        auth = self._req(amount="200")
+        client.register_policy(
+            lambda _version, reqs: [r for r in reqs if r.extra.get("paymentFlow") == "upfront"]
+        )
+        await client.create_payment_payload(self._required(auth, upfront))
+        assert mock_client.create_calls[0] == upfront

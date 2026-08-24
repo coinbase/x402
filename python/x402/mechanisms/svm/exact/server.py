@@ -29,6 +29,11 @@ class ExactSvmScheme:
     """
 
     scheme = SCHEME_EXACT
+    default_asset_transfer_method = "default"
+    payment_flows = {
+        "default": {"supported": ("authorization",), "default": "authorization"},
+    }
+    dynamic_extra_fields = ["recentBlockhash", "lastValidBlockHeight"]
 
     def __init__(self, rpc_url: str | None = None):
         """Create ExactSvmScheme.
