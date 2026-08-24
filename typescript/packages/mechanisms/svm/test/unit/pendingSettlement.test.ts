@@ -10,6 +10,7 @@ import type { PaymentRequirements, PaymentPayload } from "@x402/core/types";
 import { SOLANA_DEVNET_CAIP2 } from "../../src/constants";
 import { USDC_DEVNET_ADDRESS } from "../../src/defaultAssets";
 import * as svmUtils from "../../src/utils";
+import { TransactionOnchainFailureError } from "../../src/utils";
 
 /**
  * Pins the exact SVM facilitator's non-terminal confirm-timeout reason to the
@@ -143,6 +144,54 @@ describe("ExactSvmScheme pending-settlement store integration", () => {
     expect(result.errorReason).toBe("settlement_pending");
     expect(result.transaction).toBe("txSignature123");
     expect(await store.get(txKey)).toBe("txSignature123");
+  });
+
+  it("cache-miss + confirmTransaction fails onchain (terminal): returns transaction_failed and releases the dedup lock", async () => {
+    mockSigner.confirmTransaction = vi
+      .fn()
+      .mockRejectedValue(
+        new TransactionOnchainFailureError("Transaction failed onchain: {}"),
+      ) as never;
+    const facilitator = setupFacilitator();
+    const payload = makePayload("terminalOnchainTx==");
+    const txKey = svmUtils.transactionMessageHash(
+      svmUtils.decodeTransactionFromPayload(payload.payload as never),
+    );
+
+    const result = await facilitator.settle(payload, requirements);
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe("transaction_failed");
+    expect(result.transaction).toBe("txSignature123");
+    // Terminal: no pending entry recorded, and the settlementCache dedup lock is
+    // released so a fresh broadcast for this payload isn't blocked.
+    expect(await store.get(txKey)).toBeUndefined();
+    const retried = await facilitator.settle(makePayload("terminalOnchainTx=="), requirements);
+    expect(retried.success).toBe(false);
+    expect(retried.errorReason).toBe("transaction_failed");
+  });
+
+  it("cache-hit + confirmTransaction fails onchain during reconciliation (terminal): returns transaction_failed", async () => {
+    mockSigner.confirmTransaction = vi
+      .fn()
+      .mockRejectedValue(
+        new TransactionOnchainFailureError("Transaction failed onchain: {}"),
+      ) as never;
+    const facilitator = setupFacilitator();
+    const payload = makePayload("cacheHitTerminalTx==");
+    const txKey = svmUtils.transactionMessageHash(
+      svmUtils.decodeTransactionFromPayload(payload.payload as never),
+    );
+    await store.set(txKey, "cachedSignature789");
+
+    const result = await facilitator.settle(payload, requirements);
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe("transaction_failed");
+    expect(result.transaction).toBe("cachedSignature789");
+    expect(mockSigner.signTransaction).not.toHaveBeenCalled();
+    expect(mockSigner.sendTransaction).not.toHaveBeenCalled();
+    expect(await store.get(txKey)).toBeUndefined();
   });
 
   it("cache-hit: skips verify/sign/send entirely and reconciles against the cached signature", async () => {

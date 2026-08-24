@@ -50,7 +50,7 @@ import {
 } from "../../payment-channels/onchain";
 import type { ChannelSplit } from "../../payment-channels/open";
 import type { FacilitatorSvmSigner } from "../../signer";
-import { createRpcClient } from "../../utils";
+import { createRpcClient, TransactionOnchainFailureError } from "../../utils";
 import { BLOCKHASH_COMMITMENT, STATE_COMMITMENT } from "../shared";
 
 /** Payment-channels `AccountDiscriminator::Channel` (byte 0 is reserved for uninitialized accounts). */
@@ -238,10 +238,11 @@ export function verifyOpenChannelAccount(
 
 /**
  * Thrown by {@link broadcastOpen} when the open transaction broadcast
- * successfully but `confirmTransaction` couldn't observe its confirmation.
- * Distinct from a sign/send failure (nothing reached the chain, safe to
- * retry with a fresh broadcast): this carries the broadcast `signature` so
- * the caller can cache it and reconcile against it instead of
+ * successfully but `confirmTransaction`'s wait timed out (outcome still
+ * unknown — a definite onchain failure propagates as
+ * {@link TransactionOnchainFailureError} instead). Distinct from a sign/send
+ * failure (nothing reached the chain, safe to retry): this carries the
+ * broadcast `signature` so the caller can reconcile against it instead of
  * re-broadcasting (a second open would hit the channel-already-open check
  * even though the original open is, or will be, fine).
  */
@@ -281,7 +282,9 @@ export class ChannelOpenConfirmationError extends Error {
  * @param network - CAIP-2 network identifier
  * @param openTransactionBase64 - The client-signed open transaction
  * @returns The broadcast signature
- * @throws {ChannelOpenConfirmationError} If the transaction broadcast but confirmation failed
+ * @throws {ChannelOpenConfirmationError} If the transaction broadcast but confirmation timed out
+ * @throws {TransactionOnchainFailureError} If the transaction broadcast but failed onchain
+ *   (terminal — the caller can safely retry with a fresh open)
  */
 export async function broadcastOpen(
   facilitator: Pick<
@@ -297,6 +300,13 @@ export async function broadcastOpen(
   try {
     await facilitator.confirmTransaction(signature, network);
   } catch (error) {
+    // A definite onchain rejection is terminal, unlike a confirmation
+    // timeout: propagate it as-is (rather than wrapping in
+    // ChannelOpenConfirmationError) so the caller's non-pending branch
+    // handles it — a fresh open is safe to retry.
+    if (error instanceof TransactionOnchainFailureError) {
+      throw error;
+    }
     throw new ChannelOpenConfirmationError(signature, error);
   }
   return signature;

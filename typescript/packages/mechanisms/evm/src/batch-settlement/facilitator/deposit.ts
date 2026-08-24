@@ -397,11 +397,32 @@ async function reconcilePendingDeposit(
   }
   const receiptSigner = execution.kind === "erc20Approval" ? execution.extensionSigner : signer;
 
+  // Best-effort optimistic fallback for the spec-required extra.channelState, used
+  // only if the post-confirm read below fails. Not a true pre-broadcast snapshot
+  // (the deposit may already be reflected here), but the best available base,
+  // mirroring the optimistic balance-add the main deposit path uses.
+  let optimisticExtra: Record<string, unknown> | undefined;
+  try {
+    const preState = await readChannelState(signer, voucher.channelId);
+    optimisticExtra = {
+      channelState: {
+        channelId: voucher.channelId,
+        balance: (preState.balance + BigInt(deposit.amount)).toString(),
+        totalClaimed: preState.totalClaimed.toString(),
+        withdrawRequestedAt: preState.withdrawRequestedAt,
+        refundNonce: preState.refundNonce.toString(),
+      },
+    };
+  } catch {
+    // No optimistic fallback available; extra stays undefined below if the
+    // post-confirm read also fails.
+  }
+
   return withPendingSettlementStore(store, cacheKey, () =>
     waitAndReturnSettleResponse(receiptSigner, cachedTx, requirements.network, payer, {
       failedStatusReason: Errors.ErrDepositTransactionFailed,
       onSuccess: async () => {
-        let extra: Record<string, unknown> | undefined;
+        let extra = optimisticExtra;
         try {
           const state = await readChannelState(signer, voucher.channelId);
           extra = {
@@ -414,7 +435,7 @@ async function reconcilePendingDeposit(
             },
           };
         } catch {
-          // Leave extra undefined when the post-confirm channel-state read fails;
+          // Keep the optimistic snapshot (if any) when the post-confirm read fails;
           // the transaction is still reported as confirmed.
         }
         return {

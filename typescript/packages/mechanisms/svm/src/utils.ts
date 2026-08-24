@@ -314,6 +314,29 @@ export function getStablecoinTokenProgram(currency: string, network: Network): s
 }
 
 /**
+ * Thrown by a {@link PendingSettlementStore}-aware confirmation wait (e.g.
+ * `FacilitatorSvmSigner.confirmTransaction`) when the transaction reached the
+ * chain and failed there — a definite onchain rejection, not a
+ * confirmation-wait timeout whose outcome is still unknown. Callers must
+ * treat this as terminal: release any dedup/pending-settlement lock and
+ * report a failure instead of `settlement_pending`. Any other confirmation
+ * error (timeout or otherwise) is treated conservatively as non-terminal,
+ * since a fresh broadcast while the original might still land risks a
+ * double-spend.
+ */
+export class TransactionOnchainFailureError extends Error {
+  /**
+   * Create the error for a transaction that reached the chain and failed there.
+   *
+   * @param message - Description of the onchain failure, e.g. the decoded transaction error
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "TransactionOnchainFailureError";
+  }
+}
+
+/**
  * Persists `signature` under `key` in `store` so a subsequent settle attempt
  * for the same payload can reconcile against it instead of re-broadcasting,
  * then returns the `settlement_pending` response carrying `error`'s message.

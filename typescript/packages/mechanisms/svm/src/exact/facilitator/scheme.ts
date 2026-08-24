@@ -16,6 +16,7 @@ import {
   decompileTransactionMessage,
   getCompiledTransactionMessageDecoder,
   type Address,
+  type Transaction,
 } from "@solana/kit";
 import type {
   PaymentPayload,
@@ -41,6 +42,7 @@ import {
   getTokenPayerFromTransaction,
   recordPendingOrTerminal,
   transactionMessageHash,
+  TransactionOnchainFailureError,
 } from "../../utils";
 import {
   assertSmartWalletLimits,
@@ -346,8 +348,10 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // path — the normal verify call below still produces the correct
     // "could not be decoded" rejection.
     let txKey: string | undefined;
+    let decodedTransaction: Transaction | undefined;
     try {
-      txKey = transactionMessageHash(decodeTransactionFromPayload(exactSvmPayload));
+      decodedTransaction = decodeTransactionFromPayload(exactSvmPayload);
+      txKey = transactionMessageHash(decodedTransaction);
     } catch {
       txKey = undefined;
     }
@@ -367,15 +371,29 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
         // reconciling: it falls through to the settlementCache dedup check
         // below, which independently rejects it as a duplicate.
         await this.pendingStore.delete(txKey);
-        // Best-effort payer for the response; a decode failure here doesn't
-        // block reconciliation (the payload already broadcast successfully).
+        // Best-effort payer for the response; a decode/parse failure here
+        // doesn't block reconciliation (the payload already broadcast
+        // successfully).
         let payer = "";
+        let isSmartWalletSettlement = false;
         try {
-          payer = getTokenPayerFromTransaction(decodeTransactionFromPayload(exactSvmPayload)) ?? "";
+          payer = getTokenPayerFromTransaction(decodedTransaction!) ?? "";
+          // Re-derive which verification path the original settle used;
+          // verificationPath itself isn't available here.
+          isSmartWalletSettlement =
+            !!this.options?.enableSmartWalletVerification &&
+            !this.hasStaticTransferLayout(decodedTransaction!);
         } catch {
-          // Ignore; payer stays "".
+          // Ignore; payer stays "" and isSmartWalletSettlement stays false.
         }
-        return this.reconcilePendingSettlement(txKey, cachedSignature, payer, requirements.network);
+        return this.reconcilePendingSettlement(
+          txKey,
+          cachedSignature,
+          payer,
+          requirements.network,
+          isSmartWalletSettlement,
+          requirements,
+        );
       }
     }
 
@@ -475,6 +493,20 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       // Wait for confirmation
       await this.signer.confirmTransaction(signature, requirements.network);
     } catch (error) {
+      if (error instanceof TransactionOnchainFailureError) {
+        // Definite onchain rejection: safe to release the dedup lock so a
+        // fresh broadcast (new blockhash) isn't blocked by this one.
+        this.settlementCache.delete(txKey);
+        console.error("Transaction failed onchain:", error);
+        return {
+          success: false,
+          errorReason: "transaction_failed",
+          errorMessage: error.message,
+          transaction: signature,
+          network: payload.accepted.network,
+          payer: valid.payer || "",
+        };
+      }
       // Broadcast succeeded but confirmation couldn't be observed in time.
       // Non-terminal: leave the dedup lock in place (a fresh broadcast would
       // double-spend) and record the signature so a retry reconciles via the
@@ -544,6 +576,11 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
    * @param cachedSignature - The previously broadcast signature
    * @param payer - Best-effort payer address for the response
    * @param network - The network the transaction was broadcast to
+   * @param isSmartWalletSettlement - Whether the original settlement was verified via
+   *   Path 2 (smart wallet), requiring the same post-settlement TOCTOU check {@link settle}
+   *   runs on its non-cached path
+   * @param requirements - Payment requirements, needed by {@link verifyPostSettlement}
+   *   when isSmartWalletSettlement is true
    * @returns Promise resolving to the reconciled settlement response
    */
   private async reconcilePendingSettlement(
@@ -551,10 +588,27 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     cachedSignature: string,
     payer: string,
     network: PaymentRequirements["network"],
+    isSmartWalletSettlement: boolean,
+    requirements: PaymentRequirements,
   ): Promise<SettleResponse> {
     try {
       await this.signer.confirmTransaction(cachedSignature, network);
     } catch (error) {
+      if (error instanceof TransactionOnchainFailureError) {
+        // Definite onchain rejection: release the dedup lock set by the
+        // original (now-returned) settle call so a fresh broadcast isn't
+        // blocked by this one.
+        this.settlementCache.delete(txKey);
+        console.error("Transaction failed onchain during reconciliation:", error);
+        return {
+          success: false,
+          errorReason: "transaction_failed",
+          errorMessage: error.message,
+          transaction: cachedSignature,
+          network,
+          payer,
+        };
+      }
       return recordPendingOrTerminal(
         this.pendingStore,
         txKey,
@@ -573,12 +627,63 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       // a storage hiccup must not mask a confirmed settlement.
     }
 
+    if (isSmartWalletSettlement) {
+      const signerAddresses = this.signer.getAddresses().map(a => a.toString());
+      const postVerify = await verifyPostSettlement(
+        this.signer,
+        cachedSignature,
+        network,
+        requirements,
+        signerAddresses,
+        // No pre-broadcast balance snapshot is available here, so only the
+        // innerInstructions method applies; the balance-delta fallback is skipped.
+        null,
+        null,
+      );
+      if (!postVerify.verified) {
+        return {
+          success: false,
+          errorReason: "post_settlement_transfer_not_confirmed",
+          transaction: cachedSignature,
+          network,
+          payer,
+        };
+      }
+    }
+
     return {
       success: true,
       transaction: cachedSignature,
       network,
       payer,
     };
+  }
+
+  /**
+   * Cheap, local structural check for whether a decoded transaction matches
+   * Path 1's static positional layout (compute budget instructions followed
+   * by a TransferChecked at index 2). Used to re-derive which verification
+   * path a pending settlement originally used, without re-simulating.
+   *
+   * @param transaction - Decoded transaction to inspect
+   * @returns Whether the transaction has Path 1's static transfer shape
+   */
+  private hasStaticTransferLayout(transaction: Transaction): boolean {
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
+    const instructions = decompileTransactionMessage(compiled).instructions ?? [];
+    if (instructions.length < 3 || instructions.length > 7) {
+      return false;
+    }
+    const transferIx = instructions[2];
+    const programAddress = transferIx.programAddress.toString();
+    if (
+      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
+      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
+    ) {
+      return false;
+    }
+    const ixData = transferIx.data;
+    return !!ixData && ixData.length >= 10 && ixData[0] === IX_TOKEN_TRANSFER_CHECKED;
   }
 
   /**

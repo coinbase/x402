@@ -230,6 +230,38 @@ describe("BatchSettlementEvmScheme deposit pending-settlement store integration"
     expect(await store.get("0xfeedface3")).toBeUndefined();
   });
 
+  it("cache-hit: falls back to an optimistic channelState snapshot when the post-confirm read fails", async () => {
+    // First multicall (pre-confirm optimistic read) succeeds; the second (post-confirm
+    // read inside onSuccess) fails, so the response must fall back to the optimistic
+    // snapshot rather than omitting extra.channelState.
+    mockedMulticall
+      .mockResolvedValueOnce(READ_CHANNEL_STATE_RESULT)
+      .mockRejectedValueOnce(new Error("rpc read failed"));
+    const signer = buildSigner();
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer, {
+      pendingSettlementStore: store,
+    });
+    const config = buildChannelConfig();
+    const channelId = computeChannelId(config);
+    const dp = buildDepositPayload(channelId, config, "0xfeedface7");
+    await store.set("0xfeedface7", MOCK_TX_HASH);
+
+    const result = await scheme.settle(envelopeDeposit(dp), makeRequirements());
+
+    expect(result.success).toBe(true);
+    expect(result.transaction).toBe(MOCK_TX_HASH);
+    // READ_CHANNEL_STATE_RESULT reports balance 10_000n; optimistic = balance + deposit.amount (10_000).
+    expect(result.extra).toEqual({
+      channelState: {
+        channelId,
+        balance: "20000",
+        totalClaimed: "0",
+        withdrawRequestedAt: 0,
+        refundNonce: "0",
+      },
+    });
+  });
+
   it("cache-hit: still-unconfirmed receipt wait returns settlement_pending again and preserves the store entry", async () => {
     const signer = buildSigner({
       waitForTransactionReceipt: vi.fn().mockRejectedValue(new Error("still pending")),

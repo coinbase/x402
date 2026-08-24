@@ -43,6 +43,11 @@ import { USDC_DEVNET_ADDRESS, USDC_MAINNET_ADDRESS } from "../../src/defaultAsse
 import { buildOpenPaymentChannelTransaction } from "../../src/payment-channels/open";
 import { signVoucher } from "../../src/payment-channels/voucher";
 import { toFacilitatorSvmSigner } from "../../src/signer";
+import {
+  decodeTransactionFromPayload,
+  transactionMessageHash,
+  TransactionOnchainFailureError,
+} from "../../src/utils";
 import { UptoSvmScheme } from "../../src/upto/facilitator/scheme";
 import { ErrSettlementPending } from "../../src/exact/facilitator/errors";
 import {
@@ -134,6 +139,17 @@ async function buildFixture(config: ConstructorParameters<typeof UptoSvmScheme>[
   };
 }
 
+/**
+ * Mirrors `UptoSvmScheme.settleDeposit`'s pending-settlement key: the open
+ * transaction's message hash (not just channelId), so a differently-shaped
+ * retry can't reconcile against a stale signature.
+ */
+function depositKeyFor(requirements: PaymentRequirements, uptoPayload: UptoSvmPayloadV2): string {
+  return `upto:deposit:${requirements.network}:${transactionMessageHash(
+    decodeTransactionFromPayload({ transaction: uptoPayload.openTransaction }),
+  )}`;
+}
+
 describe("UptoSvmScheme deposit pending-settlement store integration", () => {
   let store: PendingSettlementStore;
 
@@ -150,7 +166,7 @@ describe("UptoSvmScheme deposit pending-settlement store integration", () => {
     const { facilitator, payload, requirements, uptoPayload } = await buildFixture({
       pendingSettlementStore: store,
     });
-    const depositKey = `upto:deposit:${requirements.network}:${uptoPayload.channelId}`;
+    const depositKey = depositKeyFor(requirements, uptoPayload);
 
     const result = await facilitator.settle(payload, requirements);
 
@@ -169,7 +185,7 @@ describe("UptoSvmScheme deposit pending-settlement store integration", () => {
     const { facilitator, payload, requirements, uptoPayload } = await buildFixture({
       pendingSettlementStore: store,
     });
-    const depositKey = `upto:deposit:${requirements.network}:${uptoPayload.channelId}`;
+    const depositKey = depositKeyFor(requirements, uptoPayload);
 
     const result = await facilitator.settle(payload, requirements);
 
@@ -180,11 +196,27 @@ describe("UptoSvmScheme deposit pending-settlement store integration", () => {
     expect(await store.get(depositKey)).toBe("OpenSig1111111111111111111111111111111111111");
   });
 
+  it("cache-miss + open confirmation fails onchain (terminal): returns transaction_failed and releases the dedup lock", async () => {
+    channelMocks.broadcastOpen.mockRejectedValue(
+      new TransactionOnchainFailureError("Transaction failed onchain: {}"),
+    );
+    const { facilitator, payload, requirements, uptoPayload } = await buildFixture({
+      pendingSettlementStore: store,
+    });
+    const depositKey = depositKeyFor(requirements, uptoPayload);
+
+    const result = await facilitator.settle(payload, requirements);
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe("invalid_upto_svm_channel_broadcast");
+    expect(await store.get(depositKey)).toBeUndefined();
+  });
+
   it("cache-hit: skips channelExists/broadcastOpen entirely and reconciles against the cached signature", async () => {
     const { facilitator, payload, requirements, uptoPayload, rawSigner } = await buildFixture({
       pendingSettlementStore: store,
     });
-    const depositKey = `upto:deposit:${requirements.network}:${uptoPayload.channelId}`;
+    const depositKey = depositKeyFor(requirements, uptoPayload);
     await store.set(depositKey, "CachedOpenSig111111111111111111111111111111");
     const confirmTransaction = vi.fn().mockResolvedValue(undefined);
     rawSigner.confirmTransaction = confirmTransaction;
@@ -207,7 +239,7 @@ describe("UptoSvmScheme deposit pending-settlement store integration", () => {
     const { facilitator, payload, requirements, uptoPayload, rawSigner } = await buildFixture({
       pendingSettlementStore: store,
     });
-    const depositKey = `upto:deposit:${requirements.network}:${uptoPayload.channelId}`;
+    const depositKey = depositKeyFor(requirements, uptoPayload);
     await store.set(depositKey, "CachedOpenSig222222222222222222222222222222");
     rawSigner.confirmTransaction = vi.fn().mockRejectedValue(new Error("still not confirmed"));
 
@@ -225,7 +257,7 @@ describe("UptoSvmScheme deposit pending-settlement store integration", () => {
     const { facilitator, payload, requirements, uptoPayload } = await buildFixture({
       pendingSettlementStore: store,
     });
-    const depositKey = `upto:deposit:${requirements.network}:${uptoPayload.channelId}`;
+    const depositKey = depositKeyFor(requirements, uptoPayload);
 
     const result = await facilitator.settle(payload, requirements);
 

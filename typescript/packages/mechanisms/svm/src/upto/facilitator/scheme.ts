@@ -22,7 +22,14 @@ import { encodeVoucherMessageBytes, verifyVoucherSignature } from "../../payment
 import { SettlementCache } from "../../settlement-cache";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
 import { isUptoSvmPayload, type UptoSvmPayloadV2 } from "../../types";
-import { createRpcClient, recordPendingOrTerminal, validateSvmAddress } from "../../utils";
+import {
+  createRpcClient,
+  decodeTransactionFromPayload,
+  recordPendingOrTerminal,
+  transactionMessageHash,
+  TransactionOnchainFailureError,
+  validateSvmAddress,
+} from "../../utils";
 import { ErrSettlementPending } from "../../exact/facilitator/errors";
 import {
   resolveTokenProgram,
@@ -388,7 +395,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Re-awaits confirmation of a signature previously recorded in the
-   * `PendingSettlementStore` under `cacheKey`, without re-verifying,
+   * `PendingSettlementStore` under `pendingKey`, without re-verifying,
    * re-signing, or re-broadcasting. Re-broadcasting is not a safe fallback
    * here: the deposit's channel PDA is one-shot (a second open would hit
    * `ERR_CHANNEL_ALREADY_OPEN`) and a claim seals the channel (a second
@@ -396,15 +403,20 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
    * which would misreport an already-successful payment as failed. Mirrors
    * Go's `awaitPendingUptoSignature`.
    *
-   * @param cacheKey - The pending-settlement store key for this deposit/claim
+   * @param pendingKey - The pending-settlement store key for this deposit/claim
+   * @param dedupKey - The settlementCache dedup key to release on terminal failure;
+   *   for claim this equals pendingKey, but for deposit it's channel-scoped while
+   *   pendingKey is bound to the exact open transaction bytes
    * @param signature - The previously broadcast signature to re-await
    * @param payer - Payer address for the response
    * @param network - The network the transaction was broadcast to
    * @returns `{ ok: true }` on confirmation (store entry cleared), or
-   *   `{ ok: false, response }` with a `settlement_pending` response to surface
+   *   `{ ok: false, response }` with a `settlement_pending` (non-terminal) or
+   *   `transaction_failed` (terminal) response to surface
    */
   private async awaitPendingUptoSignature(
-    cacheKey: string,
+    pendingKey: string,
+    dedupKey: string,
     signature: string,
     payer: string,
     network: PaymentRequirements["network"],
@@ -412,11 +424,27 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     try {
       await this.signer.confirmTransaction(signature, network);
     } catch (error) {
+      if (error instanceof TransactionOnchainFailureError) {
+        // Definite onchain rejection: release the dedup lock set by the
+        // original call so a fresh attempt for this channel isn't blocked.
+        this.settlementCache.delete(dedupKey);
+        return {
+          ok: false,
+          response: {
+            success: false,
+            errorReason: "transaction_failed",
+            errorMessage: error.message,
+            transaction: signature,
+            network,
+            payer,
+          },
+        };
+      }
       return {
         ok: false,
         response: await recordPendingOrTerminal(
           this.pendingStore,
-          cacheKey,
+          pendingKey,
           signature,
           payer,
           network,
@@ -427,7 +455,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       };
     }
     try {
-      await this.pendingStore.delete(cacheKey);
+      await this.pendingStore.delete(pendingKey);
     } catch {
       // Best-effort cleanup; the confirmed settlement is correct regardless
       // and must not be masked by a storage hiccup.
@@ -449,35 +477,53 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
     p: UptoSvmPayloadV2,
   ): Promise<SettleResponse> {
-    // Pending-settlement fast path: a prior deposit settle for this exact
-    // channel broadcast the open successfully but couldn't confirm it in
-    // time. Reconcile against that signature instead of re-validating and
-    // re-broadcasting — a second open attempt would hit ERR_CHANNEL_ALREADY_OPEN
-    // even though the original payment is (or will be) fine.
-    const depositKey = `upto:deposit:${requirements.network}:${p.channelId}`;
-    const cachedDepositSignature = await this.pendingStore.get(depositKey);
-    if (cachedDepositSignature) {
-      // Remove before reconciling (rather than after) so a concurrent retry
-      // of the same payload misses here instead of also reconciling: it
-      // falls through to the settlementCache dedup check, which
-      // independently rejects it as a duplicate.
-      await this.pendingStore.delete(depositKey);
-      const pending = await this.awaitPendingUptoSignature(
-        depositKey,
-        cachedDepositSignature,
-        p.from,
-        payload.accepted.network,
-      );
-      if (!pending.ok) {
-        return pending.response;
+    // settlementCache dedup key: channel-scoped (not tied to exact transaction
+    // bytes) so concurrent settles for the same channel with differently-signed
+    // opens are still caught (see the race comment below).
+    const depositChannelKey = `upto:deposit:${requirements.network}:${p.channelId}`;
+
+    // Pending-settlement fast path: a prior deposit settle for this exact open
+    // transaction broadcast successfully but couldn't confirm in time. Reconcile
+    // against that signature instead of re-broadcasting (a second open would hit
+    // ERR_CHANNEL_ALREADY_OPEN). Keyed on the message hash, not just channelId,
+    // so a differently-shaped retry (e.g. mismatched deposit amount) falls
+    // through to full validation instead of trusting a stale signature. Mirrors
+    // `exact`'s txKey.
+    let depositKey: string | undefined;
+    try {
+      depositKey = `upto:deposit:${requirements.network}:${transactionMessageHash(
+        decodeTransactionFromPayload({ transaction: p.openTransaction }),
+      )}`;
+    } catch {
+      depositKey = undefined;
+    }
+
+    if (depositKey) {
+      const cachedDepositSignature = await this.pendingStore.get(depositKey);
+      if (cachedDepositSignature) {
+        // Remove before reconciling (rather than after) so a concurrent retry
+        // of the same payload misses here instead of also reconciling: it
+        // falls through to the settlementCache dedup check, which
+        // independently rejects it as a duplicate.
+        await this.pendingStore.delete(depositKey);
+        const pending = await this.awaitPendingUptoSignature(
+          depositKey,
+          depositChannelKey,
+          cachedDepositSignature,
+          p.from,
+          payload.accepted.network,
+        );
+        if (!pending.ok) {
+          return pending.response;
+        }
+        return {
+          success: true,
+          transaction: cachedDepositSignature,
+          network: requirements.network,
+          amount: p.maxAmount,
+          payer: p.from,
+        };
       }
-      return {
-        success: true,
-        transaction: cachedDepositSignature,
-        network: requirements.network,
-        amount: p.maxAmount,
-        payer: p.from,
-      };
     }
 
     const auth = await this.validateOpenAuthorization(payload, requirements, {
@@ -508,9 +554,15 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     // Race: two deposit settles can both see "channel missing", broadcast the
     // same open, and both get success back from RPC. Dedup here so only one
     // proceeds. Key is deposit-scoped so this does not block the later claim.
-    if (this.settlementCache.isDuplicate(depositKey)) {
+    if (this.settlementCache.isDuplicate(depositChannelKey)) {
       return this.settleFailure(payload, "duplicate_settlement", p.from);
     }
+
+    // Decoding succeeded above (validateOpenAuthorization), so this recompute
+    // (only needed if the earlier attempt above failed) can't throw.
+    depositKey ??= `upto:deposit:${requirements.network}:${transactionMessageHash(
+      decodeTransactionFromPayload({ transaction: p.openTransaction }),
+    )}`;
 
     // Simulate open + settle + distribute before broadcast so settlement-account
     // failures reject without locking the deposit.
@@ -529,7 +581,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         },
       });
     } catch (error) {
-      this.settlementCache.delete(depositKey);
+      this.settlementCache.delete(depositChannelKey);
       return {
         success: false,
         network: payload.accepted.network,
@@ -553,7 +605,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         expiresAt: p.expiresAt,
       });
     } catch (error) {
-      this.settlementCache.delete(depositKey);
+      this.settlementCache.delete(depositChannelKey);
       return {
         success: false,
         network: payload.accepted.network,
@@ -592,7 +644,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
           error,
         );
       }
-      this.settlementCache.delete(depositKey);
+      this.settlementCache.delete(depositChannelKey);
       return {
         success: false,
         network: payload.accepted.network,
@@ -615,7 +667,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         splits: channelConfig.splits,
       });
     } catch (error) {
-      this.settlementCache.delete(depositKey);
+      this.settlementCache.delete(depositChannelKey);
       return {
         success: false,
         network: payload.accepted.network,
@@ -675,6 +727,7 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       // independently rejects it as a duplicate.
       await this.pendingStore.delete(settlementKey);
       const pending = await this.awaitPendingUptoSignature(
+        settlementKey,
         settlementKey,
         cachedClaimSignature,
         p.from,
