@@ -34,6 +34,35 @@ const TOKEN_PROGRAMS = new Set([
   TOKEN_2022_PROGRAM_ADDRESS.toString(),
 ]);
 
+export type SmartWalletLimits = {
+  maxComputeUnits?: number;
+  maxPriorityFeeMicroLamports?: number;
+};
+
+/**
+ * Rejects smart-wallet limits that cannot be compared safely.
+ *
+ * @param limits - Optional operator-provided compute budget caps
+ */
+export function assertSmartWalletLimits(limits?: SmartWalletLimits): void {
+  assertLimit("smartWalletMaxComputeUnits", limits?.maxComputeUnits, 1);
+  assertLimit("smartWalletMaxPriorityFeeMicroLamports", limits?.maxPriorityFeeMicroLamports, 0);
+}
+
+/**
+ * Rejects a configured limit outside its meaningful integer range.
+ *
+ * @param name - Option name, used in the error message
+ * @param value - Configured value, or undefined when the option is unset
+ * @param min - Smallest meaningful value for this option
+ */
+function assertLimit(name: string, value: number | undefined, min: number): void {
+  if (value === undefined) return;
+  if (!Number.isSafeInteger(value) || value < min) {
+    throw new Error(`${name} must be a safe integer >= ${min}, received ${value}`);
+  }
+}
+
 export type TransferCheckedInfo = {
   programId: string;
   amount: bigint;
@@ -125,8 +154,10 @@ export async function assertFeePayerIsolated(
  */
 export function validateComputeBudgetLimits(
   transaction: Transaction,
-  limits?: { maxComputeUnits?: number; maxPriorityFeeMicroLamports?: number },
+  limits?: SmartWalletLimits,
 ): void {
+  assertSmartWalletLimits(limits);
+
   const maxCU = limits?.maxComputeUnits ?? DEFAULT_SMART_WALLET_MAX_COMPUTE_UNITS;
   const maxPriorityFee =
     limits?.maxPriorityFeeMicroLamports ?? DEFAULT_SMART_WALLET_MAX_PRIORITY_FEE_MICROLAMPORTS;
@@ -257,10 +288,8 @@ export function extractTransfersFromInnerInstructions(
  * Operator-configurable options for smart wallet verification.
  * Passed through from the ExactSvmScheme constructor.
  */
-export type SmartWalletOptions = {
+export type SmartWalletOptions = SmartWalletLimits & {
   enabled: boolean;
-  maxComputeUnits?: number;
-  maxPriorityFeeMicroLamports?: number;
 };
 
 /**
@@ -288,6 +317,10 @@ export async function verifySmartWalletTransaction(
   signerAddresses: readonly string[],
   options?: SmartWalletOptions,
 ): Promise<VerifyResponse> {
+  // Configuration errors must propagate to the operator rather than being
+  // reported to the payer as a transaction verification failure.
+  assertSmartWalletLimits(options);
+
   const transaction = decodeTransactionFromPayload({ transaction: transactionBase64 });
 
   // 1. Fee payer must not appear in any instruction's accounts.

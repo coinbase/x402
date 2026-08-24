@@ -12,12 +12,14 @@ export { UptoSvmScheme } from "./upto";
 // Export smart wallet verification helpers
 export {
   assertFeePayerIsolated,
+  assertSmartWalletLimits,
   validateComputeBudgetLimits,
   extractTransfersFromInnerInstructions,
   verifySmartWalletTransaction,
   verifyPostSettlement,
 } from "./exact/facilitator/smartWalletVerification";
 export type {
+  SmartWalletLimits,
   SmartWalletOptions,
   TransferCheckedInfo,
 } from "./exact/facilitator/smartWalletVerification";

@@ -3,6 +3,7 @@ import {
   assertFeePayerIsolated,
   validateComputeBudgetLimits,
   extractTransfersFromInnerInstructions,
+  verifySmartWalletTransaction,
 } from "../../src/exact/facilitator/smartWalletVerification";
 import {
   appendTransactionMessageInstruction,
@@ -121,6 +122,23 @@ function buildSetComputeUnitPrice(microLamports: bigint): Uint8Array {
 }
 
 describe("validateComputeBudgetLimits", () => {
+  it.each([
+    ["maxComputeUnits", NaN, "smartWalletMaxComputeUnits"],
+    ["maxComputeUnits", Infinity, "smartWalletMaxComputeUnits"],
+    ["maxComputeUnits", 1.5, "smartWalletMaxComputeUnits"],
+    ["maxComputeUnits", 0, "smartWalletMaxComputeUnits"],
+    ["maxPriorityFeeMicroLamports", NaN, "smartWalletMaxPriorityFeeMicroLamports"],
+    ["maxPriorityFeeMicroLamports", Infinity, "smartWalletMaxPriorityFeeMicroLamports"],
+    ["maxPriorityFeeMicroLamports", 1.5, "smartWalletMaxPriorityFeeMicroLamports"],
+    ["maxPriorityFeeMicroLamports", -1, "smartWalletMaxPriorityFeeMicroLamports"],
+  ])("rejects %s = %s for direct callers", (option, value, expectedError) => {
+    // The empty transaction proves limit validation runs before message decoding;
+    // otherwise this would fail with an unrelated decoder error.
+    expect(() => validateComputeBudgetLimits({} as never, { [option]: value } as never)).toThrow(
+      expectedError,
+    );
+  });
+
   it("passes when CU and priority fee are within defaults", async () => {
     const feePayer = await generateKeyPairSigner();
 
@@ -229,6 +247,20 @@ describe("validateComputeBudgetLimits", () => {
     expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
       "smart_wallet_malformed_compute_budget",
     );
+  });
+});
+
+describe("verifySmartWalletTransaction configuration", () => {
+  it.each([
+    ["maxComputeUnits", NaN, "smartWalletMaxComputeUnits"],
+    ["maxPriorityFeeMicroLamports", NaN, "smartWalletMaxPriorityFeeMicroLamports"],
+  ])("propagates %s configuration errors", async (option, value, expectedError) => {
+    await expect(
+      verifySmartWalletTransaction("invalid transaction", {} as never, {} as never, "", [], {
+        enabled: true,
+        [option]: value,
+      } as never),
+    ).rejects.toThrow(expectedError);
   });
 });
 
@@ -757,6 +789,82 @@ describe("verifyPostSettlement", () => {
 });
 
 describe("ExactSvmScheme constructor enforcement", () => {
+  it.each([
+    ["smartWalletMaxComputeUnits", NaN],
+    ["smartWalletMaxComputeUnits", Infinity],
+    ["smartWalletMaxComputeUnits", 1.5],
+    ["smartWalletMaxComputeUnits", 0],
+    ["smartWalletMaxPriorityFeeMicroLamports", NaN],
+    ["smartWalletMaxPriorityFeeMicroLamports", Infinity],
+    ["smartWalletMaxPriorityFeeMicroLamports", 1.5],
+    ["smartWalletMaxPriorityFeeMicroLamports", -1],
+  ])("throws when %s is %s", async (option, value) => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+    const completeSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      simulateTransactionWithInnerInstructions: async () => ({ innerInstructions: null }),
+      getConfirmedTransactionInnerInstructions: async () => null,
+      getTokenAccountBalance: async () => null,
+      fetchAddressLookupTables: async () => ({}),
+    };
+
+    expect(
+      () =>
+        new ExactSvmScheme(completeSigner as never, undefined, {
+          enableSmartWalletVerification: true,
+          [option]: value as number,
+        }),
+    ).toThrow(option);
+  });
+
+  it("accepts the minimum smart wallet limits", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+    const completeSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+      simulateTransactionWithInnerInstructions: async () => ({ innerInstructions: null }),
+      getConfirmedTransactionInnerInstructions: async () => null,
+      getTokenAccountBalance: async () => null,
+      fetchAddressLookupTables: async () => ({}),
+    };
+
+    expect(
+      () =>
+        new ExactSvmScheme(completeSigner as never, undefined, {
+          enableSmartWalletVerification: true,
+          smartWalletMaxComputeUnits: 1,
+          smartWalletMaxPriorityFeeMicroLamports: 0,
+        }),
+    ).not.toThrow();
+  });
+
+  it("ignores dormant smart wallet limits when verification is disabled", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+    const minimalSigner = {
+      getAddresses: () => [],
+      signTransaction: async () => "",
+      simulateTransaction: async () => {},
+      sendTransaction: async () => "",
+      confirmTransaction: async () => {},
+    };
+
+    expect(
+      () =>
+        new ExactSvmScheme(minimalSigner as never, undefined, {
+          enableSmartWalletVerification: false,
+          smartWalletMaxComputeUnits: NaN,
+          smartWalletMaxPriorityFeeMicroLamports: NaN,
+        }),
+    ).not.toThrow();
+  });
+
   it("throws when signer missing required methods for smart wallet verification", async () => {
     const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
 
