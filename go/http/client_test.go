@@ -1074,7 +1074,7 @@ func paymentResponseHeader(t *testing.T, settle x402.SettleResponse) string {
 
 // TestPaymentRoundTripper_DispatchesOnPaymentResponseOnSuccess verifies that a
 // successful retry (200 + PAYMENT-RESPONSE) auto-fires the scheme's hook. User
-// code should not need to call ProcessSettleResponse manually.
+// code should not need to update local channel state manually.
 func TestPaymentRoundTripper_DispatchesOnPaymentResponseOnSuccess(t *testing.T) {
 	scheme := &hookSchemeClient{scheme: "test-scheme"}
 	x402Client := x402.Newx402Client().DisableSpendControls()

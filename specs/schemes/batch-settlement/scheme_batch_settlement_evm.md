@@ -525,14 +525,17 @@ The server must claim all outstanding vouchers before the withdraw delay elapses
 
 ### Steady State
 
-Before signing the next voucher, the client must verify from the payment response:
+PAYMENT-RESPONSE extra is untrusted. The client updates local state
+from its own previous state plus `extra.chargedAmount` (missing is `0`).
+It MUST NOT copy `extra.channelState` into that local state.
 
-1. `extra.chargedAmount <= PaymentRequirements.amount`
-2. `extra.channelState.chargedCumulativeAmount == previous + extra.chargedAmount`
-3. `extra.channelState.balance` is consistent with the client's expectation
-4. `extra.channelState.channelId` matches
+The client applies that update only when `chargedAmount <=
+PaymentRequirements.amount` and, if present,
+`channelState.chargedCumulativeAmount` equals `previous + chargedAmount`.
+Otherwise it MUST leave local state unchanged.
 
-If any check fails, the client must not sign further vouchers and should initiate withdrawal.
+The next voucher is signed from that local state. A skipped apply is
+not a new charge; desync is recovered via Corrective 402.
 
 ### Recovery After State Loss
 

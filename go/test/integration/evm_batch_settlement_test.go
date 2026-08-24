@@ -235,6 +235,7 @@ func buildBatchedTypedData(
 // batchedPipeline holds the wired client/server/facilitator + helpers for one test run.
 type batchedPipeline struct {
 	clientScheme      *batchedclient.BatchSettlementEvmScheme
+	clientStorage     *batchedclient.InMemoryClientChannelStorage
 	serverScheme      *batchedserver.BatchSettlementEvmScheme
 	facilitatorScheme *batchedfacilitator.BatchSettlementEvmScheme
 	x402Client        *x402.X402Client
@@ -275,9 +276,11 @@ func buildBatchedPipeline(t *testing.T, keys *batchedTestKeys) *batchedPipeline 
 
 	salt := randomChannelSalt(t)
 
+	clientStorage := batchedclient.NewInMemoryClientChannelStorage()
 	clientScheme := batchedclient.NewBatchSettlementEvmScheme(clientSigner, &batchedclient.BatchSettlementEvmSchemeOptions{
 		DepositMultiplier: 5,
 		Salt:              salt,
+		Storage:           clientStorage,
 	})
 	x402Client := x402.Newx402Client()
 	x402Client.Register(batchedTestNetwork, clientScheme)
@@ -302,6 +305,7 @@ func buildBatchedPipeline(t *testing.T, keys *batchedTestKeys) *batchedPipeline 
 
 	return &batchedPipeline{
 		clientScheme:      clientScheme,
+		clientStorage:     clientStorage,
 		serverScheme:      serverScheme,
 		facilitatorScheme: facilitatorScheme,
 		x402Client:        x402Client,
@@ -423,6 +427,43 @@ func (p *batchedPipeline) channelIdForRequirements(req types.PaymentRequirements
 	return normalized
 }
 
+func settleChargedAmount(settle *x402.SettleResponse) *string {
+	if settle == nil || settle.Extra == nil {
+		return nil
+	}
+	v, ok := settle.Extra["chargedAmount"].(string)
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+func payloadDepositAmount(payload types.PaymentPayload) *string {
+	deposit, ok := payload.Payload["deposit"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	amount, ok := deposit["amount"].(string)
+	if !ok {
+		return nil
+	}
+	return &amount
+}
+
+func (p *batchedPipeline) applyClientSettle(t *testing.T, settle *x402.SettleResponse, payload types.PaymentPayload, req types.PaymentRequirements) {
+	t.Helper()
+	err := batchedclient.UpdateChannelFromSettle(p.clientStorage, batchedclient.ChannelSettleServer{
+		ChargedAmount: settleChargedAmount(settle),
+	}, batchedclient.ChannelSettleLocal{
+		ChannelId:     p.channelIdForRequirements(req),
+		RequestAmount: req.Amount,
+		DepositAmount: payloadDepositAmount(payload),
+	})
+	if err != nil {
+		t.Fatalf("updateChannelFromSettle: %v", err)
+	}
+}
+
 // resourceInfo returns a stub resource descriptor for createPaymentPayload.
 func batchedResourceInfo() *types.ResourceInfo {
 	return &types.ResourceInfo{
@@ -496,10 +537,7 @@ func TestBatchSettlementIntegration_DepositThenVoucher(t *testing.T) {
 	}
 	assertChannelHasBalance(ctx, t, pipe.facilitatorSigner, channelId)
 
-	// Mirror the TS flow: feed the settle response back so the client can update local state.
-	if err := pipe.clientScheme.ProcessSettleResponse(asMap(settle.Extra)); err != nil {
-		t.Fatalf("processSettleResponse: %v", err)
-	}
+	pipe.applyClientSettle(t, settle, firstPayload, *accepted)
 
 	// Second request — pure voucher (no chain tx).
 	secondPayload, err := pipe.x402Client.CreatePaymentPayload(ctx, accepts[0], resource, prr.Extensions)
@@ -529,17 +567,6 @@ func TestBatchSettlementIntegration_DepositThenVoucher(t *testing.T) {
 	if settle2.Transaction != "" {
 		t.Logf("voucher settle returned tx=%s (unexpected for off-chain voucher path; non-fatal)", settle2.Transaction)
 	}
-}
-
-// asMap converts a *Extra-like value (map or interface) to map[string]interface{}.
-func asMap(v interface{}) map[string]interface{} {
-	if v == nil {
-		return nil
-	}
-	if m, ok := v.(map[string]interface{}); ok {
-		return m
-	}
-	return nil
 }
 
 // ----------------------------------------------------------------------------
@@ -680,7 +707,7 @@ func TestBatchSettlementIntegration_MultiVoucherClaimSettle(t *testing.T) {
 		t.Fatalf("deposit settle: %v / %+v", err, depositSettle)
 	}
 	assertChannelHasBalance(ctx, t, pipe.facilitatorSigner, channelId)
-	_ = pipe.clientScheme.ProcessSettleResponse(asMap(depositSettle.Extra))
+	pipe.applyClientSettle(t, depositSettle, depositPayload, *depositMatch)
 
 	// Vouchers 2..4 (no chain tx — accumulates session.signedMaxClaimable).
 	for i := 0; i < 3; i++ {
@@ -697,7 +724,7 @@ func TestBatchSettlementIntegration_MultiVoucherClaimSettle(t *testing.T) {
 		if err != nil || !s.Success {
 			t.Fatalf("voucher %d settle: %v / %+v", i, err, s)
 		}
-		_ = pipe.clientScheme.ProcessSettleResponse(asMap(s.Extra))
+		pipe.applyClientSettle(t, s, voucher, *match)
 	}
 
 	// Now manually trigger a claim through the channel manager.
@@ -767,7 +794,7 @@ func makePaidRequest(ctx context.Context, t *testing.T, pipe *batchedPipeline, u
 	}
 	// PaymentRoundTripper now auto-dispatches the scheme's OnPaymentResponse hook
 	// after each paid retry, so local session state is folded back without a
-	// manual ProcessSettleResponse call (mirrors TS @x402/fetch behavior).
+	// manual UpdateChannelFromSettle call (mirrors TS @x402/fetch behavior).
 	return &settle
 }
 

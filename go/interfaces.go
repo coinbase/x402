@@ -132,7 +132,7 @@ type PaymentResponseResult struct {
 // PaymentResponseHandler is an optional interface that SchemeNetworkClient
 // implementations satisfy to reconcile local state after a paid response.
 // The transport (PaymentRoundTripper) invokes this hook automatically — user
-// code does not need to call ProcessSettleResponse manually.
+// code does not need to update local channel state manually.
 //
 // Mirrors the TS schemeHooks.onPaymentResponse field on SchemeClientHooks.
 type PaymentResponseHandler interface {

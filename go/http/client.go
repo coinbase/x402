@@ -181,9 +181,7 @@ type PaymentRoundTripper struct {
 // V2 flow includes scheme-aware reconciliation: after the payment retry the
 // chosen scheme's PaymentResponseHandler (if implemented) and any user-registered
 // OnPaymentResponse hooks fire automatically. On a corrective 402 + Recovered=true,
-// the transport rebuilds a fresh payload and retries one more time, mirroring the
-// TS @x402/fetch wrapper's recovery behavior. User code never has to call
-// ProcessSettleResponse manually.
+// the transport rebuilds a fresh payload and retries one more time.
 func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Get or initialize retry count for this request
 	requestID := fmt.Sprintf("%p", req)
