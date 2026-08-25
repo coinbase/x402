@@ -34,6 +34,7 @@ from .payment_flow import (
     resolve_payment_flow,
     resolve_payment_flow_phases,
 )
+from .pending_settlement_store import ERR_SETTLEMENT_PENDING
 from .schemas import (
     X402_VERSION,
     AbortResult,
@@ -289,6 +290,66 @@ class FacilitatorClientSync(Protocol):
     def get_supported(self) -> SupportedResponse:
         """Get supported payment kinds."""
         ...
+
+
+# ============================================================================
+# Single automatic settle retry on settlement_pending
+# ============================================================================
+#
+# When a settle attempt's receipt/confirmation wait fails, a mechanism (see
+# PendingSettlementStore in pending_settlement_store.py) returns success=False
+# with error_reason="settlement_pending" and a populated `transaction` hash.
+# The resource server resends the identical payload/requirements exactly once
+# so the mechanism's own PendingSettlementStore check reconciles against the
+# already-broadcast transaction instead of verifying and broadcasting a
+# second one. No mutation, backoff, or sleep here — the mechanism layer owns
+# any bounded waiting. Any other outcome (success, or a different failure
+# reason) short-circuits after the first call, and this is capped at exactly
+# one retry regardless of the second outcome, so it can never loop.
+#
+# This lives once, above all scheme/network dispatch, in the driver loops
+# that call `client.settle(...)` at the "call_facilitator" phase of the
+# settle generator (see `settle_payment` in server.py, both sync and async).
+
+
+def is_retryable_settlement_pending(result: SettleResponse) -> bool:
+    """Report whether a settle result is a retryable settlement_pending.
+
+    True when the result is a non-terminal settlement_pending failure that
+    carries a broadcast transaction hash to reconcile against.
+    """
+    return (
+        not result.success
+        and result.error_reason == ERR_SETTLEMENT_PENDING
+        and bool(result.transaction)
+    )
+
+
+def settle_with_pending_retry(
+    client: FacilitatorClientSync,
+    payload: PaymentPayload | PaymentPayloadV1,
+    requirements: PaymentRequirements | PaymentRequirementsV1,
+) -> SettleResponse:
+    """Call client.settle once, retrying exactly once on settlement_pending.
+
+    See the module-level comment above for the retry semantics.
+    """
+    result = client.settle(payload, requirements)
+    if not is_retryable_settlement_pending(result):
+        return result
+    return client.settle(payload, requirements)
+
+
+async def settle_with_pending_retry_async(
+    client: FacilitatorClient,
+    payload: PaymentPayload | PaymentPayloadV1,
+    requirements: PaymentRequirements | PaymentRequirementsV1,
+) -> SettleResponse:
+    """Async counterpart of settle_with_pending_retry."""
+    result = await client.settle(payload, requirements)
+    if not is_retryable_settlement_pending(result):
+        return result
+    return await client.settle(payload, requirements)
 
 
 # ============================================================================

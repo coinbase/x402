@@ -35,7 +35,12 @@ class SettlementCache:
             return False
 
     def delete(self, key: str) -> None:
-        """Remove *key* so a later settle can retry before TTL expiry."""
+        """Remove key's dedup entry, e.g. after a broadcast/send failure.
+
+        Lets a subsequent settle attempt for the same key (a genuine retry, not a
+        duplicate) proceed rather than being rejected as a duplicate forever until the TTL
+        elapses.
+        """
         with self._lock:
             self._entries.pop(key, None)
 

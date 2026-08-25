@@ -10,7 +10,11 @@ import type {
   Address,
 } from "@solana/kit";
 import { fetchAddressesForLookupTables, getBase64EncodedWireTransaction } from "@solana/kit";
-import { createRpcClient, decodeTransactionFromPayload } from "./utils";
+import {
+  createRpcClient,
+  decodeTransactionFromPayload,
+  TransactionOnchainFailureError,
+} from "./utils";
 
 /**
  * Client-side signer for creating and signing Solana transactions
@@ -171,7 +175,10 @@ export type FacilitatorSvmSigner = {
    * @param signature - Transaction signature to confirm
    * @param network - CAIP-2 network identifier
    * @returns Promise that resolves when transaction is confirmed
-   * @throws Error if confirmation fails or times out
+   * @throws {TransactionOnchainFailureError} If the transaction reached the chain and failed
+   *   there (terminal — safe to release dedup/pending-settlement locks)
+   * @throws Error for any other confirmation failure, e.g. a wait timeout (non-terminal —
+   *   the outcome is unknown, so callers must not treat it as a definite failure)
    */
   confirmTransaction(signature: string, network: string): Promise<void>;
 
@@ -331,7 +338,7 @@ export function createRpcCapabilitiesFromRpc(
             const errorStr = JSON.stringify(entry.err, (_, v) =>
               typeof v === "bigint" ? v.toString() : v,
             );
-            throw new Error(`Transaction failed onchain: ${errorStr}`);
+            throw new TransactionOnchainFailureError(`Transaction failed onchain: ${errorStr}`);
           }
           confirmed = true;
           return entry;

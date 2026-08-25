@@ -20,6 +20,7 @@ import (
 type ExactSvmScheme struct {
 	signer          svm.FacilitatorSvmSigner
 	settlementCache *svm.SettlementCache
+	pendingStore    x402.PendingSettlementStore
 }
 
 // NewExactSvmScheme creates a new ExactSvmScheme.
@@ -35,6 +36,16 @@ func NewExactSvmScheme(signer svm.FacilitatorSvmSigner, cache ...*svm.Settlement
 	return &ExactSvmScheme{
 		signer:          signer,
 		settlementCache: c,
+		pendingStore:    x402.NewInMemoryPendingSettlementStore(),
+	}
+}
+
+// SetPendingSettlementStore overrides the default in-memory PendingSettlementStore
+// used to reconcile a transaction that broadcast successfully but whose
+// confirmation wait timed out (settlement_pending). A nil store is a no-op.
+func (f *ExactSvmScheme) SetPendingSettlementStore(store x402.PendingSettlementStore) {
+	if store != nil {
+		f.pendingStore = store
 	}
 }
 
@@ -256,6 +267,45 @@ func (f *ExactSvmScheme) Settle(
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(requirements.Network)
 
+	// Parse and decode the transaction up front (no RPC calls) so we can key
+	// the PendingSettlementStore on the message hash before doing any
+	// verify/sign/send work.
+	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
+	if err != nil {
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, "", network, "", err.Error())
+	}
+	tx, err := svm.DecodeTransaction(solanaPayload.Transaction)
+	if err != nil {
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, "", network, "", err.Error())
+	}
+	// Keyed on message hash (immune to mutable fee-payer sig at slot 0); shared
+	// by the duplicate-settlement check and the PendingSettlementStore below.
+	txKey, err := svm.MessageHash(tx)
+	if err != nil {
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, "", network, "", err.Error())
+	}
+
+	// Pending-settlement fast path: a prior settle for this exact transaction
+	// broadcast successfully but its ConfirmTransaction wait failed. Reconcile
+	// against the already-broadcast signature instead of re-verifying and
+	// re-sending: Solana transactions embed a recent blockhash that expires
+	// (so a resend can fail even when the original is still perfectly valid),
+	// and if the original actually did land, a second verify's balance-based
+	// simulation could now spuriously fail (funds already moved).
+	if f.pendingStore != nil {
+		if sigStr, hit, _ := f.pendingStore.Get(ctx, txKey); hit {
+			// Remove before reconciling (rather than after) so a concurrent
+			// retry of the same payload misses here instead of also
+			// reconciling: it falls through to the settlementCache dedup check
+			// below, which independently rejects it as a duplicate.
+			_ = f.pendingStore.Delete(ctx, txKey)
+			// Best-effort payer for the response; a decode failure here doesn't
+			// block reconciliation (the payload already broadcast successfully).
+			payer, _ := svm.GetTokenPayerFromTransaction(tx)
+			return f.reconcilePendingSettlement(ctx, txKey, sigStr, payer, network, string(requirements.Network))
+		}
+	}
+
 	// First verify the payment
 	verifyResp, err := f.Verify(ctx, payload, requirements, fctx)
 	if err != nil {
@@ -267,28 +317,24 @@ func (f *ExactSvmScheme) Settle(
 		return nil, x402.NewSettleError(ErrVerificationFailed, "", network, "", err.Error())
 	}
 
-	// Parse payload
-	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
-	}
-
-	// Decode transaction before the cache check so we can key on the message hash.
-	tx, err := svm.DecodeTransaction(solanaPayload.Transaction)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
-	}
-
-	// Duplicate settlement check keyed on message hash (immune to mutable fee-payer sig at slot 0).
-	txKey, err := svm.MessageHash(tx)
-	if err != nil {
-		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err.Error())
-	}
+	// Duplicate settlement check keyed on message hash.
 	if f.settlementCache.IsDuplicate(txKey) {
 		return nil, x402.NewSettleError(ErrDuplicateSettlement, verifyResp.Payer, network, "", "duplicate transaction")
 	}
 
-	// Extract and validate feePayer from requirements matches transaction
+	// Everything below until a successful broadcast is a terminal, never-broadcast
+	// failure and must release the dedup lock just claimed above — otherwise a
+	// legitimate retry of the same payload is wrongly rejected as a duplicate for
+	// the rest of the SettlementTTL window. releaseLock is turned off once the
+	// transaction is actually broadcast, since a confirmation timeout after that
+	// point must keep the lock held (see ConfirmTransaction below).
+	releaseLock := true
+	defer func() {
+		if releaseLock {
+			f.settlementCache.Delete(txKey)
+		}
+	}()
+
 	feePayerStr, ok := requirements.Extra["feePayer"].(string)
 	if !ok {
 		return nil, x402.NewSettleError(ErrMissingFeePayer, verifyResp.Payer, network, "", "")
@@ -314,14 +360,21 @@ func (f *ExactSvmScheme) Settle(
 	// Send transaction to network
 	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
-		f.settlementCache.Delete(txKey)
 		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err.Error())
 	}
+	releaseLock = false
 
 	// Wait for confirmation
 	if err := f.signer.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
-		f.settlementCache.Delete(txKey)
-		return nil, x402.NewSettleError(ErrTransactionConfirmationFailed, verifyResp.Payer, network, signature.String(), err.Error())
+		// Broadcast succeeded but confirmation couldn't be observed in time.
+		// Non-terminal: leave the dedup lock in place (a fresh broadcast would
+		// risk double-sending) and record the signature so a retry reconciles
+		// via the pending-settlement fast path above instead of re-verifying
+		// and re-sending.
+		return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, txKey, signature.String(), verifyResp.Payer, network, ErrTransactionFailed, err)
+	}
+	if f.pendingStore != nil {
+		_ = f.pendingStore.Delete(ctx, txKey)
 	}
 
 	return &x402.SettleResponse{
@@ -329,6 +382,41 @@ func (f *ExactSvmScheme) Settle(
 		Transaction: signature.String(),
 		Network:     network,
 		Payer:       verifyResp.Payer,
+	}, nil
+}
+
+// reconcilePendingSettlement handles a PendingSettlementStore cache hit: a
+// prior Settle call for this transaction (keyed by txKey, the message hash)
+// already broadcast sigStr but couldn't confirm it before returning
+// settlement_pending. It re-awaits confirmation of that same signature rather
+// than re-verifying/re-signing/re-sending — see the fast-path comment in
+// Settle for why re-sending is unsafe here.
+func (f *ExactSvmScheme) reconcilePendingSettlement(
+	ctx context.Context,
+	txKey string,
+	sigStr string,
+	payer string,
+	network x402.Network,
+	networkStr string,
+) (*x402.SettleResponse, error) {
+	signature, err := solana.SignatureFromBase58(sigStr)
+	if err != nil {
+		// Malformed cache entry — drop it so future attempts fall through to
+		// the normal broadcast path instead of getting stuck.
+		_ = f.pendingStore.Delete(ctx, txKey)
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, payer, network, "", err.Error())
+	}
+
+	if err := f.signer.ConfirmTransaction(ctx, signature, networkStr); err != nil {
+		return nil, svm.RecordPendingOrTerminal(ctx, f.pendingStore, txKey, sigStr, payer, network, ErrTransactionFailed, err)
+	}
+	_ = f.pendingStore.Delete(ctx, txKey)
+
+	return &x402.SettleResponse{
+		Success:     true,
+		Transaction: sigStr,
+		Network:     network,
+		Payer:       payer,
 	}, nil
 }
 

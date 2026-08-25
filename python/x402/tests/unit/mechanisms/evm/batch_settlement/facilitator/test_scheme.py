@@ -97,6 +97,21 @@ class TestFacilitatorMetadata:
         )
         assert fac.get_signers(NETWORK) == ["0xabc"]
 
+    def test_uses_provided_pending_store_instead_of_a_fresh_default(self):
+        """A caller-supplied PendingSettlementStore must be the instance actually used,
+        not merely accepted and ignored in favor of the default. This is what lets a
+        multi-instance facilitator inject a shared, network-backed store."""
+        from x402.pending_settlement_store import InMemoryPendingSettlementStore
+
+        custom_store = InMemoryPendingSettlementStore()
+
+        fac = BatchSettlementEvmFacilitator(
+            _FakeFacilitatorSigner(),  # type: ignore[arg-type]
+            pending_store=custom_store,
+        )
+
+        assert fac._pending_store is custom_store
+
 
 class TestVerifyDispatchErrors:
     def _fac(self):

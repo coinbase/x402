@@ -187,6 +187,13 @@ class MockFacilitatorSigner:
         return b""
 
 
+class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        raise TimeoutError("rpc: timeout waiting for receipt")
+
+
 # ============================================================================
 # Type detection tests
 # ============================================================================
@@ -461,10 +468,6 @@ class TestSettlePermit2:
         assert result.success is False
 
     def test_settle_receipt_wait_failure_returns_settlement_pending(self):
-        class _ReceiptTimeoutSigner(MockFacilitatorSigner):
-            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-                raise TimeoutError("rpc: timeout waiting for receipt")
-
         signer = _ReceiptTimeoutSigner()
         facilitator = ExactEvmFacilitatorScheme(signer)
         payload = make_payment_payload()
@@ -497,6 +500,88 @@ class TestSettlePermit2:
         assert result.success is False
         assert result.error_reason == ERR_SETTLEMENT_PENDING
         assert result.transaction == "0x" + "ab" * 32
+
+    def test_cache_miss_broadcast_success_leaves_store_empty(self):
+        signer = MockFacilitatorSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is True
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(payload, make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        signature = payload.payload["signature"]
+        assert facilitator._pending_store.get(signature) == result.transaction
+
+    def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+        assert first.success is False
+        write_calls_after_first = len(signer.write_calls)
+
+        signer.wait_for_transaction_receipt = lambda tx_hash: TransactionReceipt(
+            status=1, block_number=1, tx_hash=tx_hash
+        )
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils.verify_permit2",
+            side_effect=AssertionError("verify must be skipped on a pending-store hit"),
+        ):
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is True
+        assert second.transaction == first.transaction
+        assert len(signer.write_calls) == write_calls_after_first  # no second broadcast
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is False
+        assert second.error_reason == ERR_SETTLEMENT_PENDING
+        assert second.transaction == first.transaction
+        assert len(signer.write_calls) == 1  # never re-broadcast
+
+    def test_verify_only_failure_is_terminal_and_never_touches_store(self):
+        facilitator = self._make_facilitator(allowance=0)
+
+        result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert facilitator._pending_store.entries == {}
 
     def test_settle_invalid_broadcast_hash_is_terminal(self):
         # settlement_pending needs the broadcast hash to be actionable, so a signer that

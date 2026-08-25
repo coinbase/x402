@@ -142,6 +142,7 @@ exclude = [
 "facilitator.py" = "x402/facilitator.py"
 "facilitator_base.py" = "x402/facilitator_base.py"
 "interfaces.py" = "x402/interfaces.py"
+"pending_settlement_store.py" = "x402/pending_settlement_store.py"
 "py.typed" = "x402/py.typed"
 "schemas" = "x402/schemas"
 "http" = "x402/http"

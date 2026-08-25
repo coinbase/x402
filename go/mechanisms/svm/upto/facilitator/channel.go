@@ -250,6 +250,12 @@ func verifyOpenChannelAccount(
 
 // broadcastOpen co-signs the fee-payer slot of the client's partially signed
 // open, broadcasts it, and waits for confirmation.
+//
+// On a ConfirmTransaction failure the broadcast signature is still returned
+// alongside the error (unlike a SignTransaction/SendTransaction failure,
+// which returns "") so the caller can distinguish "never landed, safe to
+// retry with a fresh broadcast" from "broadcast successfully but unconfirmed,
+// must reconcile against this signature instead of re-broadcasting."
 func broadcastOpen(
 	ctx context.Context,
 	signer svm.FacilitatorSvmSigner,
@@ -269,7 +275,7 @@ func broadcastOpen(
 		return "", err
 	}
 	if err := signer.ConfirmTransaction(ctx, signature, network); err != nil {
-		return "", err
+		return signature.String(), err
 	}
 	return signature.String(), nil
 }

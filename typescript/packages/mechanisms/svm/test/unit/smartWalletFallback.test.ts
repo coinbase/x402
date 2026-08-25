@@ -1171,3 +1171,86 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
     expect(mockSigner.simulateTransactionWithInnerInstructions).not.toHaveBeenCalled();
   });
 });
+
+describe("ExactSvmScheme pending-settlement reconciliation for smart wallet settlements", () => {
+  beforeEach(() => {
+    mockAtaMap = {};
+    vi.clearAllMocks();
+  });
+
+  it("cache-hit reconciliation runs verifyPostSettlement and rejects an unconfirmed transfer (TOCTOU defense)", async () => {
+    const { ExactSvmScheme } = await import("../../src/exact/facilitator/scheme");
+    const { InMemoryPendingSettlementStore } = await import("@x402/core/facilitator");
+    const { decodeTransactionFromPayload, transactionMessageHash } = await import(
+      "../../src/utils"
+    );
+
+    const feePayer = await generateKeyPairSigner();
+    const unknownProgram = await generateKeyPairSigner();
+    const payTo = await generateKeyPairSigner();
+    const payer = await generateKeyPairSigner();
+
+    // A non-static-transfer-shaped transaction (unknown program at index 2), so
+    // the reconciliation path's cheap `hasStaticTransferLayout` re-derivation
+    // correctly infers this was originally a Path-2 (smart wallet) settlement.
+    const txBase64 = await buildSmartWalletPayload(
+      feePayer.address,
+      unknownProgram.address,
+      payer.address,
+    );
+
+    const accepted = {
+      scheme: "exact",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: USDC_DEVNET_ADDRESS,
+      amount: "100000",
+      payTo: payTo.address,
+      maxTimeoutSeconds: 3600,
+      extra: { feePayer: feePayer.address },
+    };
+    const txKey = transactionMessageHash(decodeTransactionFromPayload({ transaction: txBase64 }));
+    const store = new InMemoryPendingSettlementStore();
+    await store.set(txKey, "CachedSmartWalletSig1111111111111111111111");
+
+    const mockSigner = {
+      getAddresses: vi.fn().mockReturnValue([feePayer.address]),
+      getSigner: vi.fn().mockReturnValue(feePayer),
+      signTransaction: vi.fn(),
+      sendTransaction: vi.fn(),
+      simulateTransaction: vi.fn(),
+      confirmTransaction: vi.fn().mockResolvedValue(undefined),
+      // No matching TransferChecked found post-confirmation, and no balance
+      // snapshot is available during reconciliation: verifyPostSettlement
+      // must report unverified rather than the reconciliation path skipping
+      // the check entirely.
+      getConfirmedTransactionInnerInstructions: vi.fn().mockResolvedValue(null),
+      getTokenAccountBalance: vi.fn().mockResolvedValue(null),
+      fetchAddressLookupTables: vi.fn().mockResolvedValue({}),
+      simulateTransactionWithInnerInstructions: vi.fn(),
+    };
+
+    const scheme = new ExactSvmScheme(mockSigner as never, undefined, {
+      pendingSettlementStore: store,
+      enableSmartWalletVerification: true,
+    });
+
+    const result = await scheme.settle(
+      {
+        x402Version: 2,
+        accepted,
+        payload: { transaction: txBase64 },
+      } as never,
+      accepted as never,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorReason).toBe("post_settlement_transfer_not_confirmed");
+    expect(mockSigner.confirmTransaction).toHaveBeenCalledWith(
+      "CachedSmartWalletSig1111111111111111111111",
+      SOLANA_DEVNET_CAIP2,
+    );
+    // Reconciliation must not re-verify/re-sign/re-send.
+    expect(mockSigner.signTransaction).not.toHaveBeenCalled();
+    expect(mockSigner.sendTransaction).not.toHaveBeenCalled();
+  });
+});

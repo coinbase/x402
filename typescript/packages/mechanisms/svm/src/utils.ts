@@ -20,7 +20,8 @@ import {
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
-import type { Network, PaymentRequirements } from "@x402/core/types";
+import type { PendingSettlementStore } from "@x402/core/facilitator";
+import type { Network, PaymentRequirements, SettleResponse } from "@x402/core/types";
 import {
   SVM_ADDRESS_REGEX,
   DEVNET_RPC_URL,
@@ -310,6 +311,84 @@ export function getStablecoinTokenProgram(currency: string, network: Network): s
   } catch {
     return TOKEN_PROGRAM_ADDRESS.toString();
   }
+}
+
+/**
+ * Thrown by a {@link PendingSettlementStore}-aware confirmation wait (e.g.
+ * `FacilitatorSvmSigner.confirmTransaction`) when the transaction reached the
+ * chain and failed there — a definite onchain rejection, not a
+ * confirmation-wait timeout whose outcome is still unknown. Callers must
+ * treat this as terminal: release any dedup/pending-settlement lock and
+ * report a failure instead of `settlement_pending`. Any other confirmation
+ * error (timeout or otherwise) is treated conservatively as non-terminal,
+ * since a fresh broadcast while the original might still land risks a
+ * double-spend.
+ */
+export class TransactionOnchainFailureError extends Error {
+  /**
+   * Create the error for a transaction that reached the chain and failed there.
+   *
+   * @param message - Description of the onchain failure, e.g. the decoded transaction error
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "TransactionOnchainFailureError";
+  }
+}
+
+/**
+ * Persists `signature` under `key` in `store` so a subsequent settle attempt
+ * for the same payload can reconcile against it instead of re-broadcasting,
+ * then returns the `settlement_pending` response carrying `error`'s message.
+ *
+ * If the store write itself fails, a later retry has no record to reconcile
+ * against — returning `settlement_pending` regardless would let it blindly
+ * re-verify/re-broadcast and risk a double-send. In that case this instead
+ * returns a terminal failure (`terminalReason`), preserving `signature` for
+ * manual reconciliation.
+ *
+ * @param store - The pending-settlement store to update
+ * @param key - Deterministic key for this payload (e.g. a signature or channel id)
+ * @param signature - The broadcast signature to persist and report
+ * @param payer - The payer address
+ * @param network - Network the transaction was broadcast to
+ * @param pendingReason - Error reason to report when the store write succeeds
+ * @param terminalReason - Error reason to report when the store write fails
+ * @param error - The confirmation-wait error that triggered this call
+ * @returns The settlement_pending or terminal SettleResponse
+ */
+export async function recordPendingOrTerminal(
+  store: PendingSettlementStore,
+  key: string,
+  signature: string,
+  payer: string,
+  network: Network,
+  pendingReason: string,
+  terminalReason: string,
+  error: unknown,
+): Promise<SettleResponse> {
+  try {
+    await store.set(key, signature);
+  } catch (storeError) {
+    return {
+      success: false,
+      errorReason: terminalReason,
+      errorMessage: `settlement_pending, but failed to persist for retry: ${
+        storeError instanceof Error ? storeError.message : String(storeError)
+      }`,
+      transaction: signature,
+      network,
+      payer,
+    };
+  }
+  return {
+    success: false,
+    errorReason: pendingReason,
+    errorMessage: error instanceof Error ? error.message : String(error),
+    transaction: signature,
+    network,
+    payer,
+  };
 }
 
 // Re-export from core for backward compatibility
