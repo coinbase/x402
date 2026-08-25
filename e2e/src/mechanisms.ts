@@ -16,6 +16,7 @@
 import { readFileSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import type { PaymentFlowName } from '@x402/core/types';
 
 /** Keep local types here to avoid circular imports with types.ts / networks.ts. */
 export type SdkId = 'typescript' | 'python' | 'go';
@@ -25,6 +26,8 @@ export type CatalogNetworkId = string;
 
 type PaymentScheme = 'exact' | 'upto' | 'batch-settlement';
 type AssetTransferMethod = 'eip3009' | 'permit2' | 'sequence' | 'ticketSequence';
+/** Payment ordering on the accept; mirrors core {@link PaymentFlowName}. */
+export type PaymentFlow = PaymentFlowName;
 export type NetworkMode = 'testnet' | 'mainnet';
 
 /** Per-key env declaration in mechanisms_*.json. */
@@ -110,6 +113,12 @@ export type RouteDefinition = {
   extensions?: string[];
   /** Settle less than the maximum (upto scheme). */
   settlementOverride?: { amount: string };
+  /**
+   * Payment flow for this route. Omitted or `"authorization"` is the default
+   * (verify → resource → settle). Non-authorization values are merged into
+   * route `extra.paymentFlow`, matching core wire rules.
+   */
+  paymentFlow?: PaymentFlow;
 };
 
 /** Fixed success body for every paid route (`timestamp` is added by the server). */
@@ -157,6 +166,7 @@ type EndpointLike = {
   protocolFamily?: CatalogNetworkId;
   scheme?: PaymentScheme;
   assetTransferMethod?: AssetTransferMethod;
+  paymentFlow?: PaymentFlow;
   schemeOptions?: Record<string, boolean>;
   extensions?: string[];
   health?: boolean;
@@ -319,7 +329,9 @@ function routeDescription(route: SdkRoute): string {
     .map(id => GAS_SPONSORING_LABELS[id])
     .filter(Boolean);
   const suffix = sponsoring.length > 0 ? ` with ${sponsoring.join(' and ')}` : '';
-  return `Protected ${scheme}${transfer}endpoint on ${label}${suffix}`;
+  const flow =
+    route.paymentFlow && route.paymentFlow !== 'authorization' ? ` ${route.paymentFlow}` : '';
+  return `Protected ${scheme}${transfer}endpoint on ${label}${flow}${suffix}`;
 }
 
 /** MCP tool name for a catalog path: `/exact/evm/eip3009` → `exact_evm_eip3009`. */
@@ -340,6 +352,7 @@ export function sdkRouteToEndpoint(route: SdkRoute, transport: RouteTransport = 
       protocolFamily: route.network,
       scheme: route.scheme,
       assetTransferMethod: route.assetTransferMethod,
+      paymentFlow: route.paymentFlow,
       schemeOptions: route.schemeOptions,
       extensions: route.extensions,
     };
@@ -353,6 +366,7 @@ export function sdkRouteToEndpoint(route: SdkRoute, transport: RouteTransport = 
     protocolFamily: route.network,
     scheme: route.scheme,
     assetTransferMethod: route.assetTransferMethod,
+    paymentFlow: route.paymentFlow,
     schemeOptions: route.schemeOptions,
     extensions: route.extensions,
   };
@@ -788,6 +802,21 @@ function serverAddressEnvKey(network: CatalogNetworkId): string {
   return `SERVER_${network.toUpperCase()}_ADDRESS`;
 }
 
+/** Merge price-derived `extra` with catalog `paymentFlow` (authorization omitted on wire). */
+function mergeRouteExtra(
+  priceExtra: Record<string, string> | undefined,
+  paymentFlow?: PaymentFlow,
+): Record<string, string> | undefined {
+  const wireFlow = paymentFlow && paymentFlow !== 'authorization' ? paymentFlow : undefined;
+  if (!wireFlow && !priceExtra) {
+    return undefined;
+  }
+  return {
+    ...priceExtra,
+    ...(wireFlow ? { paymentFlow: wireFlow } : {}),
+  };
+}
+
 function resolvePrice(
   route: SdkRoute,
   caip2: string,
@@ -859,7 +888,8 @@ export function resolvePaymentRoutes(
     if (!payTo) continue;
 
     const caip2 = env(derivedNetworkKey(route.network)) ?? def.networks.testnet.caip2;
-    const { price, extra } = resolvePrice(route, caip2, env);
+    const { price, extra: priceExtra } = resolvePrice(route, caip2, env);
+    const extra = mergeRouteExtra(priceExtra, route.paymentFlow);
 
     resolved.push({
       path: route.path,

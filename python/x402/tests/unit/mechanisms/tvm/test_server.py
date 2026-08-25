@@ -23,6 +23,18 @@ from .builders import EMPTY_FORWARD_PAYLOAD_B64, make_tvm_requirements
 ZERO_BIT_PAYLOAD_B64 = EMPTY_FORWARD_PAYLOAD_B64
 
 
+class TestPaymentFlows:
+    """Test payment_flows configuration."""
+
+    def test_declares_authorization_and_upfront_with_authorization_as_default(self):
+        server = ExactTvmServerScheme()
+
+        assert server.default_asset_transfer_method == "default"
+        assert server.payment_flows == {
+            "default": {"supported": ("authorization", "upfront"), "default": "authorization"},
+        }
+
+
 def _make_requirements(**overrides):
     return make_tvm_requirements(
         asset=overrides.pop("asset", USDT_TESTNET_MINTER),

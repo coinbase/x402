@@ -26,7 +26,7 @@ class ExactTvmScheme:
     scheme = SCHEME_EXACT
     default_asset_transfer_method = "default"
     payment_flows = {
-        "default": {"supported": ("authorization",), "default": "authorization"},
+        "default": {"supported": ("authorization", "upfront"), "default": "authorization"},
     }
 
     def __init__(self) -> None:

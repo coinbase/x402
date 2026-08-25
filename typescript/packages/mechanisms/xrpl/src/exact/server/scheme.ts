@@ -26,8 +26,8 @@ export class ExactXrplScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
   readonly defaultAssetTransferMethod: XrplAssetTransferMethod = "sequence";
   readonly paymentFlows = {
-    sequence: { supported: ["authorization"], default: "authorization" },
-    ticketSequence: { supported: ["authorization"], default: "authorization" },
+    sequence: { supported: ["authorization", "upfront"], default: "authorization" },
+    ticketSequence: { supported: ["authorization", "upfront"], default: "authorization" },
   } as const satisfies Record<XrplAssetTransferMethod, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 

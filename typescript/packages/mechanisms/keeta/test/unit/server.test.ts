@@ -16,6 +16,15 @@ describe("ExactKeetaServer", () => {
     vi.clearAllMocks();
   });
 
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      expect(server.defaultAssetTransferMethod).toBe("default");
+      expect(server.paymentFlows).toEqual({
+        default: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   it("has scheme set to exact", () => {
     expect(server.scheme).toBe("exact");
   });

@@ -18,8 +18,8 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
   readonly defaultAssetTransferMethod: AssetTransferMethod = "eip3009";
   readonly paymentFlows = {
-    eip3009: { supported: ["authorization"], default: "authorization" },
-    permit2: { supported: ["authorization"], default: "authorization" },
+    eip3009: { supported: ["authorization", "upfront"], default: "authorization" },
+    permit2: { supported: ["authorization", "upfront"], default: "authorization" },
   } as const satisfies Record<AssetTransferMethod, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 

@@ -357,6 +357,17 @@ describe("XRPL exact utilities", () => {
 });
 
 describe("ExactXrplScheme server", () => {
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      const server = new ExactXrplServerScheme();
+      expect(server.defaultAssetTransferMethod).toBe("sequence");
+      expect(server.paymentFlows).toEqual({
+        sequence: { supported: ["authorization", "upfront"], default: "authorization" },
+        ticketSequence: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   it("passes through explicit AssetAmount pricing", async () => {
     const server = new ExactXrplServerScheme();
 

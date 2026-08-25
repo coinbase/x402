@@ -18,6 +18,18 @@ from x402.schemas import AssetAmount, PaymentRequirements, SupportedKind
 from x402.schemas.helpers import convert_to_token_amount
 
 
+class TestPaymentFlows:
+    """Test payment_flows configuration."""
+
+    def test_declares_authorization_and_upfront_with_authorization_as_default(self):
+        server = ExactSvmServerScheme()
+
+        assert server.default_asset_transfer_method == "default"
+        assert server.payment_flows == {
+            "default": {"supported": ("authorization", "upfront"), "default": "authorization"},
+        }
+
+
 class TestParsePrice:
     """Test parsePrice method."""
 

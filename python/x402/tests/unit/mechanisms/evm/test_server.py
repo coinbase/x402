@@ -12,6 +12,19 @@ from x402.schemas import AssetAmount, PaymentRequirements, SupportedKind
 from x402.schemas.helpers import convert_to_token_amount
 
 
+class TestPaymentFlows:
+    """Test payment_flows configuration."""
+
+    def test_declares_authorization_and_upfront_with_authorization_as_default(self):
+        server = ExactEvmServerScheme()
+
+        assert server.default_asset_transfer_method == "eip3009"
+        assert server.payment_flows == {
+            "eip3009": {"supported": ("authorization", "upfront"), "default": "authorization"},
+            "permit2": {"supported": ("authorization", "upfront"), "default": "authorization"},
+        }
+
+
 class TestParsePrice:
     """Test parsePrice method."""
 

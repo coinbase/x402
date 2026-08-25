@@ -19,7 +19,7 @@ export class ExactAptosScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
   readonly defaultAssetTransferMethod = "default";
   readonly paymentFlows = {
-    default: { supported: ["authorization"], default: "authorization" },
+    default: { supported: ["authorization", "upfront"], default: "authorization" },
   } as const satisfies Record<string, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 

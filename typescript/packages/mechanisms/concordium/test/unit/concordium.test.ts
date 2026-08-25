@@ -61,6 +61,16 @@ describe("@x402/concordium", () => {
       expect(server.scheme).toBe("exact");
     });
 
+    describe("paymentFlows", () => {
+      it("declares authorization and upfront with authorization as the default", () => {
+        const server = new ExactConcordiumServer();
+        expect(server.defaultAssetTransferMethod).toBe("default");
+        expect(server.paymentFlows).toEqual({
+          default: { supported: ["authorization", "upfront"], default: "authorization" },
+        });
+      });
+    });
+
     it("should inject feePayer from supported kind into payment requirements", async () => {
       const feePayer = "4FmiTW2L4RvCsSVTjFAavYvrgnPLGNj43eiwPYmbhNqtAcMbWW";
       const server = new ExactConcordiumServer();

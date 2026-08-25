@@ -35,13 +35,13 @@ func (s *ExactEvmScheme) DefaultAssetTransferMethod() string {
 
 // PaymentFlows returns ATM-keyed payment flow support for exact EVM.
 func (s *ExactEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
-	auth := x402.PaymentFlowConfig{
-		Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+	authAndUpfront := x402.PaymentFlowConfig{
+		Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization, x402.PaymentFlowUpfront},
 		Default:   x402.PaymentFlowAuthorization,
 	}
 	return map[string]x402.PaymentFlowConfig{
-		string(evm.AssetTransferMethodEIP3009): auth,
-		string(evm.AssetTransferMethodPermit2): auth,
+		string(evm.AssetTransferMethodEIP3009): authAndUpfront,
+		string(evm.AssetTransferMethodPermit2): authAndUpfront,
 	}
 }
 

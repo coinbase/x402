@@ -25,6 +25,15 @@ describe("ExactTvmScheme (Server)", () => {
     });
   });
 
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      expect(server.defaultAssetTransferMethod).toBe("default");
+      expect(server.paymentFlows).toEqual({
+        default: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   describe("parsePrice", () => {
     it("should parse USD string to USDT nano", async () => {
       const result = await server.parsePrice("$0.01", TVM_MAINNET);

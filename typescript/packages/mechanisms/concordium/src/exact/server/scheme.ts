@@ -23,7 +23,7 @@ export class ExactConcordiumScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
   readonly defaultAssetTransferMethod = "default";
   readonly paymentFlows = {
-    default: { supported: ["authorization"], default: "authorization" },
+    default: { supported: ["authorization", "upfront"], default: "authorization" },
   } as const satisfies Record<string, PaymentFlowConfig>;
 
   /** Custom money parser chain — tried in registration order */

@@ -97,6 +97,7 @@ type catalogRouteDefinition struct {
 	Price               catalogPrice      `json:"price"`
 	Extensions          []string          `json:"extensions"`
 	SettlementOverride  *SettlementAmount `json:"settlementOverride"`
+	PaymentFlow         string            `json:"paymentFlow"`
 }
 
 // SettlementAmount is the partial amount an upto route settles.
@@ -122,6 +123,7 @@ type CatalogRoute struct {
 	Price               catalogPrice
 	Extensions          []string
 	SettlementOverride  *SettlementAmount
+	PaymentFlow         string
 }
 
 // ResolvedRoute is a catalog route with env-dependent requirements resolved.
@@ -362,6 +364,7 @@ func CatalogRoutes() []CatalogRoute {
 			Price:               definition.Price,
 			Extensions:          definition.Extensions,
 			SettlementOverride:  definition.SettlementOverride,
+			PaymentFlow:         definition.PaymentFlow,
 		})
 	}
 	return routes
@@ -493,6 +496,26 @@ func resolvePrice(route CatalogRoute, network catalogNetwork, caip2 string) (int
 	return price, nil, nil
 }
 
+// mergeRouteExtra merges price-derived extra with catalog paymentFlow.
+// Authorization is omitted on the wire, matching core applyPaymentFlowWireExtra.
+func mergeRouteExtra(priceExtra map[string]interface{}, paymentFlow string) map[string]interface{} {
+	var wireFlow string
+	if paymentFlow != "" && paymentFlow != "authorization" {
+		wireFlow = paymentFlow
+	}
+	if wireFlow == "" && len(priceExtra) == 0 {
+		return nil
+	}
+	extra := map[string]interface{}{}
+	for key, value := range priceExtra {
+		extra[key] = value
+	}
+	if wireFlow != "" {
+		extra["paymentFlow"] = wireFlow
+	}
+	return extra
+}
+
 // ResolvedRoutes resolves every catalog route against this process's env.
 // Routes whose network has no configured payee address are dropped, so the
 // server only advertises what it can settle.
@@ -509,11 +532,12 @@ func ResolvedRoutes() []ResolvedRoute {
 
 		caip2 := NetworkCaip2(route.Network)
 
-		price, extra, err := resolvePrice(route, network, caip2)
+		price, priceExtra, err := resolvePrice(route, network, caip2)
 		if err != nil {
 			fmt.Printf("❌ %v\n", err)
 			os.Exit(1)
 		}
+		extra := mergeRouteExtra(priceExtra, route.PaymentFlow)
 
 		resolved = append(resolved, ResolvedRoute{
 			Path:                route.Path,
@@ -561,7 +585,13 @@ func RouteDescription(route ResolvedRoute) string {
 	if len(sponsoring) > 0 {
 		suffix = " with " + strings.Join(sponsoring, " and ")
 	}
-	return fmt.Sprintf("Protected %s%sendpoint on %s%s", scheme, transfer, label, suffix)
+	flow := ""
+	if route.Extra != nil {
+		if paymentFlow, ok := route.Extra["paymentFlow"].(string); ok && paymentFlow != "" && paymentFlow != "authorization" {
+			flow = " " + paymentFlow
+		}
+	}
+	return fmt.Sprintf("Protected %s%sendpoint on %s%s%s", scheme, transfer, label, flow, suffix)
 }
 
 // McpToolName converts a catalog path to an MCP tool name: "/exact/evm/eip3009" → "exact_evm_eip3009".

@@ -60,7 +60,7 @@ func (s *ExactSvmScheme) DynamicExtraFields() []string {
 func (s *ExactSvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
 	return map[string]x402.PaymentFlowConfig{
 		x402.SDKDefaultAssetTransferMethod: {
-			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization, x402.PaymentFlowUpfront},
 			Default:   x402.PaymentFlowAuthorization,
 		},
 	}

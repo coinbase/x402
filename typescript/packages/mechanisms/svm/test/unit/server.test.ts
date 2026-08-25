@@ -14,6 +14,15 @@ import {
 describe("ExactSvmScheme", () => {
   const server = new ExactSvmScheme();
 
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      expect(server.defaultAssetTransferMethod).toBe("default");
+      expect(server.paymentFlows).toEqual({
+        default: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   describe("parsePrice", () => {
     describe("Solana Mainnet network", () => {
       const network = SOLANA_MAINNET_CAIP2;

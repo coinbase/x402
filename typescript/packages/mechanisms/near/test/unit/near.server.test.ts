@@ -4,6 +4,16 @@ import { getDefaultAsset, NEAR_MAINNET_CAIP2, NEAR_TESTNET_CAIP2 } from "../../s
 import { ExactNearScheme } from "../../src/exact/server/scheme";
 
 describe("near server scheme", () => {
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      const scheme = new ExactNearScheme();
+      expect(scheme.defaultAssetTransferMethod).toBe("default");
+      expect(scheme.paymentFlows).toEqual({
+        default: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   it("parses dollar money into atomic units with the official Circle testnet USDC asset", async () => {
     const scheme = new ExactNearScheme();
     const parsed = await scheme.parsePrice("$1.00", NEAR_TESTNET_CAIP2);

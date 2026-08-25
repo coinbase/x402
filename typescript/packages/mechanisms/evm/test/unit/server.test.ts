@@ -204,6 +204,16 @@ describe("ExactEvmScheme (Server)", () => {
     });
   });
 
+  describe("paymentFlows", () => {
+    it("declares authorization and upfront with authorization as the default", () => {
+      expect(server.defaultAssetTransferMethod).toBe("eip3009");
+      expect(server.paymentFlows).toEqual({
+        eip3009: { supported: ["authorization", "upfront"], default: "authorization" },
+        permit2: { supported: ["authorization", "upfront"], default: "authorization" },
+      });
+    });
+  });
+
   describe("enhancePaymentRequirements", () => {
     it("should return payment requirements unchanged", async () => {
       const requirements = {

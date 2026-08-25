@@ -128,6 +128,8 @@ Launches an interactive CLI where you can select:
 - **Extensions** - Additional features like Bazaar discovery
 - **Protocols** - EVM, SVM, AVM, Aptos, Concordium, Hedera, NEAR, Stellar, and/or TVM networks
 - **Payment schemes** (when multiple apply) - `exact`, `upto`, or `batch-settlement`
+- **Payment flows** (when multiple apply) - `authorization`, `upfront`, or `escrow`
+- **Asset transfer methods** (when multiple apply) - `eip3009`, `permit2`, `sequence`, or `ticketSequence`
 
 Every valid combination of your selections will be tested. For example, selecting 2 facilitators, 3 servers, and 2 clients will generate and run all compatible test scenarios.
 
@@ -253,6 +255,14 @@ TVM_PROVIDER=tonapi \
 TVM_TONAPI_API_KEY=<tonapi-key> \
 pnpm test --testnet --families=tvm --facilitators=python --clients=python/http/httpx,python/http/requests --servers=python/http/fastapi,python/http/flask --min -v
 ```
+
+Catalog dimensions can also be filtered from the CLI (`pnpm test --help` for the full list):
+
+```bash
+pnpm test --testnet --min --families=evm --sdk=ts --paymentflow=upfront --assetTransferMethod=eip3009
+```
+
+`--sdk` keeps scenarios whose client, server, and facilitator are that language (`ts` / `typescript`, `py` / `python`, `go`). `--paymentflow` and `--assetTransferMethod` match the catalog route fields (omitted `paymentFlow` is `authorization`).
 
 Optional environment variables (batch-settlement scheme):
 
