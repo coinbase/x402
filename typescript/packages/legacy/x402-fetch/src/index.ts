@@ -70,7 +70,16 @@ export function wrapFetchWithPayment(
       x402Version: number;
       accepts: unknown[];
     };
-    const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
+    // Per the x402 protocol a 402 may advertise multiple payment rails, including ones
+    // this client does not support (other schemes, facilitator-specific networks, CAIP-2
+    // ids). Skip entries we cannot interpret instead of failing the whole purchase.
+    const parsedPaymentRequirements = accepts.flatMap(x => {
+      const parsed = PaymentRequirementsSchema.safeParse(x);
+      return parsed.success ? [parsed.data] : [];
+    });
+    if (parsedPaymentRequirements.length === 0) {
+      throw new Error("No supported payment requirements in 402 response");
+    }
 
     const network = isMultiNetworkSigner(walletClient)
       ? undefined
