@@ -1,0 +1,7 @@
+{
+    "name": "Nibgate",
+    "category": "Services/Endpoints",
+    "logoUrl": "/logos/nibgate.png",
+    "description": "The open protocol for paid content. Creators publish paywalled posts on their own sites or as standalone links; AI agents and humans discover and unlock them with x402 micropayments settled via Circle Gateway nanopayments on Arc. Machine-readable discovery at /.well-known/x402 and an MCP server at api.nibgate.xyz/mcp.",
+    "websiteUrl": "https://nibgate.xyz"
+}
