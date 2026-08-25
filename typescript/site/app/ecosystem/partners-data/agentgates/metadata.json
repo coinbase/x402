@@ -1,0 +1,7 @@
+{
+  "name": "Agentgates",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agentgates.png",
+  "description": "Confidential compute and inference sold to agents over x402: dedicated TEE VMs (Intel TDX) by the hour and open models per request, priced live per network. No signup and no API key — the paying wallet is the account.",
+  "websiteUrl": "https://agentgates.ai"
+}
