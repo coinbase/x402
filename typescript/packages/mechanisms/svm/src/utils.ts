@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { ErrInvalidPayloadTransaction } from "./exact/facilitator/errors";
 import {
   isAddress,
   getBase58Encoder,
@@ -79,7 +80,7 @@ export function decodeTransactionFromPayload(svmPayload: ExactSvmPayloadV1): Tra
     return transactionDecoder.decode(transactionBytes);
   } catch (error) {
     console.error("Error decoding transaction:", error);
-    throw new Error("invalid_exact_svm_payload_transaction");
+    throw new Error(ErrInvalidPayloadTransaction);
   }
 }
 

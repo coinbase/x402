@@ -30,12 +30,9 @@ const (
 	// MaxMemoBytes is the maximum byte length for seller-defined memo data (extra.memo)
 	MaxMemoBytes = 256
 
-	// LighthouseProgramAddress is the Phantom/Solflare Lighthouse program address
-	// Phantom and Solflare wallets inject Lighthouse instructions for user protection on mainnet transactions.
-	// - Phantom adds 1 Lighthouse instruction (4th instruction)
-	// - Solflare adds 2 Lighthouse instructions (4th and 5th instructions)
-	// We allow these as optional instructions to support these wallets.
-	// See: https://github.com/x402-foundation/x402/issues/828
+	// LighthouseProgramAddress is the wallet-protection program some Solana wallets
+	// inject into signed transactions. Path 1 accepts up to 3 Lighthouse instructions
+	// plus an optional memo, in any order after ComputeLimit + ComputePrice + TransferChecked.
 	LighthouseProgramAddress = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
 
 	// MemoProgramAddress is the SPL Memo program address
@@ -44,10 +41,21 @@ const (
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
 
-	// MaxConfirmAttempts is the maximum number of confirmation attempts
-	MaxConfirmAttempts = 30
+	// ConfirmInitialRetryDelay is the delay for the first ConfirmInitialAttempts
+	// confirmation polls. Solana slots are ~400ms; a 250ms poll catches a
+	// confirmation in the same slot window instead of waiting a full second.
+	ConfirmInitialRetryDelay = 250 * time.Millisecond
 
-	// ConfirmRetryDelay is the base delay between confirmation attempts
+	// ConfirmInitialAttempts is how many confirmation polls use ConfirmInitialRetryDelay
+	// before falling back to ConfirmRetryDelay. 8×250ms + 28×1s preserves the
+	// ~30s budget of the previous 30×1s loop.
+	ConfirmInitialAttempts = 8
+
+	// MaxConfirmAttempts is the maximum number of confirmation attempts
+	MaxConfirmAttempts = 36
+
+	// ConfirmRetryDelay is the delay between confirmation attempts after the
+	// initial fast-poll window.
 	ConfirmRetryDelay = 1 * time.Second
 
 	// SettlementTTL is how long a transaction is held in the duplicate settlement cache.

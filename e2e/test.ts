@@ -172,6 +172,11 @@ async function revokePermit2Approval(evm: NetworkConfig, tokenAddress?: string):
   });
 }
 
+/** True when a client declares Swig setup env (svm-smart-wallet overlay). */
+function clientRequiresSwigSetup(client: { config: { environment?: { required?: string[] } } }): boolean {
+  return (client.config.environment?.required ?? []).includes('SWIG_ACCOUNT_ADDRESS');
+}
+
 /**
  * Prepare Swig smart-wallet state for svm-smart-wallet e2e client tests.
  * Called before each endpoint; creates/funds via scripts/swig-setup.ts when balance is low.
@@ -983,9 +988,7 @@ async function runTest() {
     }
   }
 
-  const hasSwigSmartWalletScenarios = filteredScenarios.some(
-    s => s.client.name === 'typescript/http/svm-smart-wallet',
-  );
+  const hasSwigSmartWalletScenarios = filteredScenarios.some(s => clientRequiresSwigSetup(s.client));
 
   if (hasSwigSmartWalletScenarios) {
     log('🔧 Swig smart-wallet scenarios detected — swig-setup runs before each endpoint when balance is low');
@@ -1472,9 +1475,8 @@ async function runTest() {
       mockFacilitatorUrl,
     };
 
-    const started = await startServer(serverProxy, serverConfig, { transport: server.config.transport });
-    if (!started) {
-      cLog.log(`❌ Failed to start server ${serverName}`);
+    const serverStartFailures = (error: string) => {
+      cLog.log(`❌ Failed to start server ${serverName}${error ? `: ${error}` : ''}`);
       return scenarios.map(scenario => ({
         testNumber: nextTestNumber(),
         client: scenario.client.name,
@@ -1485,6 +1487,16 @@ async function runTest() {
         passed: false,
         error: 'Server failed to start',
       }));
+    };
+
+    let started = false;
+    try {
+      started = await startServer(serverProxy, serverConfig, { transport: server.config.transport });
+    } catch (error) {
+      return serverStartFailures(error instanceof Error ? error.message : String(error));
+    }
+    if (!started) {
+      return serverStartFailures('');
     }
     cLog.log(`  ✅ Server ${serverName} ready`);
 
@@ -1512,8 +1524,11 @@ async function runTest() {
             error,
           });
 
-          if (scenario.client.name === 'typescript/http/svm-smart-wallet') {
-            await setupSwigWallet(networks.svm.rpcUrl);
+          if (clientRequiresSwigSetup(scenario.client)) {
+            const swigReady = await setupSwigWallet(networks.svm.rpcUrl);
+            if (!swigReady) {
+              return setupFailure('Swig wallet setup failed');
+            }
           }
 
           if (scenario.endpoint.schemeOptions?.permit2Direct === true) {

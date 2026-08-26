@@ -271,5 +271,59 @@ describe("SVM Signer Converters", () => {
         facilitator.confirmTransaction("okSignature", SOLANA_DEVNET_CAIP2),
       ).resolves.toBeUndefined();
     });
+
+    it("should simulate with sigVerify disabled", async () => {
+      const mockSigner = {
+        address: "FacilitatorAddress1111111111111111111" as never,
+        signTransactions: vi.fn() as never,
+        signMessages: vi.fn().mockResolvedValue([{}]) as never,
+      };
+
+      const simulateTransaction = vi.fn().mockReturnValue({
+        send: vi.fn().mockResolvedValue({ value: { err: null } }),
+      });
+      const mockRpc = {
+        getBalance: vi.fn(),
+        getSlot: vi.fn(),
+        simulateTransaction,
+      } as never;
+
+      const facilitator = toFacilitatorSvmSigner(mockSigner as never, mockRpc);
+      await facilitator.simulateTransaction("tx", SOLANA_DEVNET_CAIP2);
+
+      expect(simulateTransaction).toHaveBeenCalledWith(
+        "tx",
+        expect.objectContaining({ sigVerify: false }),
+      );
+    });
+
+    it("should send with skipPreflight enabled", async () => {
+      const mockSigner = {
+        address: "FacilitatorAddress1111111111111111111" as never,
+        signTransactions: vi.fn() as never,
+        signMessages: vi.fn().mockResolvedValue([{}]) as never,
+      };
+
+      const sendTransaction = vi.fn().mockReturnValue({
+        send: vi.fn().mockResolvedValue("sig"),
+      });
+      const mockRpc = {
+        getBalance: vi.fn(),
+        getSlot: vi.fn(),
+        sendTransaction,
+      } as never;
+
+      const facilitator = toFacilitatorSvmSigner(mockSigner as never, mockRpc);
+      await facilitator.sendTransaction("tx", SOLANA_DEVNET_CAIP2);
+
+      expect(sendTransaction).toHaveBeenCalledWith(
+        "tx",
+        expect.objectContaining({
+          skipPreflight: true,
+          preflightCommitment: "confirmed",
+          encoding: "base64",
+        }),
+      );
+    });
   });
 });

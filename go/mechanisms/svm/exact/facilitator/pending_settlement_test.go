@@ -28,6 +28,8 @@ type mockExactSvmSigner struct {
 	sendErr       error
 	confirmErr    error
 	sendCalls     int
+	signCalls     int
+	simulateCalls int
 	confirmCalls  int
 	confirmedSigs []solana.Signature
 }
@@ -36,9 +38,11 @@ func (m *mockExactSvmSigner) GetAddresses(_ context.Context, _ string) []solana.
 	return m.addresses
 }
 func (m *mockExactSvmSigner) SignTransaction(_ context.Context, _ *solana.Transaction, _ solana.PublicKey, _ string) error {
+	m.signCalls++
 	return nil
 }
 func (m *mockExactSvmSigner) SimulateTransaction(_ context.Context, _ *solana.Transaction, _ string) error {
+	m.simulateCalls++
 	return nil
 }
 func (m *mockExactSvmSigner) SendTransaction(_ context.Context, _ *solana.Transaction, _ string) (solana.Signature, error) {
@@ -56,15 +60,60 @@ func (m *mockExactSvmSigner) ConfirmTransaction(_ context.Context, sig solana.Si
 
 // buildValidExactSvmFixture constructs a syntactically valid exact-SVM
 // payment payload/requirements pair: ComputeLimit + ComputePrice +
-// TransferChecked, with a distinct owner (payer) and facilitator fee-payer
-// so the fee-payer-transferring-funds guard doesn't trip. MarshalBinary pads
-// missing signatures with zeros (see solana-go's Transaction.MarshalBinary),
-// so no real signing is required for Verify's structural checks to pass.
+// TransferChecked. The token owner signs; the fee-payer slot is left unsigned
+// for the facilitator to fill at settle.
 func buildValidExactSvmFixture(t *testing.T) (types.PaymentPayload, types.PaymentRequirements, solana.PublicKey) {
+	t.Helper()
+	f := buildExactFixture(t)
+	return f.payload, f.requirements, f.facilitatorAddr
+}
+
+type exactFixture struct {
+	payload         types.PaymentPayload
+	requirements    types.PaymentRequirements
+	facilitatorAddr solana.PublicKey
+	ownerKey        solana.PrivateKey
+	tx              *solana.Transaction
+	mint            solana.PublicKey
+	payTo           solana.PublicKey
+	destATA         solana.PublicKey
+}
+
+func signTransaction(t *testing.T, tx *solana.Transaction, key solana.PrivateKey) {
+	t.Helper()
+	messageBytes, err := tx.Message.MarshalBinary()
+	require.NoError(t, err)
+	signature, err := key.Sign(messageBytes)
+	require.NoError(t, err)
+	index, err := tx.GetAccountIndex(key.PublicKey())
+	require.NoError(t, err)
+	n := int(tx.Message.Header.NumRequiredSignatures)
+	if len(tx.Signatures) < n {
+		sigs := make([]solana.Signature, n)
+		copy(sigs, tx.Signatures)
+		tx.Signatures = sigs
+	}
+	tx.Signatures[index] = signature
+}
+
+func lighthouseInstruction() solana.Instruction {
+	return solana.NewInstruction(
+		solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress),
+		solana.AccountMetaSlice{},
+		[]byte{0x01},
+	)
+}
+
+func buildExactFixture(t *testing.T) exactFixture {
+	return buildExactFixtureWithOptional(t)
+}
+
+func buildExactFixtureWithOptional(t *testing.T, extra ...solana.Instruction) exactFixture {
 	t.Helper()
 
 	facilitatorAddr := solana.NewWallet().PrivateKey.PublicKey()
-	owner := solana.NewWallet().PrivateKey.PublicKey()
+	ownerWallet := solana.NewWallet()
+	owner := ownerWallet.PublicKey()
 	mint := solana.NewWallet().PrivateKey.PublicKey()
 	payTo := solana.NewWallet().PrivateKey.PublicKey()
 
@@ -96,14 +145,20 @@ func buildValidExactSvmFixture(t *testing.T) (types.PaymentPayload, types.Paymen
 	blockhash, err := solana.HashFromBase58("5Tx8F3jgSHx21CbtjwmdaKPLM5tWmreWAnPrbqHomSJF")
 	require.NoError(t, err)
 
-	tx, err := solana.NewTransactionBuilder().
+	builder := solana.NewTransactionBuilder().
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
-		AddInstruction(transferIx).
+		AddInstruction(transferIx)
+	for _, ix := range extra {
+		builder = builder.AddInstruction(ix)
+	}
+	tx, err := builder.
 		SetRecentBlockHash(blockhash).
 		SetFeePayer(facilitatorAddr).
 		Build()
 	require.NoError(t, err)
+
+	signTransaction(t, tx, ownerWallet.PrivateKey)
 
 	base64Tx, err := svm.EncodeTransaction(tx)
 	require.NoError(t, err)
@@ -124,7 +179,16 @@ func buildValidExactSvmFixture(t *testing.T) (types.PaymentPayload, types.Paymen
 		Payload:     svmPayload.ToMap(),
 		Accepted:    requirements,
 	}
-	return payload, requirements, facilitatorAddr
+	return exactFixture{
+		payload:         payload,
+		requirements:    requirements,
+		facilitatorAddr: facilitatorAddr,
+		ownerKey:        ownerWallet.PrivateKey,
+		tx:              tx,
+		mint:            mint,
+		payTo:           payTo,
+		destATA:         destATA,
+	}
 }
 
 // Exercises the PendingSettlementStore fast path wired into ExactSvmScheme.Settle
@@ -227,7 +291,7 @@ func TestExactSvmScheme_PendingSettlementStore_CacheHitStillPendingReturnsAgainW
 func TestExactSvmScheme_PendingSettlementStore_TerminalVerifyFailureNeverTouchesStore(t *testing.T) {
 	payload, requirements, facilitatorAddr := buildValidExactSvmFixture(t)
 	// Corrupt the requirements amount so Verify rejects with a terminal reason
-	// (amount insufficient) before any signing/broadcasting occurs.
+	// (amount mismatch) before any signing/broadcasting occurs.
 	requirements.Amount = "999999999"
 	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{facilitatorAddr}}
 	scheme := NewExactSvmScheme(signer)
@@ -236,7 +300,7 @@ func TestExactSvmScheme_PendingSettlementStore_TerminalVerifyFailureNeverTouches
 	_, err := scheme.Settle(context.Background(), payload, requirements, nil)
 	var se *x402.SettleError
 	require.True(t, errors.As(err, &se))
-	assert.Equal(t, ErrAmountInsufficient, se.ErrorReason)
+	assert.Equal(t, ErrAmountMismatch, se.ErrorReason)
 	assert.Equal(t, 0, signer.sendCalls)
 
 	_, ok, _ := scheme.pendingStore.Get(context.Background(), txKey)
@@ -253,10 +317,9 @@ func TestExactSvmScheme_PendingSettlementStore_TerminalVerifyFailureNeverTouches
 func TestExactSvmScheme_SettlementCache_ReleasedOnTerminalFeePayerMismatch(t *testing.T) {
 	payload, requirements, facilitatorAddr := buildValidExactSvmFixture(t)
 	// Point requirements at a *different* facilitator-managed address than the
-	// transaction's actual fee payer: Verify's "feePayer is managed by this
-	// facilitator" check passes (so it reaches IsDuplicate and claims the
-	// lock), but the later actualFeePayer-vs-expectedFeePayer comparison
-	// still fails, forcing the ErrFeePayerMismatch terminal branch.
+	// transaction's actual fee payer. Settle claims the dedup lock before
+	// verify; verify then rejects AccountKeys[0] != extra.feePayer. The lock
+	// must still be released so a retry is not a false duplicate.
 	otherManagedAddr := solana.NewWallet().PrivateKey.PublicKey()
 	requirements.Extra["feePayer"] = otherManagedAddr.String()
 	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{facilitatorAddr, otherManagedAddr}}

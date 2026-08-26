@@ -142,6 +142,7 @@ app.use(express.json());
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
+  const endpointT0 = performance.now();
   try {
     const { paymentPayload, paymentRequirements } = req.body as {
       paymentPayload: PaymentPayload;
@@ -168,6 +169,10 @@ app.post("/verify", async (req, res) => {
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });
+  } finally {
+    console.log(
+      `/verify completed in ${((performance.now() - endpointT0) / 1000).toFixed(3)}s`,
+    );
   }
 });
 
@@ -178,6 +183,7 @@ app.post("/verify", async (req, res) => {
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
+  const endpointT0 = performance.now();
   try {
     const { paymentPayload, paymentRequirements } = req.body;
 
@@ -216,6 +222,10 @@ app.post("/settle", async (req, res) => {
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });
+  } finally {
+    console.log(
+      `/settle completed in ${((performance.now() - endpointT0) / 1000).toFixed(3)}s`,
+    );
   }
 });
 

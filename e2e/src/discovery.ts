@@ -262,6 +262,10 @@ export class TestDiscovery {
             const supportsVersion = f.config.x402Versions?.includes(serverVersion);
             const facilLanguage = f.config.language;
             if (!facilLanguage) return false;
+            const clientFacilitators = client.config.facilitators;
+            if (clientFacilitators && !clientFacilitators.includes(f.name)) {
+              return false;
+            }
             const facilSchemesForFamily = schemesForSdkNetwork(facilLanguage, endpointProtocolFamily);
             if (!facilSchemesForFamily.includes(endpointScheme)) return false;
             if (endpointProtocolFamily === 'evm') {

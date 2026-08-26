@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ExactSvmScheme } from "../../src/exact/facilitator/scheme";
-import { ErrSettlementPending } from "../../src/exact/facilitator/errors";
+import * as Errors from "../../src/exact/facilitator/errors";
+const { ErrSettlementPending } = Errors;
 import {
   InMemoryPendingSettlementStore,
   type PendingSettlementStore,
@@ -161,14 +162,14 @@ describe("ExactSvmScheme pending-settlement store integration", () => {
     const result = await facilitator.settle(payload, requirements);
 
     expect(result.success).toBe(false);
-    expect(result.errorReason).toBe("transaction_failed");
+    expect(result.errorReason).toBe(Errors.ErrTransactionFailed);
     expect(result.transaction).toBe("txSignature123");
     // Terminal: no pending entry recorded, and the settlementCache dedup lock is
     // released so a fresh broadcast for this payload isn't blocked.
     expect(await store.get(txKey)).toBeUndefined();
     const retried = await facilitator.settle(makePayload("terminalOnchainTx=="), requirements);
     expect(retried.success).toBe(false);
-    expect(retried.errorReason).toBe("transaction_failed");
+    expect(retried.errorReason).toBe(Errors.ErrTransactionFailed);
   });
 
   it("cache-hit + confirmTransaction fails onchain during reconciliation (terminal): returns transaction_failed", async () => {
@@ -187,7 +188,7 @@ describe("ExactSvmScheme pending-settlement store integration", () => {
     const result = await facilitator.settle(payload, requirements);
 
     expect(result.success).toBe(false);
-    expect(result.errorReason).toBe("transaction_failed");
+    expect(result.errorReason).toBe(Errors.ErrTransactionFailed);
     expect(result.transaction).toBe("cachedSignature789");
     expect(mockSigner.signTransaction).not.toHaveBeenCalled();
     expect(mockSigner.sendTransaction).not.toHaveBeenCalled();
@@ -276,7 +277,7 @@ describe("ExactSvmScheme pending-settlement store integration", () => {
     const result = await facilitator.settle(payload, requirements);
 
     expect(result.success).toBe(false);
-    expect(result.errorReason).toBe("transaction_failed");
+    expect(result.errorReason).toBe(Errors.ErrTransactionFailed);
     expect(mockSigner.confirmTransaction).not.toHaveBeenCalled();
     expect(await store.get(txKey)).toBeUndefined();
   });

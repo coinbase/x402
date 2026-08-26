@@ -1,0 +1,2 @@
+kind: added
+body: Add simulation-based smart wallet verification to the SVM exact facilitator, behind Config.EnableSmartWalletVerification

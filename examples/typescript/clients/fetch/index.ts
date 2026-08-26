@@ -53,9 +53,11 @@ async function main(): Promise<void> {
   const httpClient = new x402HTTPClient(client);
 
   console.log(`Making request to: ${url}\n`);
+  const requestT0 = performance.now();
   const response = await fetchWithPayment(url, { method: "GET" });
   const result = await httpClient.processResponse(response);
   console.dir(result, { depth: null });
+  console.log(`Request completed in ${((performance.now() - requestT0) / 1000).toFixed(3)}s`);
 }
 
 main().catch(error => {

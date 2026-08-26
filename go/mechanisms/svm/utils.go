@@ -283,7 +283,10 @@ func GetTokenPayerFromTransaction(tx *solana.Transaction) (string, error) {
 
 	// Iterate through instructions to find TransferChecked
 	for _, inst := range tx.Message.Instructions {
-		programID := tx.Message.AccountKeys[inst.ProgramIDIndex]
+		programID, err := tx.Message.Program(inst.ProgramIDIndex)
+		if err != nil {
+			continue
+		}
 
 		// Check if this is a token program instruction
 		if programID == solana.TokenProgramID || programID == solana.Token2022ProgramID {

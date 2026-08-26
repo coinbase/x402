@@ -15,6 +15,7 @@ import {
   decodeTransactionFromPayload,
   TransactionOnchainFailureError,
 } from "./utils";
+import { ErrSmartWalletAltResolutionFailed } from "./exact/facilitator/errors";
 
 /**
  * Client-side signer for creating and signing Solana transactions
@@ -148,10 +149,11 @@ export type FacilitatorSvmSigner = {
   signTransaction(transaction: string, feePayer: Address, network: string): Promise<string>;
 
   /**
-   * Simulate a signed transaction to verify it would succeed
-   * Implementation manages RPC client selection and simulation details
+   * Simulate a transaction to verify it would succeed onchain.
+   * Does not verify signatures (RPC `sigVerify` is off). Callers must verify
+   * required signatures themselves; the fee-payer slot may be unsigned.
    *
-   * @param transaction - Base64 encoded signed transaction
+   * @param transaction - Base64 encoded transaction (may be partially signed)
    * @param network - CAIP-2 network identifier
    * @throws Error if simulation fails
    */
@@ -191,14 +193,12 @@ export type FacilitatorSvmSigner = {
    * The default toFacilitatorSvmSigner() factory provides an implementation.
    *
    * @param transaction - Base64 encoded transaction (may be partially signed)
-   * @param feePayer - Fee payer address to sign with before simulation
    * @param network - CAIP-2 network identifier
    * @returns Inner instructions from simulation, or null if unavailable
    * @throws Error if simulation fails (transaction would revert on-chain)
    */
   simulateTransactionWithInnerInstructions?(
     transaction: string,
-    feePayer: Address,
     network: string,
   ): Promise<SvmInnerInstructionsResult>;
 
@@ -318,15 +318,21 @@ export function createRpcCapabilitiesFromRpc(
       return await rpc
         .sendTransaction(transaction as never, {
           encoding: "base64",
+          skipPreflight: true,
+          preflightCommitment: "confirmed",
         })
         .send();
     },
     confirmTransaction: async signature => {
-      let confirmed = false;
-      let attempts = 0;
-      const maxAttempts = 30;
+      // Poll at 250ms for the first ~2s (Solana slots are ~400ms), then 1s,
+      // keeping the same ~30s confirmation budget as the previous 30×1s loop.
+      const initialDelayMs = 250;
+      const initialWindowMs = 2_000;
+      const fallbackDelayMs = 1_000;
+      const maxWaitMs = 30_000;
+      const startedAt = Date.now();
 
-      while (!confirmed && attempts < maxAttempts) {
+      while (Date.now() - startedAt < maxWaitMs) {
         const status = await rpc.getSignatureStatuses([signature as never]).send();
         const entry = status.value[0];
 
@@ -340,12 +346,12 @@ export function createRpcCapabilitiesFromRpc(
             );
             throw new TransactionOnchainFailureError(`Transaction failed onchain: ${errorStr}`);
           }
-          confirmed = true;
           return entry;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        attempts++;
+        const elapsed = Date.now() - startedAt;
+        const delay = elapsed < initialWindowMs ? initialDelayMs : fallbackDelayMs;
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
 
       throw new Error("Transaction confirmation timeout");
@@ -480,7 +486,7 @@ export function toFacilitatorSvmSigner(
       const rpc = getRpcForNetwork(network);
       const result = await rpc
         .simulateTransaction(transaction as never, {
-          sigVerify: true,
+          sigVerify: false,
           replaceRecentBlockhash: false,
           commitment: "confirmed",
           encoding: "base64",
@@ -501,6 +507,8 @@ export function toFacilitatorSvmSigner(
       return await rpc
         .sendTransaction(transaction as never, {
           encoding: "base64",
+          skipPreflight: true,
+          preflightCommitment: "confirmed",
         })
         .send();
     },
@@ -511,34 +519,13 @@ export function toFacilitatorSvmSigner(
       await rpcCapabilities.confirmTransaction(signature);
     },
 
-    simulateTransactionWithInnerInstructions: async (
-      transaction: string,
-      feePayer: Address,
-      network: string,
-    ) => {
-      if (feePayer !== signer.address) {
-        throw new Error(`No signer for feePayer ${feePayer}. Available: ${signer.address}`);
-      }
-
-      const tx = decodeTransactionFromPayload({ transaction });
-      const signableMessage = {
-        content: tx.messageBytes,
-        signatures: tx.signatures,
-      };
-      const [facilitatorSignatureDictionary] = await signer.signMessages([
-        signableMessage as never,
-      ]);
-      const signedTx = {
-        ...tx,
-        signatures: { ...tx.signatures, ...facilitatorSignatureDictionary },
-      };
-      const signedBase64 = getBase64EncodedWireTransaction(signedTx);
-
+    simulateTransactionWithInnerInstructions: async (transaction: string, network: string) => {
       // Signature and blockhash verification during simulation.
       //
-      // sigVerify: true — matches the existing Path 1 simulation behavior. Ensures all
-      // transaction signatures are valid, preventing an attacker from passing verify()
-      // with forged signatures and getting free resource access before on-chain failure.
+      // sigVerify: false — required signatures are verified locally before this
+      // call. The fee-payer slot is unsigned until settle, so RPC-side
+      // sigVerify would reject a valid payment. Account state, fee-payer
+      // balance, and precompiles are still evaluated by simulation.
       //
       // replaceRecentBlockhash: false — preserves the original blockhash so signatures
       // remain valid (they cover the full message including blockhash). Also required for
@@ -553,9 +540,9 @@ export function toFacilitatorSvmSigner(
       const rpc = getRpcForNetwork(network);
       const result = await rpc
         .simulateTransaction(
-          signedBase64 as never,
+          transaction as never,
           {
-            sigVerify: true,
+            sigVerify: false,
             replaceRecentBlockhash: false,
             commitment: "confirmed",
             encoding: "base64",
@@ -651,7 +638,7 @@ export function toFacilitatorSvmSigner(
         // accounts. The caller (assertFeePayerIsolated) converts this into a
         // verify failure so a transient RPC blip fails the payment safely.
         throw new Error(
-          `smart_wallet_alt_resolution_failed: ${error instanceof Error ? error.message : String(error)}`,
+          `${ErrSmartWalletAltResolutionFailed}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     },

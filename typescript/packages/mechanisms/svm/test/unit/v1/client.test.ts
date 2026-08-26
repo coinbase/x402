@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactSvmSchemeV1 } from "../../../src/exact/v1";
+import { ExactSvmSchemeV1 } from "../../../src/exact/v1/client/scheme";
 import type { ClientSvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import { USDC_DEVNET_ADDRESS } from "../../../src/defaultAssets";

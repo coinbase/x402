@@ -118,7 +118,7 @@ func (s *realFacilitatorSvmSigner) SimulateTransaction(ctx context.Context, tx *
 	}
 
 	opts := rpc.SimulateTransactionOpts{
-		SigVerify:              true,
+		SigVerify:              false,
 		ReplaceRecentBlockhash: false,
 		Commitment:             svm.DefaultCommitment,
 	}
@@ -199,10 +199,46 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		}
 
 		// Wait before retrying
-		time.Sleep(svm.ConfirmRetryDelay)
+		delay := svm.ConfirmRetryDelay
+		if attempt < svm.ConfirmInitialAttempts {
+			delay = svm.ConfirmInitialRetryDelay
+		}
+		time.Sleep(delay)
 	}
 
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
+}
+
+func (s *realFacilitatorSvmSigner) SimulateTransactionWithInnerInstructions(ctx context.Context, tx *solana.Transaction, network string) ([]rpc.InnerInstruction, error) {
+	rpcClient, err := s.getRPC(ctx, network)
+	if err != nil {
+		return nil, err
+	}
+	return svm.SimulateWithInnerInstructions(ctx, rpcClient, tx)
+}
+
+func (s *realFacilitatorSvmSigner) GetConfirmedTransactionInnerInstructions(ctx context.Context, signature solana.Signature, network string) ([]rpc.InnerInstruction, solana.PublicKeySlice, error) {
+	rpcClient, err := s.getRPC(ctx, network)
+	if err != nil {
+		return nil, nil, err
+	}
+	return svm.ConfirmedTransactionInnerInstructions(ctx, rpcClient, signature)
+}
+
+func (s *realFacilitatorSvmSigner) GetTokenAccountBalance(ctx context.Context, tokenAccount solana.PublicKey, network string) (uint64, bool, error) {
+	rpcClient, err := s.getRPC(ctx, network)
+	if err != nil {
+		return 0, false, err
+	}
+	return svm.TokenAccountBalance(ctx, rpcClient, tokenAccount)
+}
+
+func (s *realFacilitatorSvmSigner) FetchAddressLookupTables(ctx context.Context, tables []solana.PublicKey, network string) (map[solana.PublicKey]solana.PublicKeySlice, error) {
+	rpcClient, err := s.getRPC(ctx, network)
+	if err != nil {
+		return nil, err
+	}
+	return svm.AddressLookupTables(ctx, rpcClient, tables)
 }
 
 func (s *realFacilitatorSvmSigner) GetAddresses(ctx context.Context, network string) []solana.PublicKey {

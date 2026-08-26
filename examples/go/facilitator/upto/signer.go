@@ -73,7 +73,7 @@ func (s *facilitatorSvmSigner) SimulateTransaction(
 	ctx context.Context, tx *solana.Transaction, _ string,
 ) error {
 	result, err := s.rpcClient.SimulateTransactionWithOpts(ctx, tx, &rpc.SimulateTransactionOpts{
-		SigVerify:  true,
+		SigVerify:  false,
 		Commitment: svmmech.DefaultCommitment,
 	})
 	if err != nil {
@@ -122,7 +122,27 @@ func (s *facilitatorSvmSigner) ConfirmTransaction(
 				}
 			}
 		}
-		time.Sleep(svmmech.ConfirmRetryDelay)
+		delay := svmmech.ConfirmRetryDelay
+		if attempt < svmmech.ConfirmInitialAttempts {
+			delay = svmmech.ConfirmInitialRetryDelay
+		}
+		time.Sleep(delay)
 	}
 	return fmt.Errorf("transaction %s was not confirmed in time", signature)
+}
+
+func (s *facilitatorSvmSigner) SimulateTransactionWithInnerInstructions(ctx context.Context, tx *solana.Transaction, _ string) ([]rpc.InnerInstruction, error) {
+	return svmmech.SimulateWithInnerInstructions(ctx, s.rpcClient, tx)
+}
+
+func (s *facilitatorSvmSigner) GetConfirmedTransactionInnerInstructions(ctx context.Context, signature solana.Signature, _ string) ([]rpc.InnerInstruction, solana.PublicKeySlice, error) {
+	return svmmech.ConfirmedTransactionInnerInstructions(ctx, s.rpcClient, signature)
+}
+
+func (s *facilitatorSvmSigner) GetTokenAccountBalance(ctx context.Context, tokenAccount solana.PublicKey, _ string) (uint64, bool, error) {
+	return svmmech.TokenAccountBalance(ctx, s.rpcClient, tokenAccount)
+}
+
+func (s *facilitatorSvmSigner) FetchAddressLookupTables(ctx context.Context, tables []solana.PublicKey, _ string) (map[solana.PublicKey]solana.PublicKeySlice, error) {
+	return svmmech.AddressLookupTables(ctx, s.rpcClient, tables)
 }

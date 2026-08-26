@@ -395,7 +395,11 @@ const bazaarCatalog = new BazaarCatalog();
 function createPaymentHash(paymentPayload: PaymentPayload): string {
   return crypto
     .createHash("sha256")
-    .update(JSON.stringify(paymentPayload))
+    .update(
+      JSON.stringify(paymentPayload, (_, value) =>
+        typeof value === "bigint" ? value.toString() : value,
+      ),
+    )
     .digest("hex");
 }
 

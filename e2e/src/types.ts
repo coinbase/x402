@@ -140,6 +140,7 @@ export interface TestConfig {
   evm?: {
     assetTransferMethods?: AssetTransferMethod[];
   };
+  facilitators?: string[];
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

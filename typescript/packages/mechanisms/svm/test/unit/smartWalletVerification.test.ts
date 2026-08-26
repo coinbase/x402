@@ -5,6 +5,7 @@ import {
   extractTransfersFromInnerInstructions,
   verifySmartWalletTransaction,
 } from "../../src/exact/facilitator/smartWalletVerification";
+import * as Errors from "../../src/exact/facilitator/errors";
 import {
   appendTransactionMessageInstruction,
   createTransactionMessage,
@@ -75,7 +76,7 @@ describe("assertFeePayerIsolated", () => {
     ]);
 
     await expect(assertFeePayerIsolated(tx as never, feePayer.address)).rejects.toThrow(
-      "smart_wallet_fee_payer_not_isolated",
+      Errors.ErrSmartWalletFeePayerNotIsolated,
     );
   });
 
@@ -100,7 +101,7 @@ describe("assertFeePayerIsolated", () => {
     ]);
 
     await expect(assertFeePayerIsolated(tx as never, feePayer.address)).rejects.toThrow(
-      "smart_wallet_fee_payer_not_isolated",
+      Errors.ErrSmartWalletFeePayerNotIsolated,
     );
   });
 });
@@ -167,7 +168,7 @@ describe("validateComputeBudgetLimits", () => {
     ]);
 
     expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
-      "smart_wallet_compute_units_too_high",
+      Errors.ErrSmartWalletComputeUnitsTooHigh,
     );
   });
 
@@ -182,7 +183,7 @@ describe("validateComputeBudgetLimits", () => {
     ]);
 
     expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
-      "smart_wallet_priority_fee_too_high",
+      Errors.ErrSmartWalletPriorityFeeTooHigh,
     );
   });
 
@@ -213,7 +214,7 @@ describe("validateComputeBudgetLimits", () => {
       validateComputeBudgetLimits(tx as never, {
         maxComputeUnits: 100_000,
       }),
-    ).toThrow("smart_wallet_compute_units_too_high");
+    ).toThrow(Errors.ErrSmartWalletComputeUnitsTooHigh);
   });
 
   it("rejects unknown ComputeBudget instruction type", async () => {
@@ -230,7 +231,7 @@ describe("validateComputeBudgetLimits", () => {
     ]);
 
     expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
-      "smart_wallet_unsupported_compute_budget_instruction",
+      Errors.ErrSmartWalletUnsupportedComputeBudget,
     );
   });
 
@@ -245,7 +246,7 @@ describe("validateComputeBudgetLimits", () => {
     ]);
 
     expect(() => validateComputeBudgetLimits(tx as never)).toThrow(
-      "smart_wallet_malformed_compute_budget",
+      Errors.ErrSmartWalletMalformedComputeBudget,
     );
   });
 });
@@ -1031,7 +1032,7 @@ describe("assertFeePayerIsolated ALT handling", () => {
         signerWithoutALT as never,
         "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       ),
-    ).rejects.toThrow("smart_wallet_alt_resolution_not_available");
+    ).rejects.toThrow(Errors.ErrSmartWalletAltResolutionUnavailable);
   });
 
   it("catches fee payer hidden in ALT-resolved accounts", async () => {
@@ -1090,7 +1091,7 @@ describe("assertFeePayerIsolated ALT handling", () => {
         signerWithALT as never,
         "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       ),
-    ).rejects.toThrow("smart_wallet_fee_payer_not_isolated");
+    ).rejects.toThrow(Errors.ErrSmartWalletFeePayerNotIsolated);
   });
 
   it("propagates ALT resolution failure instead of treating it as no ALTs", async () => {
@@ -1141,7 +1142,7 @@ describe("assertFeePayerIsolated ALT handling", () => {
       sendTransaction: async () => "",
       confirmTransaction: async () => {},
       fetchAddressLookupTables: async () => {
-        throw new Error("smart_wallet_alt_resolution_failed: rpc unavailable");
+        throw new Error(`${Errors.ErrSmartWalletAltResolutionFailed}: rpc unavailable`);
       },
     };
 
@@ -1152,6 +1153,6 @@ describe("assertFeePayerIsolated ALT handling", () => {
         signerWithFailingALT as never,
         "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
       ),
-    ).rejects.toThrow("smart_wallet_alt_resolution_failed");
+    ).rejects.toThrow(Errors.ErrSmartWalletAltResolutionFailed);
   });
 });
