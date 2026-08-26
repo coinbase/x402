@@ -1,0 +1,7 @@
+{
+  "name": "Backtesting Arena",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/backtesting-arena.png",
+  "description": "Pay-per-call quantitative crypto market intelligence for AI agents: look-ahead-free Bitcoin cycle scoring, macro-regime composites, on-chain metrics and on-demand strategy backtests with Deflated-Sharpe correction. 28 GET/POST endpoints ($0.01-$0.50), USDC on Base via x402; machine-readable catalog at tradingstrategies.work/.well-known/x402.",
+  "websiteUrl": "https://tradingstrategies.work/api"
+}
