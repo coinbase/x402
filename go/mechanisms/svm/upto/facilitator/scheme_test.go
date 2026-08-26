@@ -22,10 +22,7 @@ import (
 
 // newScheme wires a facilitator against the stub RPC.
 func newScheme(signer *mockSigner, stub *stubRPC, config *Config) *UptoSvmScheme {
-	if config == nil {
-		config = &Config{}
-	}
-	config.RPCURL = stub.url
+	signer.attachRPC(rpc.New(stub.url))
 	return NewUptoSvmScheme(signer, config)
 }
 
@@ -583,11 +580,6 @@ func TestSettleReadsEachRPCClassAtThePolicyCommitment(t *testing.T) {
 			method: "getSlot",
 			want:   upto.SlotCommitment,
 			reason: "the openSlot anchor must sit in the frame the client pinned",
-		},
-		{
-			method: "getLatestBlockhash",
-			want:   upto.BlockhashCommitment,
-			reason: "a finalized blockhash cannot be dropped by a fork",
 		},
 		{
 			method: "simulateTransaction",
@@ -1256,38 +1248,6 @@ func TestNewRentCleanupManagerSharesTheSchemeStorage(t *testing.T) {
 	injected := newScheme(signer, stub, &Config{ChannelStorage: storage})
 	assert.Same(t, storage, injected.ChannelStorage())
 	assert.Same(t, storage, injected.NewRentCleanupManager(testNetwork).storage)
-}
-
-// An injected client is how a facilitator routes sends through its own paced
-// or instrumented transport, so it has to win over RPCURL everywhere, not just
-// on the settle path.
-func TestAnInjectedRPCClientIsPreferredOverTheURL(t *testing.T) {
-	signer := newMockSigner(t, 1)
-	stub := newStubRPC(t)
-	fixture := newPaymentFixture(t, signer)
-	scheme := NewUptoSvmScheme(signer, &Config{
-		RPCURL: "http://127.0.0.1:1/unreachable",
-		RPC:    rpc.New(stub.url),
-	})
-	signer.onSend = func(*solana.Transaction) {
-		stub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
-	}
-
-	response, err := scheme.Settle(context.Background(), fixture.payload, fixture.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, response.Success, "the settle reached the stub, so the unreachable URL was never dialed")
-
-	assert.Same(t, scheme.config.RPC, scheme.NewRentCleanupManager(testNetwork).rpc,
-		"the manager inherits the scheme's client")
-}
-
-func TestTheSchemeBuildsAClientFromTheURLWhenNoneIsInjected(t *testing.T) {
-	scheme := newScheme(newMockSigner(t, 1), newStubRPC(t), nil)
-
-	client, err := scheme.rpcClient(testNetwork)
-	require.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.Nil(t, scheme.NewRentCleanupManager(testNetwork).rpc)
 }
 
 // failingStorage rejects every write so storage-failure paths can be exercised.

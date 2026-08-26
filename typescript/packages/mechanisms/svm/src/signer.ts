@@ -111,6 +111,24 @@ export type FacilitatorRpcCapabilities = {
   fetchMint(address: string): Promise<unknown>;
 };
 
+/** Options passed to {@link FacilitatorSvmSigner.simulateTransaction}. */
+export type FacilitatorSimulateTransactionOptions = {
+  /**
+   * When true, the RPC verifies signatures during simulation. Defaults to false
+   * because the fee-payer slot is often unsigned until settle.
+   */
+  sigVerify?: boolean;
+  /**
+   * When true, the RPC substitutes a fresh blockhash before simulating (for
+   * facilitator-built messages compiled against a placeholder). Defaults to false.
+   */
+  replaceRecentBlockhash?: boolean;
+  /** Simulation commitment. Defaults to `"confirmed"`. */
+  commitment?: string;
+  /** Wire encoding of the transaction. Defaults to `"base64"`. */
+  encoding?: string;
+};
+
 /**
  * Minimal facilitator signer interface for SVM operations.
  * Supports multiple signers for load balancing and high availability.
@@ -150,14 +168,19 @@ export type FacilitatorSvmSigner = {
 
   /**
    * Simulate a transaction to verify it would succeed onchain.
-   * Does not verify signatures (RPC `sigVerify` is off). Callers must verify
-   * required signatures themselves; the fee-payer slot may be unsigned.
+   * By default does not verify signatures (RPC `sigVerify` is off). Callers must
+   * verify required signatures themselves; the fee-payer slot may be unsigned.
    *
    * @param transaction - Base64 encoded transaction (may be partially signed)
    * @param network - CAIP-2 network identifier
+   * @param options - Optional simulation overrides
    * @throws Error if simulation fails
    */
-  simulateTransaction(transaction: string, network: string): Promise<void>;
+  simulateTransaction(
+    transaction: string,
+    network: string,
+    options?: FacilitatorSimulateTransactionOptions,
+  ): Promise<void>;
 
   /**
    * Send a signed transaction to the network
@@ -248,6 +271,61 @@ export type FacilitatorSvmSigner = {
     lookupTableAddresses: string[],
     network: string,
   ): Promise<Record<string, string[]>>;
+
+  /**
+   * Fetch one account's onchain data. Optional — required by the `upto` scheme;
+   * {@link toFacilitatorSvmSigner} provides an implementation.
+   */
+  getAccountInfo?(
+    accountAddress: string,
+    network: string,
+    options?: { commitment?: string; encoding?: string },
+  ): Promise<FacilitatorAccountInfo | null>;
+
+  /**
+   * Fetch a recent blockhash. Optional — required by the `upto` scheme;
+   * {@link toFacilitatorSvmSigner} provides an implementation.
+   */
+  getLatestBlockhash?(network: string): Promise<{
+    blockhash: string;
+    lastValidBlockHeight: bigint;
+  }>;
+
+  /**
+   * Fetch the current slot. Optional — required by the `upto` scheme;
+   * {@link toFacilitatorSvmSigner} provides an implementation.
+   */
+  getSlot?(network: string, commitment?: string): Promise<bigint>;
+
+  /**
+   * Scan program accounts. Optional — required only for `upto` rent-cleanup
+   * discovery sweeps; {@link toFacilitatorSvmSigner} provides an implementation.
+   */
+  getProgramAccounts?(
+    network: string,
+    programId: string,
+    config: {
+      commitment?: string;
+      encoding?: string;
+      filters?: readonly unknown[];
+    },
+  ): Promise<readonly FacilitatorProgramAccount[]>;
+};
+
+/** Account info returned by {@link FacilitatorSvmSigner.getAccountInfo}. */
+export type FacilitatorAccountInfo = {
+  data: [string, string] | string;
+  owner: string;
+  lamports: bigint;
+};
+
+/** One row from {@link FacilitatorSvmSigner.getProgramAccounts}. */
+export type FacilitatorProgramAccount = {
+  pubkey: Address;
+  account: {
+    data: [string, string];
+    owner: Address;
+  };
 };
 
 /**
@@ -482,15 +560,22 @@ export function toFacilitatorSvmSigner(
       return getBase64EncodedWireTransaction(fullySignedTx);
     },
 
-    simulateTransaction: async (transaction: string, network: string) => {
+    simulateTransaction: async (
+      transaction: string,
+      network: string,
+      options?: FacilitatorSimulateTransactionOptions,
+    ) => {
       const rpc = getRpcForNetwork(network);
       const result = await rpc
-        .simulateTransaction(transaction as never, {
-          sigVerify: false,
-          replaceRecentBlockhash: false,
-          commitment: "confirmed",
-          encoding: "base64",
-        })
+        .simulateTransaction(
+          transaction as never,
+          {
+            sigVerify: options?.sigVerify ?? false,
+            replaceRecentBlockhash: options?.replaceRecentBlockhash ?? false,
+            commitment: options?.commitment ?? "confirmed",
+            encoding: options?.encoding ?? "base64",
+          } as never,
+        )
         .send();
 
       if (result.value.err) {
@@ -641,6 +726,43 @@ export function toFacilitatorSvmSigner(
           `${ErrSmartWalletAltResolutionFailed}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    },
+
+    getAccountInfo: async (accountAddress, network, options) => {
+      const rpc = getRpcForNetwork(network);
+      const result = await rpc
+        .getAccountInfo(accountAddress as never, {
+          commitment: (options?.commitment ?? "confirmed") as never,
+          encoding: (options?.encoding ?? "base64") as never,
+        })
+        .send();
+      const value = result.value as FacilitatorAccountInfo | null;
+      return value;
+    },
+
+    getLatestBlockhash: async (network: string) => {
+      const rpc = getRpcForNetwork(network);
+      const result = await rpc.getLatestBlockhash({ commitment: "finalized" }).send();
+      return {
+        blockhash: result.value.blockhash,
+        lastValidBlockHeight: result.value.lastValidBlockHeight,
+      };
+    },
+
+    getSlot: async (network: string, commitment = "finalized") => {
+      const rpc = getRpcForNetwork(network);
+      return await rpc.getSlot({ commitment: commitment as never }).send();
+    },
+
+    getProgramAccounts: async (network, programId, config) => {
+      const rpc = getRpcForNetwork(network);
+      return await rpc
+        .getProgramAccounts(programId as Address, {
+          commitment: (config.commitment ?? "confirmed") as never,
+          encoding: "base64",
+          filters: config.filters as never,
+        })
+        .send();
     },
   };
 }

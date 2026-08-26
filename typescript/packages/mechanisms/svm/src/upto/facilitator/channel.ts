@@ -50,8 +50,9 @@ import {
 } from "../../payment-channels/onchain";
 import type { ChannelSplit } from "../../payment-channels/open";
 import type { FacilitatorSvmSigner } from "../../signer";
-import { createRpcClient, TransactionOnchainFailureError } from "../../utils";
-import { BLOCKHASH_COMMITMENT, STATE_COMMITMENT } from "../shared";
+import { TransactionOnchainFailureError } from "../../utils";
+import { STATE_COMMITMENT } from "../shared";
+import type { UptoFacilitatorSigner } from "./signer";
 
 /** Payment-channels `AccountDiscriminator::Channel` (byte 0 is reserved for uninitialized accounts). */
 const CHANNEL_ACCOUNT_DISCRIMINATOR = 1;
@@ -105,21 +106,54 @@ export function reclaimComputeUnitLimit(channelCount: number): number {
 /** Signer capable of signing Solana transactions and raw Ed25519 messages. */
 export type UptoSvmSigner = TransactionSigner & MessagePartialSigner;
 
-/** RPC client shape used by the channel helpers. */
-export type ChannelRpc = ReturnType<typeof createRpcClient>;
+/** Placeholder blockhash for deposit composite sims (`replaceRecentBlockhash: true`). */
+const SIM_PLACEHOLDER_BLOCKHASH = "11111111111111111111111111111111" as Blockhash;
+
+/**
+ * Kit-compatible RPC adapter for generated account fetch helpers.
+ *
+ * @param signer - Upto facilitator signer
+ * @param network - CAIP-2 network identifier
+ * @returns Minimal RPC surface for {@link fetchMaybeChannel}
+ */
+export function accountFetchRpc(
+  signer: UptoFacilitatorSigner,
+  network: string,
+): Parameters<typeof fetchMaybeChannel>[0] {
+  return {
+    getAccountInfo: (
+      accountAddress: Address,
+      config?: { commitment?: string; encoding?: string },
+    ) => ({
+      send: async () => ({
+        context: { slot: 0n },
+        value: await signer.getAccountInfo(accountAddress.toString(), network, {
+          commitment: config?.commitment,
+          encoding: config?.encoding,
+        }),
+      }),
+    }),
+  } as Parameters<typeof fetchMaybeChannel>[0];
+}
 
 /**
  * Whether the channel account already exists onchain (open already broadcast).
  *
- * @param rpc - The RPC client
+ * @param signer - Facilitator signer with read RPC
+ * @param network - CAIP-2 network identifier
  * @param channelId - Channel PDA (base58)
  * @returns Whether the account exists
  */
-export async function channelExists(rpc: ChannelRpc, channelId: string): Promise<boolean> {
-  const info = await rpc
-    .getAccountInfo(address(channelId), { commitment: STATE_COMMITMENT, encoding: "base64" })
-    .send();
-  return info.value !== null;
+export async function channelExists(
+  signer: UptoFacilitatorSigner,
+  network: string,
+  channelId: string,
+): Promise<boolean> {
+  const info = await signer.getAccountInfo(channelId, network, {
+    commitment: STATE_COMMITMENT,
+    encoding: "base64",
+  });
+  return info !== null;
 }
 
 /** Challenge-bound terms that must match the confirmed channel account. */
@@ -150,16 +184,19 @@ export interface VerifiedOpenChannel {
 /**
  * Fetch and bind the confirmed channel account before resource execution.
  *
- * @param rpc - RPC client used to read the channel
+ * @param signer - Facilitator signer with read RPC
+ * @param network - CAIP-2 network identifier
  * @param channelId - Channel PDA
  * @param expected - Challenge-bound channel terms
  * @returns Verified channel facts for settlement
  */
 export async function fetchAndVerifyOpenChannel(
-  rpc: ChannelRpc,
+  signer: UptoFacilitatorSigner,
+  network: string,
   channelId: string,
   expected: ExpectedOpenChannel,
 ): Promise<VerifiedOpenChannel> {
+  const rpc = accountFetchRpc(signer, network);
   for (let attempt = 1; attempt <= CHANNEL_READ_MAX_ATTEMPTS; attempt++) {
     const account = await fetchMaybeChannel(rpc, address(channelId), {
       commitment: STATE_COMMITMENT,
@@ -336,14 +373,16 @@ export interface SettlementSimChannel {
  * `sigVerify: false`.
  *
  * @param feePayer - The fee-payer / channel payee signer
- * @param rpc - The RPC client
+ * @param signer - Facilitator signer (simulate RPC)
+ * @param network - CAIP-2 network identifier
  * @param args - Open transaction and challenge-bound channel terms
  * @param args.openTransactionBase64 - Client-signed open transaction
  * @param args.channel - Challenge-bound channel terms for settle/distribute
  */
 export async function simulateOpenSettleDistribute(
   feePayer: UptoSvmSigner,
-  rpc: ChannelRpc,
+  signer: Pick<FacilitatorSvmSigner, "simulateTransaction">,
+  network: string,
   args: {
     openTransactionBase64: string;
     channel: SettlementSimChannel;
@@ -400,7 +439,7 @@ export async function simulateOpenSettleDistribute(
     distribute,
   ];
 
-  await simulateInstructions(feePayer, rpc, instructions);
+  await simulateInstructions(feePayer, signer, network, instructions);
 }
 
 /** Options for {@link submitSettle}. */
@@ -418,12 +457,34 @@ export interface SubmitSettleOptions {
    * `DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS` (1).
    */
   computeUnitPriceMicroLamports?: number | undefined;
+  /**
+   * Prefetched blockhash (e.g. from a parallel read in claim settle). When
+   * omitted, {@link submitSettle} fetches one via the signer.
+   */
+  latestBlockhash?: { blockhash: string; lastValidBlockHeight: bigint } | undefined;
+}
+
+/**
+ * Thrown by {@link submitSettle} when explicit simulation fails. The transaction
+ * is never broadcast.
+ */
+export class SettlementSimulationError extends Error {
+  /**
+   * Create the error for a settlement simulation failure.
+   *
+   * @param cause - Underlying simulation error
+   */
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "SettlementSimulationError";
+  }
 }
 
 /**
  * Compile the settle+distribute instructions into a transaction signed by the
- * fee payer, broadcast it, and confirm. Other signers, such as the channel
- * payee on `settle_and_seal`, are carried by the instruction list.
+ * fee payer, simulate it, broadcast via the facilitator signer, and confirm.
+ * Other signers, such as the channel payee on `settle_and_seal`, are carried
+ * by the instruction list.
  *
  * The transaction is prefixed with a statically sized `SetComputeUnitLimit`
  * and an optional `SetComputeUnitPrice`. Static sizing keeps the time-critical
@@ -431,14 +492,19 @@ export interface SubmitSettleOptions {
  * operator-overridable for deployments outside the documented assumptions.
  *
  * @param feePayer - The fee-payer signer
- * @param rpc - The RPC client
+ * @param signer - Facilitator signer (blockhash, simulate, send, confirm)
+ * @param network - CAIP-2 network identifier
  * @param instructions - settle_and_seal (+ optional Ed25519 precompile) then distribute
  * @param options - Compute-budget options
  * @returns The broadcast signature
  */
 export async function submitSettle(
   feePayer: UptoSvmSigner,
-  rpc: ChannelRpc,
+  signer: Pick<
+    UptoFacilitatorSigner,
+    "getLatestBlockhash" | "simulateTransaction" | "sendTransaction" | "confirmTransaction"
+  >,
+  network: string,
   instructions: readonly ServerInstruction[],
   options: SubmitSettleOptions = {},
 ): Promise<Signature> {
@@ -452,9 +518,7 @@ export async function submitSettle(
       : []),
   ];
 
-  const { value: latestBlockhash } = await rpc
-    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
-    .send();
+  const latestBlockhash = options.latestBlockhash ?? (await signer.getLatestBlockhash(network));
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -470,17 +534,26 @@ export async function submitSettle(
   );
   const signed = await signTransactionMessageWithSigners(message);
   const wire = getBase64EncodedWireTransaction(signed);
-  const signature = await rpc.sendTransaction(wire, { encoding: "base64" }).send();
-  await confirmSignature(rpc, signature);
-  return signature;
+  try {
+    await signer.simulateTransaction(wire, network);
+  } catch (error) {
+    throw new SettlementSimulationError(error);
+  }
+  const signature = await signer.sendTransaction(wire, network);
+  try {
+    await signer.confirmTransaction(signature, network);
+  } catch (error) {
+    if (error instanceof TransactionOnchainFailureError) {
+      throw error;
+    }
+    throw new SettlementConfirmationTimeoutError(signature as Signature);
+  }
+  return signature as Signature;
 }
 
 /**
- * Thrown by {@link confirmSignature} when the polling budget elapses before
- * the transaction reaches `confirmed`. Distinct from an onchain rejection:
- * the transaction's fate is unknown, not failed — it may still land. Callers
- * must not treat this the same as a definite failure (e.g. must not assume
- * it is safe to retry the same settlement).
+ * Thrown by {@link submitSettle} when confirmation polling times out. Distinct
+ * from an onchain rejection: the transaction's fate is unknown, not failed.
  */
 export class SettlementConfirmationTimeoutError extends Error {
   /**
@@ -491,43 +564,6 @@ export class SettlementConfirmationTimeoutError extends Error {
   constructor(readonly signature: Signature) {
     super(`timed out waiting for tx ${signature} confirmation`);
     this.name = "SettlementConfirmationTimeoutError";
-  }
-}
-
-/**
- * Poll `getSignatureStatuses` until the signature reaches at least 'confirmed'.
- *
- * @param rpc - The RPC client
- * @param signature - The transaction signature
- * @param timeoutMs - Total time budget (default 30s)
- * @throws {SettlementConfirmationTimeoutError} If the timeout elapses with the outcome still unknown
- * @throws If the transaction failed onchain
- */
-export async function confirmSignature(
-  rpc: ChannelRpc,
-  signature: Signature,
-  timeoutMs = 30_000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const { value } = await rpc.getSignatureStatuses([signature]).send();
-    const status = value[0];
-    if (status) {
-      if (status.err) {
-        const errorStr = JSON.stringify(status.err, (_, v) =>
-          typeof v === "bigint" ? v.toString() : v,
-        );
-        throw new Error(`tx ${signature} failed onchain: ${errorStr}`);
-      }
-      const level = status.confirmationStatus;
-      if (level === undefined || level === null || level === "confirmed" || level === "finalized") {
-        return;
-      }
-    }
-    if (Date.now() >= deadline) {
-      throw new SettlementConfirmationTimeoutError(signature);
-    }
-    await new Promise(resolve => setTimeout(resolve, 1_000));
   }
 }
 
@@ -572,25 +608,24 @@ export function getChannelDistributionHash(splits: readonly ChannelSplit[]): Uin
  * open composite may carry a noop payer) and `replaceRecentBlockhash: true`.
  *
  * @param feePayer - The fee-payer signer
- * @param rpc - The RPC client
+ * @param signer - Facilitator signer (simulate RPC)
+ * @param network - CAIP-2 network identifier
  * @param instructions - Instructions to simulate
  */
 async function simulateInstructions(
   feePayer: UptoSvmSigner,
-  rpc: ChannelRpc,
+  signer: Pick<FacilitatorSvmSigner, "simulateTransaction">,
+  network: string,
   instructions: readonly Instruction[],
 ): Promise<void> {
-  const { value: latestBlockhash } = await rpc
-    .getLatestBlockhash({ commitment: BLOCKHASH_COMMITMENT })
-    .send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     m => setTransactionMessageFeePayerSigner(feePayer, m),
     m =>
       setTransactionMessageLifetimeUsingBlockhash(
         {
-          blockhash: latestBlockhash.blockhash as Blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+          blockhash: SIM_PLACEHOLDER_BLOCKHASH,
+          lastValidBlockHeight: 0n,
         },
         m,
       ),
@@ -598,18 +633,11 @@ async function simulateInstructions(
   );
   const signed = await partiallySignTransactionMessageWithSigners(message);
   const wire = getBase64EncodedWireTransaction(signed);
-  const result = await rpc
-    .simulateTransaction(wire, {
-      commitment: STATE_COMMITMENT,
-      encoding: "base64",
-      replaceRecentBlockhash: true,
-      sigVerify: false,
-    })
-    .send();
-  if (result.value.err) {
-    const errorStr = JSON.stringify(result.value.err, (_, v) =>
-      typeof v === "bigint" ? v.toString() : v,
+  try {
+    await signer.simulateTransaction(wire, network, { replaceRecentBlockhash: true });
+  } catch (error) {
+    throw new Error(
+      `zero-charge settlement simulation failed: ${error instanceof Error ? error.message : String(error)}`,
     );
-    throw new Error(`zero-charge settlement simulation failed: ${errorStr}`);
   }
 }

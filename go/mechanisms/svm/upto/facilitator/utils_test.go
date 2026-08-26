@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -36,6 +37,7 @@ type mockSigner struct {
 
 	keys []solana.PrivateKey
 	sent []*solana.Transaction
+	rpc  *rpc.Client
 
 	// sendErr, when set, fails every broadcast.
 	sendErr error
@@ -125,6 +127,71 @@ func (s *mockSigner) SendTransaction(
 
 func (s *mockSigner) ConfirmTransaction(_ context.Context, _ solana.Signature, _ string) error {
 	return s.confirmErr
+}
+
+func (s *mockSigner) attachRPC(client *rpc.Client) {
+	s.rpc = client
+}
+
+func (s *mockSigner) GetAccountInfo(
+	ctx context.Context,
+	account solana.PublicKey,
+	_ string,
+	opts *rpc.GetAccountInfoOpts,
+) (*rpc.GetAccountInfoResult, error) {
+	if s.rpc == nil {
+		return nil, errors.New("mock signer has no RPC client")
+	}
+	return s.rpc.GetAccountInfoWithOpts(ctx, account, opts)
+}
+
+func (s *mockSigner) GetLatestBlockhash(ctx context.Context, _ string) (solana.Hash, uint64, error) {
+	if s.rpc == nil {
+		return solana.Hash{}, 0, errors.New("mock signer has no RPC client")
+	}
+	latest, err := s.rpc.GetLatestBlockhash(ctx, upto.BlockhashCommitment)
+	if err != nil {
+		return solana.Hash{}, 0, err
+	}
+	return latest.Value.Blockhash, latest.Value.LastValidBlockHeight, nil
+}
+
+func (s *mockSigner) GetSlot(ctx context.Context, _ string, commitment rpc.CommitmentType) (uint64, error) {
+	if s.rpc == nil {
+		return 0, errors.New("mock signer has no RPC client")
+	}
+	return s.rpc.GetSlot(ctx, commitment)
+}
+
+func (s *mockSigner) SimulateTransactionWithOpts(
+	ctx context.Context,
+	tx *solana.Transaction,
+	_ string,
+	opts *rpc.SimulateTransactionOpts,
+) error {
+	if s.rpc == nil {
+		return errors.New("mock signer has no RPC client")
+	}
+	result, err := s.rpc.SimulateTransactionWithOpts(ctx, tx, opts)
+	if err != nil {
+		return fmt.Errorf("settlement simulation failed: %w", err)
+	}
+	if result != nil && result.Value != nil && result.Value.Err != nil {
+		return fmt.Errorf("settlement simulation failed: %v", result.Value.Err)
+	}
+	return nil
+}
+
+func (s *mockSigner) GetProgramAccounts(
+	ctx context.Context,
+	_ string,
+	programID solana.PublicKey,
+	opts *rpc.GetProgramAccountsOpts,
+) (rpc.GetProgramAccountsResult, error) {
+	if s.rpc == nil {
+		return nil, errors.New("mock signer has no RPC client")
+	}
+	return s.rpc.GetProgramAccountsWithOpts(ctx, programID, opts)
 }
 
 func (s *mockSigner) sentTransactions() []*solana.Transaction {

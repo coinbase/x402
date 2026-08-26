@@ -55,11 +55,11 @@ func newCleanupHarness(t *testing.T) *cleanupHarness {
 		payer:   payer.PublicKey(),
 		payTo:   payTo.PublicKey(),
 	}
+	harness.signer.attachRPC(rpc.New(harness.stub.url))
 	harness.manager = NewRentCleanupManager(RentCleanupConfig{
 		Signer:  signer,
 		Storage: harness.storage,
 		Network: testNetwork,
-		RPCURL:  harness.stub.url,
 	})
 	return harness
 }
@@ -348,7 +348,6 @@ func TestCleanupUsesTheConfiguredSettleComputeBudget(t *testing.T) {
 		Signer:                        harness.signer,
 		Storage:                       harness.storage,
 		Network:                       testNetwork,
-		RPCURL:                        harness.stub.url,
 		SettleComputeUnitLimit:        &settleLimit,
 		ComputeUnitPriceMicroLamports: &price,
 	})
@@ -822,7 +821,6 @@ func TestCleanupPropagatesAStorageListFailure(t *testing.T) {
 		Signer:  harness.signer,
 		Storage: failingStorage{},
 		Network: testNetwork,
-		RPCURL:  harness.stub.url,
 	})
 
 	err := manager.Cleanup(context.Background(), harness.options(CleanupOptions{}))
@@ -1164,12 +1162,12 @@ func TestDiscoverNeverOverwritesATrackedChannel(t *testing.T) {
 func TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently(t *testing.T) {
 	harness := newCleanupHarness(t)
 	signer := newMockSigner(t, 2)
+	signer.attachRPC(rpc.New(harness.stub.url))
 	harness.signer = signer
 	harness.manager = NewRentCleanupManager(RentCleanupConfig{
 		Signer:  signer,
 		Storage: harness.storage,
 		Network: testNetwork,
-		RPCURL:  harness.stub.url,
 	})
 
 	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
@@ -1225,12 +1223,12 @@ func TestSubmitReclaimBatchesRunsRentPayerGroupsConcurrently(t *testing.T) {
 func TestSubmitReclaimBatchesBudgetsEachRentPayerGroupIndependently(t *testing.T) {
 	harness := newCleanupHarness(t)
 	signer := newMockSigner(t, 2)
+	signer.attachRPC(rpc.New(harness.stub.url))
 	harness.signer = signer
 	harness.manager = NewRentCleanupManager(RentCleanupConfig{
 		Signer:  signer,
 		Storage: harness.storage,
 		Network: testNetwork,
-		RPCURL:  harness.stub.url,
 	})
 
 	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1
@@ -1260,8 +1258,6 @@ func TestCleanupAndDiscoverPreferAnInjectedRPCClient(t *testing.T) {
 		Signer:  harness.signer,
 		Storage: harness.storage,
 		Network: testNetwork,
-		RPCURL:  "http://127.0.0.1:1/unreachable",
-		RPC:     rpc.New(harness.stub.url),
 	})
 
 	openSlot := testSlot - paymentchannels.OpenSlotWindow - 1

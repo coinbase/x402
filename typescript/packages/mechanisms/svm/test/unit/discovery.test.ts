@@ -6,7 +6,8 @@ import { discoverChannelsByRentPayer } from "../../src/payment-channels/discover
 import { getChannelEncoder } from "../../src/payment-channels/generated/accounts/channel";
 import { PAYMENT_CHANNELS_PROGRAM_ID } from "../../src/payment-channels/onchain";
 import { findPaymentChannelPda } from "../../src/payment-channels/open";
-import type { ChannelRpc } from "../../src/upto/facilitator/channel";
+import { SOLANA_DEVNET_CAIP2 } from "../../src/constants";
+import type { FacilitatorSvmSigner } from "../../src/signer";
 
 /**
  * Builds a channel account whose payer/payee/mint/authorizedSigner/salt/
@@ -57,32 +58,31 @@ async function validDiscoveryChannel(rentPayer: string): Promise<{ pda: string; 
 }
 
 /**
- * A stub RPC exposing only the `getProgramAccounts` shape discovery uses.
+ * A stub signer exposing only the `getProgramAccounts` shape discovery uses.
  *
  * @param rows - Canned getProgramAccounts rows to serve
- * @returns A ChannelRpc-compatible stub
+ * @returns A signer-compatible stub
  */
-function stubRpc(rows: { pubkey: string; owner: string; data: string }[]): ChannelRpc {
+function stubSigner(
+  rows: { pubkey: string; owner: string; data: string }[],
+): Pick<FacilitatorSvmSigner, "getProgramAccounts"> {
   return {
-    getProgramAccounts: vi.fn().mockReturnValue({
-      send: () =>
-        Promise.resolve(
-          rows.map(row => ({
-            account: { data: [row.data, "base64"], owner: row.owner },
-            pubkey: row.pubkey,
-          })),
-        ),
-    }),
-  } as unknown as ChannelRpc;
+    getProgramAccounts: vi.fn().mockResolvedValue(
+      rows.map(row => ({
+        account: { data: [row.data, "base64"] as [string, string], owner: row.owner as Address },
+        pubkey: row.pubkey as Address,
+      })),
+    ),
+  } as unknown as Pick<FacilitatorSvmSigner, "getProgramAccounts">;
 }
 
 describe("discoverChannelsByRentPayer", () => {
   it("accepts a validated account", async () => {
     const rentPayer = (await generateKeyPairSigner()).address;
     const { pda, data } = await validDiscoveryChannel(rentPayer);
-    const rpc = stubRpc([{ data, owner: PAYMENT_CHANNELS_PROGRAM_ID, pubkey: pda }]);
+    const signer = stubSigner([{ data, owner: PAYMENT_CHANNELS_PROGRAM_ID, pubkey: pda }]);
 
-    const discovered = await discoverChannelsByRentPayer(rpc, rentPayer);
+    const discovered = await discoverChannelsByRentPayer(signer, SOLANA_DEVNET_CAIP2, rentPayer);
 
     expect(discovered).toHaveLength(1);
     expect(discovered[0]?.channelId).toBe(pda);
@@ -93,9 +93,9 @@ describe("discoverChannelsByRentPayer", () => {
     const rentPayer = (await generateKeyPairSigner()).address;
     const { pda, data } = await validDiscoveryChannel(rentPayer);
     const wrongOwner = (await generateKeyPairSigner()).address;
-    const rpc = stubRpc([{ data, owner: wrongOwner, pubkey: pda }]);
+    const signer = stubSigner([{ data, owner: wrongOwner, pubkey: pda }]);
 
-    const discovered = await discoverChannelsByRentPayer(rpc, rentPayer);
+    const discovered = await discoverChannelsByRentPayer(signer, SOLANA_DEVNET_CAIP2, rentPayer);
 
     expect(discovered).toHaveLength(0);
   });
@@ -106,9 +106,9 @@ describe("discoverChannelsByRentPayer", () => {
     // The RPC provider claims this address matched, but the account's own
     // fields derive to a different PDA — never trust the filter alone.
     const wrongPubkey = (await generateKeyPairSigner()).address;
-    const rpc = stubRpc([{ data, owner: PAYMENT_CHANNELS_PROGRAM_ID, pubkey: wrongPubkey }]);
+    const signer = stubSigner([{ data, owner: PAYMENT_CHANNELS_PROGRAM_ID, pubkey: wrongPubkey }]);
 
-    const discovered = await discoverChannelsByRentPayer(rpc, rentPayer);
+    const discovered = await discoverChannelsByRentPayer(signer, SOLANA_DEVNET_CAIP2, rentPayer);
 
     expect(discovered).toHaveLength(0);
   });
@@ -116,7 +116,7 @@ describe("discoverChannelsByRentPayer", () => {
   it("rejects a malformed account", async () => {
     const rentPayer = (await generateKeyPairSigner()).address;
     const pda = (await generateKeyPairSigner()).address;
-    const rpc = stubRpc([
+    const signer = stubSigner([
       {
         data: Buffer.from([0x01, 0x02]).toString("base64"),
         owner: PAYMENT_CHANNELS_PROGRAM_ID,
@@ -124,18 +124,19 @@ describe("discoverChannelsByRentPayer", () => {
       },
     ]);
 
-    const discovered = await discoverChannelsByRentPayer(rpc, rentPayer);
+    const discovered = await discoverChannelsByRentPayer(signer, SOLANA_DEVNET_CAIP2, rentPayer);
 
     expect(discovered).toHaveLength(0);
   });
 
   it("filters onchain by account size and rent_payer offset", async () => {
     const rentPayer = (await generateKeyPairSigner()).address;
-    const rpc = stubRpc([]);
+    const signer = stubSigner([]);
 
-    await discoverChannelsByRentPayer(rpc, rentPayer);
+    await discoverChannelsByRentPayer(signer, SOLANA_DEVNET_CAIP2, rentPayer);
 
-    expect(rpc.getProgramAccounts).toHaveBeenCalledWith(
+    expect(signer.getProgramAccounts).toHaveBeenCalledWith(
+      SOLANA_DEVNET_CAIP2,
       PAYMENT_CHANNELS_PROGRAM_ID,
       expect.objectContaining({
         filters: [

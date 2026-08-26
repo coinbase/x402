@@ -46,10 +46,12 @@ import {
 } from "../../utils";
 import {
   assertSmartWalletLimits,
+  assertSmartWalletVerifySigner,
   resolveAccountKeys,
   verifySmartWalletTransaction,
   verifyPostSettlement,
   type DecodedTransactionView,
+  type SmartWalletVerifySigner,
   type TransferCheckedInfo,
 } from "./smartWalletVerification";
 import { verifyRequiredSignatures } from "./signatureVerification";
@@ -267,25 +269,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
         maxComputeUnits: this.options.smartWalletMaxComputeUnits,
         maxPriorityFeeMicroLamports: this.options.smartWalletMaxPriorityFeeMicroLamports,
       });
-
-      // fetchAddressLookupTables is required too: assertFeePayerIsolated can't
-      // inspect ALT-resolved accounts without it, so an ALT-using wallet would
-      // otherwise fail at verify time rather than at construction.
-      const required = [
-        "simulateTransactionWithInnerInstructions",
-        "getConfirmedTransactionInnerInstructions",
-        "getTokenAccountBalance",
-        "fetchAddressLookupTables",
-      ] as const;
-
-      for (const method of required) {
-        if (typeof (this.signer as Record<string, unknown>)[method] !== "function") {
-          throw new Error(
-            `enableSmartWalletVerification requires ${method} on the signer. ` +
-              `Use toFacilitatorSvmSigner() which provides all required methods.`,
-          );
-        }
-      }
+      assertSmartWalletVerifySigner(this.signer);
     }
   }
 
@@ -946,7 +930,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       const smartWalletResult = await verifySmartWalletTransaction(
         exactSvmPayload.transaction,
         requirements,
-        this.signer,
+        this.signer as SmartWalletVerifySigner,
         feePayer,
         signerAddresses,
         {

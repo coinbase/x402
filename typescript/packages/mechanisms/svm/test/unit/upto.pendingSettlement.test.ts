@@ -34,6 +34,11 @@ vi.mock("../../src/utils", async () => {
     ...actual,
     createRpcClient: () => ({
       getSlot: () => ({ send: async () => 123_456_789n }),
+      getLatestBlockhash: () => ({
+        send: async () => ({
+          value: { blockhash: USDC_MAINNET_ADDRESS, lastValidBlockHeight: 1n },
+        }),
+      }),
     }),
   };
 });

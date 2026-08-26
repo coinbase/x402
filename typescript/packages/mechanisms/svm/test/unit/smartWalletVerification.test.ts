@@ -885,7 +885,7 @@ describe("ExactSvmScheme constructor enforcement", () => {
         new ExactSvmScheme(incompleteSigner as never, undefined, {
           enableSmartWalletVerification: true,
         }),
-    ).toThrow("enableSmartWalletVerification requires");
+    ).toThrow("ExactSvmScheme requires simulateTransactionWithInnerInstructions on the signer");
   });
 
   it("throws when signer has the other methods but lacks fetchAddressLookupTables", async () => {
@@ -912,7 +912,7 @@ describe("ExactSvmScheme constructor enforcement", () => {
         new ExactSvmScheme(signerMissingAlt as never, undefined, {
           enableSmartWalletVerification: true,
         }),
-    ).toThrow("enableSmartWalletVerification requires fetchAddressLookupTables");
+    ).toThrow("ExactSvmScheme requires fetchAddressLookupTables on the signer");
   });
 
   it("succeeds when signer has all required methods", async () => {

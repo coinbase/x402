@@ -148,11 +148,13 @@ if (svmPrivateKey) {
   );
   console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
-  const svmSigner = toFacilitatorSvmSigner(svmAccount);
+  const svmSigner = toFacilitatorSvmSigner(
+    svmAccount,
+    svmRpcUrl ? { defaultRpcUrl: svmRpcUrl } : undefined,
+  );
   const svmUptoScheme = new UptoSvmScheme(svmSigner, {
     channelStorage,
     maxChannelLifetimeSecs,
-    rpcUrl: svmRpcUrl,
   });
   facilitator.register(SVM_NETWORK, svmUptoScheme);
 

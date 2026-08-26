@@ -1,0 +1,2 @@
+type: changed
+body: Route SVM upto facilitator RPC through the signer instead of scheme Config.RPC/RPCURL — claim settlement simulates before send, deposit composite sim uses a placeholder blockhash with replaceRecentBlockhash, and claim overlaps channel read with blockhash prefetch

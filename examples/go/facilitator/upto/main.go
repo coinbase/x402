@@ -50,7 +50,6 @@ func main() {
 	// one in production so cleanup survives restarts and works across replicas.
 	maxChannelLifetimeSecs := envInt("MAX_CHANNEL_LIFETIME_SECS", uptosvm.DefaultMaxChannelLifetimeSecs)
 	scheme := uptosvm.NewUptoSvmScheme(signer, &uptosvm.Config{
-		RPCURL:                 rpcURL,
 		MaxChannelLifetimeSecs: &maxChannelLifetimeSecs,
 	})
 

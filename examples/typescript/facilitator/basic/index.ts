@@ -94,7 +94,11 @@ const evmSigner = toFacilitatorEvmSigner({
 });
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
-const svmSigner = toFacilitatorSvmSigner(svmAccount);
+const svmRpcUrl = process.env.SVM_RPC_URL;
+const svmSigner = toFacilitatorSvmSigner(
+  svmAccount,
+  svmRpcUrl ? { defaultRpcUrl: svmRpcUrl } : undefined,
+);
 
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {

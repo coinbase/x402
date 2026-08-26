@@ -41,6 +41,47 @@ export type SmartWalletLimits = {
 };
 
 /**
+ * {@link FacilitatorSvmSigner} narrowed to the optional caps Path 2
+ * (simulation-based smart wallet payment verification) requires at runtime.
+ */
+export type SmartWalletVerifySigner = FacilitatorSvmSigner & {
+  simulateTransactionWithInnerInstructions: NonNullable<
+    FacilitatorSvmSigner["simulateTransactionWithInnerInstructions"]
+  >;
+  getConfirmedTransactionInnerInstructions: NonNullable<
+    FacilitatorSvmSigner["getConfirmedTransactionInnerInstructions"]
+  >;
+  getTokenAccountBalance: NonNullable<FacilitatorSvmSigner["getTokenAccountBalance"]>;
+  fetchAddressLookupTables: NonNullable<FacilitatorSvmSigner["fetchAddressLookupTables"]>;
+};
+
+const SMART_WALLET_VERIFY_METHODS = [
+  "simulateTransactionWithInnerInstructions",
+  "getConfirmedTransactionInnerInstructions",
+  "getTokenAccountBalance",
+  "fetchAddressLookupTables",
+] as const satisfies readonly (keyof SmartWalletVerifySigner)[];
+
+/**
+ * Assert a facilitator signer exposes every optional cap smart wallet payment
+ * verification needs.
+ *
+ * @param signer - Facilitator signer to validate
+ * @param label - Scheme or component name for error messages
+ * @throws Error when a required capability is missing
+ */
+export function assertSmartWalletVerifySigner(
+  signer: FacilitatorSvmSigner,
+  label = "ExactSvmScheme",
+): asserts signer is SmartWalletVerifySigner {
+  for (const method of SMART_WALLET_VERIFY_METHODS) {
+    if (typeof signer[method] !== "function") {
+      throw new Error(`${label} requires ${method} on the signer.`);
+    }
+  }
+}
+
+/**
  * Rejects smart-wallet limits that cannot be compared safely.
  *
  * @param limits - Optional operator-provided compute budget caps
@@ -414,7 +455,7 @@ export type SmartWalletVerifyResult = VerifyResponse & {
  *
  * @param transactionBase64 - Base64 encoded transaction
  * @param requirements - Payment requirements to verify against
- * @param signer - Facilitator signer (must implement simulateTransactionWithInnerInstructions)
+ * @param signer - Facilitator signer (must implement simulation verification caps)
  * @param feePayerAddress - Facilitator fee payer address
  * @param signerAddresses - All facilitator signer addresses (for self-spend protection)
  * @param options - Optional operator-configurable limits
@@ -424,7 +465,7 @@ export type SmartWalletVerifyResult = VerifyResponse & {
 export async function verifySmartWalletTransaction(
   transactionBase64: string,
   requirements: PaymentRequirements,
-  signer: FacilitatorSvmSigner,
+  signer: SmartWalletVerifySigner,
   feePayerAddress: string,
   signerAddresses: readonly string[],
   options?: SmartWalletOptions,
@@ -480,14 +521,6 @@ export async function verifySmartWalletTransaction(
   }
 
   // 3. Simulate with inner instructions.
-  if (typeof signer.simulateTransactionWithInnerInstructions !== "function") {
-    return {
-      isValid: false,
-      invalidReason: Errors.ErrSmartWalletVerificationUnavailable,
-      payer: "",
-    };
-  }
-
   let simResult: SvmInnerInstructionsResult;
   try {
     simResult = await signer.simulateTransactionWithInnerInstructions(

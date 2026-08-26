@@ -35,6 +35,7 @@ import {
 } from "./constants";
 import { DEFAULT_ASSETS, findDefaultAsset, getDefaultAsset } from "./defaultAssets";
 import type { ExactSvmPayloadV1 } from "./types";
+import { SLOT_COMMITMENT } from "./upto/shared";
 
 export { normalizeNetwork } from "./constants";
 
@@ -199,9 +200,9 @@ export async function resolveBlockhash(
  *
  * Prefers a server-provided slot carried in the 402 challenge
  * (`extra.recentSlot`) so the client needn't make its own RPC round-trip. Falls
- * back to `rpc.getSlot()` when the challenge omits it or contains a malformed
- * value. Default RPC commitment (`finalized`) keeps `openSlot <= clock.slot`
- * true when the open lands.
+ * back to `rpc.getSlot({ commitment: SLOT_COMMITMENT })` when the challenge
+ * omits it or contains a malformed value. Finalized commitment keeps
+ * `openSlot <= clock.slot` true when the open lands, matching the facilitator.
  *
  * @param rpc - RPC client used for the fallback fetch
  * @param requirements - The payment requirements (challenge) being paid
@@ -236,7 +237,7 @@ export async function resolveOpenSlot(
     }
   }
 
-  return await rpc.getSlot().send();
+  return await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
 }
 
 /**

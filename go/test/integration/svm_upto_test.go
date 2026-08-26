@@ -117,9 +117,7 @@ func newUptoSvmStack(t *testing.T, ctx context.Context) *uptoSvmStack {
 	if err != nil {
 		t.Fatalf("Failed to create facilitator signer: %v", err)
 	}
-	uptoFacilitator := uptosvmfacilitator.NewUptoSvmScheme(facilitatorSigner, &uptosvmfacilitator.Config{
-		RPCURL: uptoSvmRPCURL(),
-	})
+	uptoFacilitator := uptosvmfacilitator.NewUptoSvmScheme(facilitatorSigner, nil)
 	facilitator := x402.Newx402Facilitator()
 	facilitator.Register([]x402.Network{svm.SolanaDevnetCAIP2}, uptoFacilitator)
 
@@ -627,9 +625,7 @@ func newUptoSvmStackWithForcedPendingSigner(t *testing.T, ctx context.Context) (
 		t.Fatalf("Failed to create facilitator signer: %v", err)
 	}
 	facilitatorSigner := &forcedPendingConfirmSigner{FacilitatorSvmSigner: realFacilitatorSigner}
-	uptoFacilitator := uptosvmfacilitator.NewUptoSvmScheme(facilitatorSigner, &uptosvmfacilitator.Config{
-		RPCURL: uptoSvmRPCURL(),
-	})
+	uptoFacilitator := uptosvmfacilitator.NewUptoSvmScheme(facilitatorSigner, nil)
 	facilitator := x402.Newx402Facilitator()
 	facilitator.Register([]x402.Network{svm.SolanaDevnetCAIP2}, uptoFacilitator)
 

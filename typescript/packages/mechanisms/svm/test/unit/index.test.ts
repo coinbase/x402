@@ -153,6 +153,11 @@ describe("@x402/svm", () => {
       confirmTransaction: async () => {},
     };
 
+    const uptoIncompleteSigner: FacilitatorSvmSigner = {
+      ...exactOnlySigner,
+      getSigner: () => ({ address: "11111111111111111111111111111111" as never }) as never,
+    };
+
     it("allows exact-only signers without getSigner", () => {
       expect(exactOnlySigner.getAddresses()).toHaveLength(1);
       expect(exactOnlySigner.getSigner).toBeUndefined();
@@ -162,9 +167,9 @@ describe("@x402/svm", () => {
       expect(() => new ExactSvmScheme(exactOnlySigner)).not.toThrow();
     });
 
-    it("accepts exact-only signers for UptoSvmScheme at compile time but rejects missing getSigner at runtime", () => {
-      expect(() => new UptoSvmScheme(exactOnlySigner)).toThrow(
-        "UptoSvmScheme requires getSigner on the signer",
+    it("accepts exact-only signers for UptoSvmScheme at compile time but rejects missing upto read RPC at runtime", () => {
+      expect(() => new UptoSvmScheme(uptoIncompleteSigner as never)).toThrow(
+        "UptoSvmScheme requires getAccountInfo on the signer",
       );
     });
 
@@ -172,7 +177,7 @@ describe("@x402/svm", () => {
       expect(
         () =>
           new UptoSvmRentCleanupManager({
-            signer: exactOnlySigner,
+            signer: uptoIncompleteSigner as never,
             storage: {
               upsert: async () => {},
               get: async () => undefined,
@@ -181,7 +186,7 @@ describe("@x402/svm", () => {
             },
             network: SOLANA_DEVNET_CAIP2,
           }),
-      ).toThrow("UptoSvmRentCleanupManager requires getSigner on the signer");
+      ).toThrow("UptoSvmRentCleanupManager requires getAccountInfo on the signer");
     });
   });
 

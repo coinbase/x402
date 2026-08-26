@@ -9,7 +9,11 @@ export {
 } from "./scheme";
 export type { UptoChannelStorageErrorContext, UptoSvmFacilitatorConfig } from "./scheme";
 export { ErrSettlementPending } from "../../exact/facilitator/errors";
-export { ChannelOpenConfirmationError, SettlementConfirmationTimeoutError } from "./channel";
+export {
+  ChannelOpenConfirmationError,
+  SettlementConfirmationTimeoutError,
+  SettlementSimulationError,
+} from "./channel";
 export type { UptoSvmSigner } from "./channel";
 export { InMemoryUptoChannelStorage } from "./channelStorage";
 export type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";

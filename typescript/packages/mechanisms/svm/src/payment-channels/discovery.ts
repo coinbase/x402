@@ -8,7 +8,7 @@
 
 import { address, type Address, type Base58EncodedBytes } from "@solana/kit";
 
-import type { ChannelRpc } from "../upto/facilitator/channel";
+import type { FacilitatorSvmSigner } from "../signer";
 import type { Channel } from "./generated/accounts/channel";
 import { getChannelDecoder } from "./generated/accounts/channel";
 import { PAYMENT_CHANNELS_PROGRAM_ID } from "./onchain";
@@ -35,33 +35,39 @@ export interface DiscoveredChannel {
  * by `getProgramAccounts` itself, which only lists accounts owned by the
  * program passed to it.
  *
- * @param rpc - RPC client
+ * @param signer - Facilitator signer with {@link FacilitatorSvmSigner.getProgramAccounts}
+ * @param network - CAIP-2 network identifier
  * @param rentPayer - Facilitator key to discover channels for (base58)
  * @param programId - Optional payment-channels program id override
  * @returns Validated discovered channels
  */
 export async function discoverChannelsByRentPayer(
-  rpc: ChannelRpc,
+  signer: Pick<FacilitatorSvmSigner, "getProgramAccounts">,
+  network: string,
   rentPayer: string,
   programId?: string,
 ): Promise<DiscoveredChannel[]> {
+  if (typeof signer.getProgramAccounts !== "function") {
+    throw new Error(
+      "discoverChannelsByRentPayer requires getProgramAccounts on the signer. " +
+        "Use toFacilitatorSvmSigner() which provides all required methods.",
+    );
+  }
   const program = address(programId ?? PAYMENT_CHANNELS_PROGRAM_ID);
-  const results = await rpc
-    .getProgramAccounts(program, {
-      commitment: "confirmed",
-      encoding: "base64",
-      filters: [
-        { dataSize: CHANNEL_ACCOUNT_SIZE },
-        {
-          memcmp: {
-            bytes: rentPayer as Base58EncodedBytes,
-            encoding: "base58",
-            offset: CHANNEL_RENT_PAYER_OFFSET,
-          },
+  const results = await signer.getProgramAccounts(network, program.toString(), {
+    commitment: "confirmed",
+    encoding: "base64",
+    filters: [
+      { dataSize: CHANNEL_ACCOUNT_SIZE },
+      {
+        memcmp: {
+          bytes: rentPayer as Base58EncodedBytes,
+          encoding: "base58",
+          offset: CHANNEL_RENT_PAYER_OFFSET,
         },
-      ],
-    })
-    .send();
+      },
+    ],
+  });
 
   const discovered: DiscoveredChannel[] = [];
   for (const result of results) {

@@ -30,6 +30,18 @@ vi.mock("../../src/utils", async () => {
     ...actual,
     createRpcClient: () => ({
       getSlot: () => ({ send: async () => 123_456_789n }),
+      getLatestBlockhash: () => ({
+        send: async () => ({
+          value: { blockhash: USDC_MAINNET_ADDRESS, lastValidBlockHeight: 1n },
+        }),
+      }),
+      getAccountInfo: () => ({ send: async () => ({ value: null }) }),
+      getProgramAccounts: () => ({ send: async () => [] }),
+      simulateTransaction: () => ({ send: async () => ({ value: { err: null } }) }),
+      sendTransaction: () => ({ send: async () => USDC_MAINNET_ADDRESS }),
+      getSignatureStatuses: () => ({
+        send: async () => ({ value: [{ err: null, confirmationStatus: "confirmed" }] }),
+      }),
     }),
   };
 });
@@ -49,7 +61,10 @@ import {
   UptoSvmScheme,
 } from "../../src/upto/facilitator/scheme";
 import { ErrSettlementPending } from "../../src/exact/facilitator/errors";
-import { SettlementConfirmationTimeoutError } from "../../src/upto/facilitator/channel";
+import {
+  SettlementConfirmationTimeoutError,
+  SettlementSimulationError,
+} from "../../src/upto/facilitator/channel";
 import type { UptoChannelStorage } from "../../src/upto/facilitator/channelStorage";
 import { UptoSvmRentCleanupManager } from "../../src/upto/facilitator/rentCleanupManager";
 import type { UptoSvmPayloadV2 } from "../../src/types";
@@ -180,8 +195,12 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     expect(channelMocks.submitSettle).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
+      SOLANA_DEVNET_CAIP2,
       expect.anything(),
-      { computeUnitLimit: 123_456, computeUnitPriceMicroLamports: 7 },
+      expect.objectContaining({
+        computeUnitLimit: 123_456,
+        computeUnitPriceMicroLamports: 7,
+      }),
     );
   });
 
@@ -377,6 +396,7 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
     expect(channelMocks.simulateOpenSettleDistribute).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
+      SOLANA_DEVNET_CAIP2,
       expect.objectContaining({
         openTransactionBase64: uptoPayload.openTransaction,
         channel: expect.objectContaining({
@@ -1075,22 +1095,24 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
       });
     });
 
-    it("throws when UptoSvmScheme is constructed with a signer lacking getSigner", () => {
+    it("throws when UptoSvmScheme is constructed with a signer lacking upto read RPC", () => {
       const exactOnlySigner: FacilitatorSvmSigner = {
         getAddresses: () => ["11111111111111111111111111111111" as never],
+        getSigner: vi.fn(),
         signTransaction: vi.fn(),
         simulateTransaction: vi.fn(),
         sendTransaction: vi.fn(),
         confirmTransaction: vi.fn(),
       };
-      expect(() => new UptoSvmScheme(exactOnlySigner)).toThrow(
-        "UptoSvmScheme requires getSigner on the signer",
+      expect(() => new UptoSvmScheme(exactOnlySigner as never)).toThrow(
+        "UptoSvmScheme requires getAccountInfo on the signer",
       );
     });
 
-    it("throws when UptoSvmRentCleanupManager is constructed with a signer lacking getSigner", () => {
+    it("throws when UptoSvmRentCleanupManager is constructed with a signer lacking upto read RPC", () => {
       const exactOnlySigner: FacilitatorSvmSigner = {
         getAddresses: () => ["11111111111111111111111111111111" as never],
+        getSigner: vi.fn(),
         signTransaction: vi.fn(),
         simulateTransaction: vi.fn(),
         sendTransaction: vi.fn(),
@@ -1099,11 +1121,33 @@ describe("UptoSvmScheme facilitator channel lifecycle", () => {
       expect(
         () =>
           new UptoSvmRentCleanupManager({
-            signer: exactOnlySigner,
+            signer: exactOnlySigner as never,
             storage: { upsert: vi.fn(), get: vi.fn(), list: vi.fn(), delete: vi.fn() },
             network: SOLANA_DEVNET_CAIP2,
           }),
-      ).toThrow("UptoSvmRentCleanupManager requires getSigner on the signer");
+      ).toThrow("UptoSvmRentCleanupManager requires getAccountInfo on the signer");
+    });
+
+    it("returns invalid_upto_svm_settlement_simulation when claim submitSettle simulation fails", async () => {
+      const { facilitator, payload, requirements, receiverAuthorizer, uptoPayload } =
+        await buildFixture();
+      channelMocks.submitSettle.mockRejectedValue(
+        new SettlementSimulationError(new Error("sim failed")),
+      );
+      const voucherSignature = await signVoucher(receiverAuthorizer, {
+        channelId: uptoPayload.channelId,
+        cumulativeAmount: 0n,
+        expiresAt: BigInt(uptoPayload.expiresAt),
+      });
+      await expect(
+        facilitator.settle(
+          { ...payload, payload: { ...uptoPayload, voucherSignature } },
+          { ...requirements, amount: "0" },
+        ),
+      ).resolves.toMatchObject({
+        success: false,
+        errorReason: "invalid_upto_svm_settlement_simulation",
+      });
     });
   });
 });

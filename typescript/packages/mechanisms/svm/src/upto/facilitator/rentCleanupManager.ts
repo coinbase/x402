@@ -28,11 +28,11 @@ import {
 } from "../../payment-channels/onchain";
 import { OPEN_SLOT_WINDOW } from "../../payment-channels/open";
 import type { FacilitatorSigningCapabilities, FacilitatorSvmSigner } from "../../signer";
-import { createRpcClient } from "../../utils";
 import { BASIS_POINTS_DENOMINATOR, SLOT_COMMITMENT, STATE_COMMITMENT } from "../shared";
-import type { ChannelRpc, UptoSvmSigner } from "./channel";
-import { reclaimComputeUnitLimit, submitSettle } from "./channel";
+import type { UptoSvmSigner } from "./channel";
+import { accountFetchRpc, reclaimComputeUnitLimit, submitSettle } from "./channel";
 import type { UptoChannelRecord, UptoChannelStorage } from "./channelStorage";
+import { assertUptoFacilitatorSigner, type UptoFacilitatorSigner } from "./signer";
 
 /** Reclaim work item: storage key plus live rent_payer from the channel account. */
 interface ReclaimCandidate {
@@ -240,7 +240,6 @@ export interface UptoSvmRentCleanupManagerConfig {
   signer: FacilitatorSvmSigner;
   storage: UptoChannelStorage;
   network: Network;
-  rpcUrl?: string;
   /**
    * `SetComputeUnitPrice` (microlamports per compute unit) attached to cleanup
    * transactions; `0` omits the instruction. Defaults to
@@ -255,8 +254,6 @@ export interface UptoSvmRentCleanupManagerConfig {
    * (`reclaimComputeUnitLimit`) and are mint-independent.
    */
   settleComputeUnitLimit?: number;
-  /** Injected RPC client used instead of building one from `rpcUrl`. */
-  rpc?: ChannelRpc;
 }
 
 /**
@@ -266,14 +263,12 @@ export interface UptoSvmRentCleanupManagerConfig {
  * {@link cleanup}; the facilitator scheme never auto-starts this.
  */
 export class UptoSvmRentCleanupManager {
-  private readonly signer: FacilitatorSvmSigner;
+  private readonly signer: UptoFacilitatorSigner;
   private readonly getKitSigner: (feePayer: Address) => FacilitatorSigningCapabilities;
   private readonly storage: UptoChannelStorage;
   private readonly network: Network;
-  private readonly rpcUrl: string | undefined;
   private readonly computeUnitPriceMicroLamports: number | undefined;
   private readonly settleComputeUnitLimit: number | undefined;
-  private readonly rpc: ChannelRpc | undefined;
 
   private timer: ReturnType<typeof setInterval> | undefined;
   private discoveryTimer: ReturnType<typeof setInterval> | undefined;
@@ -311,20 +306,13 @@ export class UptoSvmRentCleanupManager {
    * @param config - Signer pool, channel storage, and network/RPC
    */
   constructor(config: UptoSvmRentCleanupManagerConfig) {
-    if (typeof config.signer.getSigner !== "function") {
-      throw new Error(
-        "UptoSvmRentCleanupManager requires getSigner on the signer. " +
-          "Use toFacilitatorSvmSigner() which provides all required methods.",
-      );
-    }
+    assertUptoFacilitatorSigner(config.signer, "UptoSvmRentCleanupManager");
     this.getKitSigner = config.signer.getSigner.bind(config.signer);
     this.signer = config.signer;
     this.storage = config.storage;
     this.network = config.network;
-    this.rpcUrl = config.rpcUrl;
     this.computeUnitPriceMicroLamports = config.computeUnitPriceMicroLamports;
     this.settleComputeUnitLimit = config.settleComputeUnitLimit;
-    this.rpc = config.rpc;
   }
 
   /**
@@ -440,7 +428,7 @@ export class UptoSvmRentCleanupManager {
     const maxClosesPerRun = resolveCleanupCount(opts.maxClosesPerRun, DEFAULT_MAX_CLOSES_PER_RUN);
     const abort = passAbort(this.abortController?.signal, opts.signal);
 
-    const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
+    const rpc = accountFetchRpc(this.signer, this.network);
     const records = orderForScan(await this.storage.list(), this.scanCursor);
     this.scanCursor = "";
     const nowSecs = Math.floor(Date.now() / 1_000);
@@ -449,7 +437,7 @@ export class UptoSvmRentCleanupManager {
     let closesUsed = 0;
     const reclaimCandidates: ReclaimCandidate[] = [];
     const getCurrentSlot = async (): Promise<bigint> => {
-      currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
+      currentSlot ??= await this.signer.getSlot(this.network, SLOT_COMMITMENT);
       return currentSlot;
     };
 
@@ -510,7 +498,6 @@ export class UptoSvmRentCleanupManager {
 
           const signature = await this.submitCloseOrDistribute(
             feePayerSigner,
-            rpc,
             record,
             live,
             status,
@@ -522,7 +509,7 @@ export class UptoSvmRentCleanupManager {
             transaction: signature,
             action: status === ChannelStatus.Open ? "abandon_close" : "distribute",
           });
-          await this.syncStorageAfterAction(rpc, record.channelId);
+          await this.syncStorageAfterAction(record.channelId);
           continue;
         }
 
@@ -548,7 +535,7 @@ export class UptoSvmRentCleanupManager {
       }
     }
 
-    await this.submitReclaimBatches(rpc, reclaimCandidates, {
+    await this.submitReclaimBatches(reclaimCandidates, {
       maxReclaimsPerTx,
       maxTxsPerSigner,
       abort,
@@ -565,7 +552,12 @@ export class UptoSvmRentCleanupManager {
    */
   private async runDiscovery(opts: RentDiscoveryOptions): Promise<void> {
     const abort = passAbort(this.abortController?.signal, opts.signal);
-    const rpc = this.rpc ?? createRpcClient(this.network, this.rpcUrl);
+    if (typeof this.signer.getProgramAccounts !== "function") {
+      throw new Error(
+        "UptoSvmRentCleanupManager.discover requires getProgramAccounts on the signer. " +
+          "Use toFacilitatorSvmSigner() which provides all required methods.",
+      );
+    }
 
     const known = new Set((await this.storage.list()).map(record => record.channelId));
     const discovered: string[] = [];
@@ -575,12 +567,12 @@ export class UptoSvmRentCleanupManager {
       abort.throwIfAborted();
       let found;
       try {
-        found = await discoverChannelsByRentPayer(rpc, managed);
+        found = await discoverChannelsByRentPayer(this.signer, this.network, managed);
       } catch (error) {
         opts.onError?.(error);
         continue;
       }
-      currentSlot ??= await rpc.getSlot({ commitment: SLOT_COMMITMENT }).send();
+      currentSlot ??= await this.signer.getSlot(this.network, SLOT_COMMITMENT);
 
       for (const { channelId, channel } of found) {
         if (known.has(channelId)) continue;
@@ -647,7 +639,6 @@ export class UptoSvmRentCleanupManager {
    * alone for Sealed.
    *
    * @param feePayerSigner - Channel feePayer / payee signer
-   * @param rpc - RPC client
    * @param record - Stored channel (must include payTo + tokenProgram)
    * @param live - Refetched channel account
    * @param status - Live status that selected this path
@@ -655,7 +646,6 @@ export class UptoSvmRentCleanupManager {
    */
   private async submitCloseOrDistribute(
     feePayerSigner: UptoSvmSigner,
-    rpc: ChannelRpc,
     record: UptoChannelRecord,
     live: Channel,
     status: ChannelStatus,
@@ -683,7 +673,7 @@ export class UptoSvmRentCleanupManager {
           ]
         : [distribute];
 
-    return submitSettle(feePayerSigner, rpc, instructions, {
+    return submitSettle(feePayerSigner, this.signer, this.network, instructions, {
       computeUnitLimit: this.settleComputeUnitLimit,
       computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
     });
@@ -692,10 +682,10 @@ export class UptoSvmRentCleanupManager {
   /**
    * After a close/distribute, delete the storage entry if the PDA is gone.
    *
-   * @param rpc - RPC client
    * @param channelId - Channel PDA
    */
-  private async syncStorageAfterAction(rpc: ChannelRpc, channelId: string): Promise<void> {
+  private async syncStorageAfterAction(channelId: string): Promise<void> {
+    const rpc = accountFetchRpc(this.signer, this.network);
     const maybe = await fetchMaybeChannel(rpc, address(channelId), {
       commitment: STATE_COMMITMENT,
     });
@@ -716,7 +706,6 @@ export class UptoSvmRentCleanupManager {
    * maxTxsPerSigner more reclaim throughput per pass, not a share of a fixed
    * pool.
    *
-   * @param rpc - RPC client
    * @param candidates - Distributed channels ready to reclaim
    * @param opts - Batch size, tx budget, callbacks
    * @param opts.maxReclaimsPerTx - Max reclaim instructions per transaction
@@ -726,7 +715,6 @@ export class UptoSvmRentCleanupManager {
    * @param opts.onError - Optional error callback
    */
   private async submitReclaimBatches(
-    rpc: ChannelRpc,
     candidates: ReclaimCandidate[],
     opts: {
       maxReclaimsPerTx: number;
@@ -747,7 +735,7 @@ export class UptoSvmRentCleanupManager {
 
     await Promise.all(
       Array.from(byRentPayer.entries()).map(([rentPayer, group]) =>
-        this.submitReclaimGroup(rpc, rentPayer, group, opts, { remaining: opts.maxTxsPerSigner }),
+        this.submitReclaimGroup(rentPayer, group, opts, { remaining: opts.maxTxsPerSigner }),
       ),
     );
   }
@@ -756,7 +744,6 @@ export class UptoSvmRentCleanupManager {
    * Submit one rent payer's reclaim batches sequentially, claiming a slot
    * from the shared budget before each attempt.
    *
-   * @param rpc - RPC client
    * @param rentPayer - Rent payer this group's channels share
    * @param group - This rent payer's reclaim candidates
    * @param opts - Batch size and callbacks
@@ -768,7 +755,6 @@ export class UptoSvmRentCleanupManager {
    * @param budget.remaining - Reclaim transactions this rent payer may submit
    */
   private async submitReclaimGroup(
-    rpc: ChannelRpc,
     rentPayer: string,
     group: ReclaimCandidate[],
     opts: {
@@ -801,6 +787,7 @@ export class UptoSvmRentCleanupManager {
 
       const batch = group.slice(i, i + opts.maxReclaimsPerTx);
       try {
+        const rpc = accountFetchRpc(this.signer, this.network);
         // Refetch each account immediately before acting (stale → skip).
         const liveBatch: ReclaimCandidate[] = [];
         for (const candidate of batch) {
@@ -825,10 +812,16 @@ export class UptoSvmRentCleanupManager {
             rentPayer: candidate.rentPayer,
           }),
         );
-        const signature = await submitSettle(feePayerSigner, rpc, instructions, {
-          computeUnitLimit: reclaimComputeUnitLimit(liveBatch.length),
-          computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
-        });
+        const signature = await submitSettle(
+          feePayerSigner,
+          this.signer,
+          this.network,
+          instructions,
+          {
+            computeUnitLimit: reclaimComputeUnitLimit(liveBatch.length),
+            computeUnitPriceMicroLamports: this.computeUnitPriceMicroLamports,
+          },
+        );
         opts.onReclaim?.({
           channelIds: liveBatch.map(c => c.channelId),
           transaction: signature,

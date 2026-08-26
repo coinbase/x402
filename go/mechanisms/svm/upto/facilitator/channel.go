@@ -15,6 +15,10 @@ import (
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/upto"
 )
 
+// simPlaceholderBlockhash is compiled into deposit composite sims; the RPC
+// replaces it before simulation.
+var simPlaceholderBlockhash = solana.Hash{}
+
 // simComputeUnitLimit is the Solana per-transaction compute maximum. Only used
 // for facilitator-built simulations: the composite open + settle + distribute
 // exceeds the 400,000 CU ceiling the client open is capped at.
@@ -109,10 +113,11 @@ func (c *verifiedOpenChannel) settlement(tokenProgram solana.PublicKey, network 
 // value reports whether the account exists at all.
 func fetchChannelAccount(
 	ctx context.Context,
-	rpcClient *rpc.Client,
+	signer UptoFacilitatorSigner,
+	network string,
 	channelID solana.PublicKey,
 ) (*paymentchannels.Channel, bool, error) {
-	account, err := getChannelAccount(ctx, rpcClient, channelID)
+	account, err := getChannelAccount(ctx, signer, network, channelID)
 	if err != nil {
 		if errors.Is(err, rpc.ErrNotFound) {
 			return nil, false, nil
@@ -135,18 +140,24 @@ func fetchChannelAccount(
 // is visible to this one.
 func getChannelAccount(
 	ctx context.Context,
-	rpcClient *rpc.Client,
+	signer UptoFacilitatorSigner,
+	network string,
 	channelID solana.PublicKey,
 ) (*rpc.GetAccountInfoResult, error) {
-	return rpcClient.GetAccountInfoWithOpts(ctx, channelID, &rpc.GetAccountInfoOpts{
+	return signer.GetAccountInfo(ctx, channelID, network, &rpc.GetAccountInfoOpts{
 		Encoding:   solana.EncodingBase64,
 		Commitment: upto.StateCommitment,
 	})
 }
 
 // channelExists reports whether the channel PDA is already allocated onchain.
-func channelExists(ctx context.Context, rpcClient *rpc.Client, channelID solana.PublicKey) (bool, error) {
-	account, err := getChannelAccount(ctx, rpcClient, channelID)
+func channelExists(
+	ctx context.Context,
+	signer UptoFacilitatorSigner,
+	network string,
+	channelID solana.PublicKey,
+) (bool, error) {
+	account, err := getChannelAccount(ctx, signer, network, channelID)
 	if err != nil {
 		if errors.Is(err, rpc.ErrNotFound) {
 			return false, nil
@@ -160,12 +171,13 @@ func channelExists(ctx context.Context, rpcClient *rpc.Client, channelID solana.
 // the challenge terms before the facilitator settles against it.
 func fetchAndVerifyOpenChannel(
 	ctx context.Context,
-	rpcClient *rpc.Client,
+	signer UptoFacilitatorSigner,
+	network string,
 	channelID solana.PublicKey,
 	expected expectedOpenChannel,
 ) (*verifiedOpenChannel, error) {
 	for attempt := 1; attempt <= channelReadMaxAttempts; attempt++ {
-		channel, exists, err := fetchChannelAccount(ctx, rpcClient, channelID)
+		channel, exists, err := fetchChannelAccount(ctx, signer, network, channelID)
 		if err != nil {
 			return nil, err
 		}
@@ -305,8 +317,7 @@ type settlementChannel struct {
 // with signature verification off).
 func simulateOpenSettleDistribute(
 	ctx context.Context,
-	rpcClient *rpc.Client,
-	signer svm.FacilitatorSvmSigner,
+	signer UptoFacilitatorSigner,
 	feePayer solana.PublicKey,
 	openTransactionBase64 string,
 	channel settlementChannel,
@@ -347,7 +358,7 @@ func simulateOpenSettleDistribute(
 	}
 	instructions = append(instructions, settleInstructions...)
 
-	return simulateInstructions(ctx, rpcClient, signer, feePayer, channel.Network, instructions)
+	return simulateInstructions(ctx, signer, feePayer, channel.Network, instructions)
 }
 
 // voucherArgs carry a signed voucher into settle_and_seal via the Ed25519
@@ -407,22 +418,17 @@ func buildSettleAndDistribute(
 }
 
 // buildSignedTransaction compiles instructions into a fee-payer-signed
-// transaction anchored to a fresh blockhash.
+// transaction anchored to blockhash.
 func buildSignedTransaction(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	signer svm.FacilitatorSvmSigner,
 	feePayer solana.PublicKey,
 	network string,
+	blockhash solana.Hash,
 	instructions []solana.Instruction,
 ) (*solana.Transaction, error) {
-	latest, err := rpcClient.GetLatestBlockhash(ctx, upto.BlockhashCommitment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch latest blockhash: %w", err)
-	}
-
 	builder := solana.NewTransactionBuilder().
-		SetRecentBlockHash(latest.Value.Blockhash).
+		SetRecentBlockHash(blockhash).
 		SetFeePayer(feePayer)
 	for _, instruction := range instructions {
 		builder = builder.AddInstruction(instruction)
@@ -448,29 +454,38 @@ func buildSignedTransaction(
 // are never landed and the composite open simulation carries an unsigned payer.
 func simulateInstructions(
 	ctx context.Context,
-	rpcClient *rpc.Client,
-	signer svm.FacilitatorSvmSigner,
+	signer UptoFacilitatorSigner,
 	feePayer solana.PublicKey,
 	network string,
 	instructions []solana.Instruction,
 ) error {
-	tx, err := buildSignedTransaction(ctx, rpcClient, signer, feePayer, network, instructions)
+	tx, err := buildSignedTransaction(ctx, signer, feePayer, network, simPlaceholderBlockhash, instructions)
 	if err != nil {
 		return err
 	}
 
-	result, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, &rpc.SimulateTransactionOpts{
+	return signer.SimulateTransactionWithOpts(ctx, tx, network, &rpc.SimulateTransactionOpts{
 		SigVerify:              false,
 		ReplaceRecentBlockhash: true,
 		Commitment:             upto.StateCommitment,
 	})
-	if err != nil {
-		return fmt.Errorf("settlement simulation failed: %w", err)
+}
+
+// SettlementSimulationError is returned when explicit settlement simulation
+// fails. The transaction is never broadcast.
+type SettlementSimulationError struct {
+	Err error
+}
+
+func (e *SettlementSimulationError) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
 	}
-	if result != nil && result.Value != nil && result.Value.Err != nil {
-		return fmt.Errorf("settlement simulation failed: %v", result.Value.Err)
-	}
-	return nil
+	return "settlement simulation failed"
+}
+
+func (e *SettlementSimulationError) Unwrap() error {
+	return e.Err
 }
 
 // submitSettleOptions configures the ComputeBudget prefix submitSettle
@@ -484,6 +499,9 @@ type submitSettleOptions struct {
 	// ComputeUnitPriceMicroLamports overrides SetComputeUnitPrice; 0 omits
 	// the instruction. Defaults to svm.DefaultComputeUnitPriceMicrolamports.
 	ComputeUnitPriceMicroLamports *uint64
+	// LatestBlockhash, when set, skips a blockhash fetch (e.g. prefetched in
+	// parallel with a channel read during claim settle).
+	LatestBlockhash *solana.Hash
 }
 
 // buildSettleComputeBudget builds the ComputeBudget prefix submitSettle
@@ -523,8 +541,7 @@ func buildSettleComputeBudget(opts submitSettleOptions) ([]solana.Instruction, e
 // ComputeBudget SetComputeUnitLimit and optional SetComputeUnitPrice.
 func submitSettle(
 	ctx context.Context,
-	rpcClient *rpc.Client,
-	signer svm.FacilitatorSvmSigner,
+	signer UptoFacilitatorSigner,
 	feePayer solana.PublicKey,
 	network string,
 	instructions []solana.Instruction,
@@ -535,11 +552,26 @@ func submitSettle(
 		return "", err
 	}
 
+	var blockhash solana.Hash
+	if opts.LatestBlockhash != nil {
+		blockhash = *opts.LatestBlockhash
+	} else {
+		latest, _, err := signer.GetLatestBlockhash(ctx, network)
+		if err != nil {
+			return "", fmt.Errorf("failed to fetch latest blockhash: %w", err)
+		}
+		blockhash = latest
+	}
+
 	tx, err := buildSignedTransaction(
-		ctx, rpcClient, signer, feePayer, network, append(computeBudget, instructions...),
+		ctx, signer, feePayer, network, blockhash, append(computeBudget, instructions...),
 	)
 	if err != nil {
 		return "", err
+	}
+
+	if err := signer.SimulateTransaction(ctx, tx, network); err != nil {
+		return "", &SettlementSimulationError{Err: err}
 	}
 
 	signature, err := signer.SendTransaction(ctx, tx, network)

@@ -1,6 +1,7 @@
 package paymentchannels
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -94,6 +95,17 @@ func validDiscoveryChannel(t *testing.T, rentPayer solana.PublicKey) (solana.Pub
 	return pda, data
 }
 
+type rpcProgramAccountsQuerier struct {
+	client *rpc.Client
+}
+
+func (q rpcProgramAccountsQuerier) GetProgramAccounts(
+	ctx context.Context,
+	opts *rpc.GetProgramAccountsOpts,
+) (rpc.GetProgramAccountsResult, error) {
+	return q.client.GetProgramAccountsWithOpts(ctx, ProgramID, opts)
+}
+
 func TestDiscoverChannelsByRentPayer_AcceptsValidatedAccount(t *testing.T) {
 	rentPayer := testKeypair(t).PublicKey()
 	pda, data := validDiscoveryChannel(t, rentPayer)
@@ -102,7 +114,7 @@ func TestDiscoverChannelsByRentPayer_AcceptsValidatedAccount(t *testing.T) {
 		{pubkey: pda, owner: ProgramID, data: data},
 	})
 
-	discovered, err := DiscoverChannelsByRentPayer(t.Context(), client, rentPayer)
+	discovered, err := DiscoverChannelsByRentPayer(t.Context(), rpcProgramAccountsQuerier{client: client}, rentPayer)
 	require.NoError(t, err)
 	require.Len(t, discovered, 1)
 	assert.Equal(t, pda, discovered[0].ChannelID)
@@ -123,7 +135,7 @@ func TestDiscoverChannelsByRentPayer_RejectsWrongOwner(t *testing.T) {
 		{pubkey: pda, owner: testKeypair(t).PublicKey(), data: data},
 	})
 
-	discovered, err := DiscoverChannelsByRentPayer(t.Context(), client, rentPayer)
+	discovered, err := DiscoverChannelsByRentPayer(t.Context(), rpcProgramAccountsQuerier{client: client}, rentPayer)
 	require.NoError(t, err)
 	assert.Empty(t, discovered)
 }
@@ -139,7 +151,7 @@ func TestDiscoverChannelsByRentPayer_RejectsPDAMismatch(t *testing.T) {
 		{pubkey: wrongPubkey, owner: ProgramID, data: data},
 	})
 
-	discovered, err := DiscoverChannelsByRentPayer(t.Context(), client, rentPayer)
+	discovered, err := DiscoverChannelsByRentPayer(t.Context(), rpcProgramAccountsQuerier{client: client}, rentPayer)
 	require.NoError(t, err)
 	assert.Empty(t, discovered)
 }
@@ -152,7 +164,7 @@ func TestDiscoverChannelsByRentPayer_RejectsMalformedAccount(t *testing.T) {
 		{pubkey: pda, owner: ProgramID, data: []byte{0x01, 0x02}},
 	})
 
-	discovered, err := DiscoverChannelsByRentPayer(t.Context(), client, rentPayer)
+	discovered, err := DiscoverChannelsByRentPayer(t.Context(), rpcProgramAccountsQuerier{client: client}, rentPayer)
 	require.NoError(t, err)
 	assert.Empty(t, discovered)
 }

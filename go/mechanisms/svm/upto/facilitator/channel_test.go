@@ -32,12 +32,14 @@ func TestFetchAndVerifyOpenChannelRetriesMissingAccount(t *testing.T) {
 	signer := newMockSigner(t, 1)
 	fixture := newPaymentFixture(t, signer)
 	rpcStub := newStubRPC(t)
+	signer.attachRPC(rpc.New(rpcStub.url))
 	rpcStub.setAccount(fixture.channelID.String(), fixture.openChannel().encode(t))
 	rpcStub.hideAccountForReads(fixture.channelID.String(), 1)
 
 	verified, err := fetchAndVerifyOpenChannel(
 		context.Background(),
-		rpc.New(rpcStub.url),
+		signer,
+		testNetwork,
 		fixture.channelID,
 		expectedFrom(fixture),
 	)
@@ -50,12 +52,14 @@ func TestFetchAndVerifyOpenChannelStopsRetryingWhenContextEnds(t *testing.T) {
 	signer := newMockSigner(t, 1)
 	fixture := newPaymentFixture(t, signer)
 	rpcStub := newStubRPC(t)
+	signer.attachRPC(rpc.New(rpcStub.url))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
 	_, err := fetchAndVerifyOpenChannel(
 		ctx,
-		rpc.New(rpcStub.url),
+		signer,
+		testNetwork,
 		fixture.channelID,
 		expectedFrom(fixture),
 	)

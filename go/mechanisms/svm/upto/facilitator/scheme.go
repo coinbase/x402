@@ -10,10 +10,10 @@ import (
 	"log"
 	"math/rand/v2"
 	"strconv"
+	"sync"
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
@@ -40,14 +40,6 @@ const StoragePhaseSettle StoragePhase = "settle"
 
 // Config is the optional configuration of the SVM `upto` facilitator.
 type Config struct {
-	// RPCURL overrides the per-network default RPC endpoint.
-	RPCURL string
-
-	// RPC is a prebuilt client used instead of building one from RPCURL, for
-	// callers that need custom headers, transport, or rate limiting. It is
-	// also threaded into the manager NewRentCleanupManager returns.
-	RPC *rpc.Client
-
 	// ChannelStorage indexes sponsored channels for rent cleanup. Defaults to
 	// in-memory storage; inject a durable one for multi-process facilitators.
 	ChannelStorage ChannelStorage
@@ -107,7 +99,7 @@ type Config struct {
 // abandoned channel to recover its rent, while any nonzero settlement still
 // requires the server's receiver-authorizer voucher.
 type UptoSvmScheme struct {
-	signer          svm.FacilitatorSvmSigner
+	signer          UptoFacilitatorSigner
 	config          Config
 	channelStorage  ChannelStorage
 	settlementCache *svm.SettlementCache
@@ -145,7 +137,7 @@ func NewUptoSvmScheme(signer svm.FacilitatorSvmSigner, config *Config) *UptoSvmS
 		storage = NewInMemoryChannelStorage()
 	}
 	return &UptoSvmScheme{
-		signer:          signer,
+		signer:          assertUptoFacilitatorSigner(signer, "UptoSvmScheme"),
 		config:          cfg,
 		channelStorage:  storage,
 		settlementCache: svm.NewSettlementCache(),
@@ -196,21 +188,9 @@ func (f *UptoSvmScheme) NewRentCleanupManager(network string) *RentCleanupManage
 		Signer:                        f.signer,
 		Storage:                       f.channelStorage,
 		Network:                       network,
-		RPCURL:                        f.config.RPCURL,
-		RPC:                           f.config.RPC,
 		ComputeUnitPriceMicroLamports: f.config.ComputeUnitPriceMicroLamports,
 		SettleComputeUnitLimit:        f.config.SettleComputeUnitLimit,
 	})
-}
-
-// rpcClient returns the injected client when there is one, otherwise builds
-// one for the network. Every RPC entry point in the scheme goes through here
-// so an injected client is never bypassed.
-func (f *UptoSvmScheme) rpcClient(network string) (*rpc.Client, error) {
-	if f.config.RPC != nil {
-		return f.config.RPC, nil
-	}
-	return upto.NewRPCClient(network, f.config.RPCURL)
 }
 
 // GetExtra advertises a randomly selected fee payer for payment-channel opens.
@@ -416,15 +396,12 @@ func (f *UptoSvmScheme) settleDeposit(
 	}
 
 	uptoPayload := auth.payload
-	rpcClient, err := f.rpcClient(string(requirements.Network))
-	if err != nil {
-		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
-	}
+	networkStr := string(requirements.Network)
 
 	// One authorization opens one channel. An existing PDA is a replay or a
 	// stranded prior open, not a rebind: a handler failure after a successful
 	// deposit refunds through the zero-amount cancel settle instead.
-	exists, err := channelExists(ctx, rpcClient, auth.channelID)
+	exists, err := channelExists(ctx, f.signer, networkStr, auth.channelID)
 	if err != nil {
 		return nil, x402.NewSettleError(ErrChannelState, uptoPayload.From, network, "", err.Error())
 	}
@@ -453,7 +430,7 @@ func (f *UptoSvmScheme) settleDeposit(
 		Splits:       auth.channelConfig.Splits,
 	}
 	if err := simulateOpenSettleDistribute(
-		ctx, rpcClient, f.signer, auth.feePayer, uptoPayload.OpenTransaction, simChannel,
+		ctx, f.signer, auth.feePayer, uptoPayload.OpenTransaction, simChannel,
 	); err != nil {
 		f.settlementCache.Delete(depositKey)
 		return nil, x402.NewSettleError(ErrSettlementSimulation, uptoPayload.From, network, "", err.Error())
@@ -492,7 +469,7 @@ func (f *UptoSvmScheme) settleDeposit(
 		return nil, x402.NewSettleError(ErrChannelBroadcast, uptoPayload.From, network, "", err.Error())
 	}
 
-	if _, err := fetchAndVerifyOpenChannel(ctx, rpcClient, auth.channelID, expectedOpenChannel{
+	if _, err := fetchAndVerifyOpenChannel(ctx, f.signer, networkStr, auth.channelID, expectedOpenChannel{
 		AuthorizedSigner: auth.channelConfig.ReceiverAuthorizer,
 		Mint:             requirements.Asset,
 		Payee:            auth.channelConfig.FeePayer,
@@ -584,12 +561,9 @@ func (f *UptoSvmScheme) settleClaim(
 	if err != nil {
 		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
 	}
-	rpcClient, err := f.rpcClient(string(requirements.Network))
-	if err != nil {
-		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", err.Error())
-	}
 
-	channel, err := fetchAndVerifyOpenChannel(ctx, rpcClient, channelID, expectedOpenChannel{
+	networkStr := string(requirements.Network)
+	expected := expectedOpenChannel{
 		AuthorizedSigner: channelConfig.ReceiverAuthorizer,
 		Mint:             requirements.Asset,
 		Payee:            channelConfig.FeePayer,
@@ -598,9 +572,30 @@ func (f *UptoSvmScheme) settleClaim(
 		Deposit:          maxAmount,
 		GracePeriod:      channelConfig.WithdrawDelay,
 		Splits:           channelConfig.Splits,
-	})
-	if err != nil {
-		return nil, x402.NewSettleError(ErrChannelState, uptoPayload.From, network, "", err.Error())
+	}
+
+	var (
+		channel        *verifiedOpenChannel
+		prefetchedHash solana.Hash
+		channelErr     error
+		blockhashErr   error
+		wg             sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		channel, channelErr = fetchAndVerifyOpenChannel(ctx, f.signer, networkStr, channelID, expected)
+	}()
+	go func() {
+		defer wg.Done()
+		prefetchedHash, _, blockhashErr = f.signer.GetLatestBlockhash(ctx, networkStr)
+	}()
+	wg.Wait()
+	if channelErr != nil {
+		return nil, x402.NewSettleError(ErrChannelState, uptoPayload.From, network, "", channelErr.Error())
+	}
+	if blockhashErr != nil {
+		return nil, x402.NewSettleError(ErrPaymentRequirements, uptoPayload.From, network, "", blockhashErr.Error())
 	}
 
 	// Deduplicate only once the channel is rebound, so replays and concurrent
@@ -611,14 +606,19 @@ func (f *UptoSvmScheme) settleClaim(
 			"a settlement for this channel is already in flight")
 	}
 
-	signature, err := f.submitClaim(ctx, rpcClient, feePayer, channel, claimArgs{
-		Network:          string(requirements.Network),
+	signature, err := f.submitClaim(ctx, feePayer, channel, claimArgs{
+		Network:          networkStr,
 		TokenProgram:     tokenProgram,
 		Actual:           actual,
 		ExpiresAt:        uptoPayload.ExpiresAt,
 		VoucherSignature: uptoPayload.VoucherSignature,
-	})
+	}, &prefetchedHash)
 	if err != nil {
+		var simErr *SettlementSimulationError
+		if errors.As(err, &simErr) {
+			f.settlementCache.Delete(settlementKey)
+			return nil, x402.NewSettleError(ErrSettlementSimulation, uptoPayload.From, network, "", simErr.Error())
+		}
 		// A non-empty signature means settle_and_seal + distribute broadcast
 		// successfully but ConfirmTransaction couldn't observe confirmation
 		// in time: leave the settlement dedup lock in place (a fresh submit
@@ -664,10 +664,10 @@ type claimArgs struct {
 
 func (f *UptoSvmScheme) submitClaim(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	feePayer solana.PublicKey,
 	channel *verifiedOpenChannel,
 	args claimArgs,
+	prefetchedBlockhash *solana.Hash,
 ) (string, error) {
 	// The program requires settled < cumulative_amount, so a zero charge seals
 	// without a voucher. The zero-amount voucher still authenticated this
@@ -689,10 +689,14 @@ func (f *UptoSvmScheme) submitClaim(
 		return "", err
 	}
 
-	return submitSettle(ctx, rpcClient, f.signer, feePayer, args.Network, instructions, submitSettleOptions{
+	opts := submitSettleOptions{
 		ComputeUnitLimit:              f.config.SettleComputeUnitLimit,
 		ComputeUnitPriceMicroLamports: f.config.ComputeUnitPriceMicroLamports,
-	})
+	}
+	if prefetchedBlockhash != nil {
+		opts.LatestBlockhash = prefetchedBlockhash
+	}
+	return submitSettle(ctx, f.signer, feePayer, args.Network, instructions, opts)
 }
 
 // openAuthorization is the validated open-authorization context shared by
@@ -927,11 +931,7 @@ func (f *UptoSvmScheme) resolveRecentSlot(
 		return slot, nil
 	}
 
-	rpcClient, err := f.rpcClient(string(requirements.Network))
-	if err != nil {
-		return 0, err
-	}
-	slot, err := rpcClient.GetSlot(ctx, upto.SlotCommitment)
+	slot, err := f.signer.GetSlot(ctx, string(requirements.Network), upto.SlotCommitment)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch the current slot: %w", err)
 	}

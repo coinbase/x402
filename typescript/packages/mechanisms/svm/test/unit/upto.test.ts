@@ -36,7 +36,7 @@ import {
 } from "../../src/payment-channels/open";
 import { encodeVoucherMessageBytes, VOUCHER_MAGIC } from "../../src/payment-channels/voucher";
 import { UptoSvmScheme as UptoClientScheme } from "../../src/upto/client/scheme";
-import { resolveUptoSvmMemo } from "../../src/upto/shared";
+import { resolveUptoSvmMemo, SLOT_COMMITMENT } from "../../src/upto/shared";
 import { UptoSvmScheme as UptoServerScheme } from "../../src/upto/server/scheme";
 import {
   DEFAULT_SETTLE_COMPUTE_UNIT_LIMIT,
@@ -1209,14 +1209,21 @@ describe("upto SVM scheme", () => {
       ).toThrow(/computeUnitPriceMicroLamports/);
       expect(
         () =>
-          new UptoFacilitatorScheme(mockSigner as never, {
-            maxPriorityFeeMicroLamports: 0,
-            maxComputeUnits: 1,
-            maxRequiredSignatures: 1,
-            maxChannelLifetimeSecs: 1,
-            computeUnitPriceMicroLamports: 0,
-            settleComputeUnitLimit: 1,
-          }),
+          new UptoFacilitatorScheme(
+            toFacilitatorSvmSigner({
+              address: feePayer,
+              signTransactions: vi.fn(),
+              signMessages: vi.fn(),
+            } as never),
+            {
+              maxPriorityFeeMicroLamports: 0,
+              maxComputeUnits: 1,
+              maxRequiredSignatures: 1,
+              maxChannelLifetimeSecs: 1,
+              computeUnitPriceMicroLamports: 0,
+              settleComputeUnitLimit: 1,
+            },
+          ),
       ).not.toThrow();
     });
 
@@ -1622,7 +1629,7 @@ describe("upto SVM scheme", () => {
       );
     });
 
-    it("simulates open + settle + distribute with sigVerify disabled", async () => {
+    it("simulates open + settle + distribute with replaceRecentBlockhash via the signer", async () => {
       const payer = await generateKeyPairSigner();
       const feePayer = await generateKeyPairSigner();
       const receiverAuthorizer = await generateKeyPairSigner();
@@ -1640,19 +1647,10 @@ describe("upto SVM scheme", () => {
         tokenProgram: TOKEN_PROGRAM_ADDRESS,
       });
 
-      const simulateTransaction = vi.fn().mockReturnValue({
-        send: async () => ({ value: { err: null } }),
-      });
-      const rpc = {
-        getLatestBlockhash: () => ({
-          send: async () => ({
-            value: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 1n },
-          }),
-        }),
-        simulateTransaction,
-      };
+      const simulateTransaction = vi.fn().mockResolvedValue(undefined);
+      const signer = { simulateTransaction };
 
-      await simulateOpenSettleDistribute(feePayer, rpc as never, {
+      await simulateOpenSettleDistribute(feePayer, signer, SOLANA_DEVNET_CAIP2, {
         openTransactionBase64: open.transaction,
         channel: {
           channelId: open.channelId,
@@ -1666,13 +1664,9 @@ describe("upto SVM scheme", () => {
         },
       });
 
-      expect(simulateTransaction).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          replaceRecentBlockhash: true,
-          sigVerify: false,
-        }),
-      );
+      expect(simulateTransaction).toHaveBeenCalledWith(expect.any(String), SOLANA_DEVNET_CAIP2, {
+        replaceRecentBlockhash: true,
+      });
     });
   });
 
@@ -1688,36 +1682,36 @@ describe("upto SVM scheme", () => {
     };
 
     /**
-     * RPC mock capturing sent wire transactions.
+     * Facilitator signer mock capturing settle simulate/send/confirm.
      *
-     * @returns Mock rpc plus the simulate/send spies
+     * @returns Mock signer plus spies
      */
-    function makeSettleRpc() {
-      const simulateTransaction = vi.fn();
-      const sendSend = vi.fn().mockResolvedValue(SIG);
-      const sendTransaction = vi.fn().mockReturnValue({ send: sendSend });
-      const rpc = {
-        getLatestBlockhash: () => ({
-          send: async () => ({
-            value: { blockhash: DUMMY_BLOCKHASH, lastValidBlockHeight: 1n },
-          }),
+    function makeSettleSigner() {
+      const simulateTransaction = vi.fn().mockResolvedValue(undefined);
+      const sendTransaction = vi.fn().mockResolvedValue(SIG);
+      const confirmTransaction = vi.fn().mockResolvedValue(undefined);
+      const signer = {
+        getLatestBlockhash: vi.fn().mockResolvedValue({
+          blockhash: DUMMY_BLOCKHASH,
+          lastValidBlockHeight: 1n,
         }),
-        getSignatureStatuses: () => ({
-          send: async () => ({ value: [{ err: null, confirmationStatus: "confirmed" }] }),
-        }),
-        sendTransaction,
         simulateTransaction,
+        sendTransaction,
+        confirmTransaction,
       };
-      return { rpc, sendTransaction, simulateTransaction };
+      return { signer, simulateTransaction, sendTransaction };
     }
 
-    it("applies the static default limit and price without simulating", async () => {
+    it("simulates before send and applies the static default compute budget", async () => {
       const feePayer = await generateKeyPairSigner();
-      const { rpc, sendTransaction, simulateTransaction } = makeSettleRpc();
+      const { signer, simulateTransaction, sendTransaction } = makeSettleSigner();
 
-      const signature = await submitSettle(feePayer, rpc as never, [memoIx]);
+      const signature = await submitSettle(feePayer, signer as never, SOLANA_DEVNET_CAIP2, [
+        memoIx,
+      ]);
       expect(signature).toBe(SIG);
-      expect(simulateTransaction).not.toHaveBeenCalled();
+      expect(simulateTransaction).toHaveBeenCalledTimes(1);
+      expect(sendTransaction).toHaveBeenCalledTimes(1);
 
       // Broadcast: static limit + default price, then the payload ix.
       const wire = sendTransaction.mock.calls[0]![0] as string;
@@ -1731,11 +1725,24 @@ describe("upto SVM scheme", () => {
       expect(instructions[2]!.program).toBe(MEMO_PROGRAM_ADDRESS);
     });
 
+    it("does not send when simulation fails", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const { signer, sendTransaction } = makeSettleSigner();
+      signer.simulateTransaction.mockRejectedValue(new Error("sim failed"));
+
+      await expect(
+        submitSettle(feePayer, signer as never, SOLANA_DEVNET_CAIP2, [memoIx]),
+      ).rejects.toThrow("sim failed");
+      expect(sendTransaction).not.toHaveBeenCalled();
+    });
+
     it("honors the compute-unit limit override", async () => {
       const feePayer = await generateKeyPairSigner();
-      const { rpc, sendTransaction } = makeSettleRpc();
+      const { signer, sendTransaction } = makeSettleSigner();
 
-      await submitSettle(feePayer, rpc as never, [memoIx], { computeUnitLimit: 222_222 });
+      await submitSettle(feePayer, signer as never, SOLANA_DEVNET_CAIP2, [memoIx], {
+        computeUnitLimit: 222_222,
+      });
 
       const wire = sendTransaction.mock.calls[0]![0] as string;
       expect(readComputeLimitData(decodeTopLevelInstructions(wire)[0]!.data)).toBe(222_222);
@@ -1743,15 +1750,15 @@ describe("upto SVM scheme", () => {
 
     it("honors the compute-unit price option, omitting the instruction at 0", async () => {
       const feePayer = await generateKeyPairSigner();
-      const priced = makeSettleRpc();
-      await submitSettle(feePayer, priced.rpc as never, [memoIx], {
+      const priced = makeSettleSigner();
+      await submitSettle(feePayer, priced.signer as never, SOLANA_DEVNET_CAIP2, [memoIx], {
         computeUnitPriceMicroLamports: 250,
       });
       const pricedIxs = decodeTopLevelInstructions(priced.sendTransaction.mock.calls[0]![0]);
       expect(readComputePriceData(pricedIxs[1]!.data)).toBe(250n);
 
-      const unpriced = makeSettleRpc();
-      await submitSettle(feePayer, unpriced.rpc as never, [memoIx], {
+      const unpriced = makeSettleSigner();
+      await submitSettle(feePayer, unpriced.signer as never, SOLANA_DEVNET_CAIP2, [memoIx], {
         computeUnitPriceMicroLamports: 0,
       });
       const unpricedIxs = decodeTopLevelInstructions(unpriced.sendTransaction.mock.calls[0]![0]);
@@ -1929,7 +1936,8 @@ describe("upto SVM scheme", () => {
 
     it("resolveOpenSlot falls back to rpc.getSlot when extra.recentSlot is omitted", async () => {
       const getSlotSend = vi.fn().mockResolvedValue(OPEN_SLOT);
-      const rpc = { getSlot: () => ({ send: getSlotSend }) } as never;
+      const getSlot = vi.fn().mockReturnValue({ send: getSlotSend });
+      const rpc = { getSlot } as never;
       const slot = await resolveOpenSlot(rpc, {
         scheme: "upto",
         network: SOLANA_DEVNET_CAIP2,
@@ -1940,6 +1948,7 @@ describe("upto SVM scheme", () => {
         extra: {},
       });
       expect(slot).toBe(OPEN_SLOT);
+      expect(getSlot).toHaveBeenCalledWith({ commitment: SLOT_COMMITMENT });
       expect(getSlotSend).toHaveBeenCalled();
     });
 
@@ -1984,6 +1993,10 @@ describe("upto SVM scheme", () => {
               : (() => {
                   throw new Error(`No signer for feePayer ${feePayer}`);
                 })(),
+        getAccountInfo: vi.fn(),
+        getLatestBlockhash: vi.fn(),
+        getSlot: vi.fn(),
+        getProgramAccounts: vi.fn(),
         signTransaction: async () => "",
         simulateTransaction: async () => {},
         sendTransaction: async () => "",

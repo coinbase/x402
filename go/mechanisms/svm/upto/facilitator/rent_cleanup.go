@@ -10,9 +10,7 @@ import (
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
 
-	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/paymentchannels"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/upto"
 )
@@ -163,14 +161,9 @@ func (c StartConfig) discoveryOptions() DiscoveryOptions {
 
 // RentCleanupConfig configures a rent cleanup manager for one network.
 type RentCleanupConfig struct {
-	Signer  svm.FacilitatorSvmSigner
+	Signer  UptoFacilitatorSigner
 	Storage ChannelStorage
 	Network string
-	RPCURL  string
-
-	// RPC is a prebuilt client used instead of building one from RPCURL, for
-	// callers that need custom headers, transport, or rate limiting.
-	RPC *rpc.Client
 
 	// ComputeUnitPriceMicroLamports is the SetComputeUnitPrice (microlamports
 	// per compute unit) attached to cleanup transactions; 0 omits the
@@ -193,11 +186,9 @@ type RentCleanupConfig struct {
 // refunds the unsettled remainder to the client, so cleanup only kicks in
 // after the voucher deadline plus a grace period.
 type RentCleanupManager struct {
-	signer                        svm.FacilitatorSvmSigner
+	signer                        UptoFacilitatorSigner
 	storage                       ChannelStorage
 	network                       string
-	rpcURL                        string
-	rpc                           *rpc.Client
 	computeUnitPriceMicroLamports *uint64
 	settleComputeUnitLimit        *uint32
 
@@ -221,24 +212,17 @@ type RentCleanupManager struct {
 // NewRentCleanupManager creates a rent cleanup manager. It does not start
 // automatically; the facilitator scheme never runs cleanup on its own.
 func NewRentCleanupManager(config RentCleanupConfig) *RentCleanupManager {
+	signer := config.Signer
+	if signer == nil {
+		panic("upto svm rent cleanup: signer is required")
+	}
 	return &RentCleanupManager{
-		signer:                        config.Signer,
+		signer:                        signer,
 		storage:                       config.Storage,
 		network:                       config.Network,
-		rpcURL:                        config.RPCURL,
-		rpc:                           config.RPC,
 		computeUnitPriceMicroLamports: config.ComputeUnitPriceMicroLamports,
 		settleComputeUnitLimit:        config.SettleComputeUnitLimit,
 	}
-}
-
-// rpcClient returns the injected client when there is one, otherwise builds
-// one for the network.
-func (m *RentCleanupManager) rpcClient() (*rpc.Client, error) {
-	if m.rpc != nil {
-		return m.rpc, nil
-	}
-	return upto.NewRPCClient(m.network, m.rpcURL)
 }
 
 // Start runs Cleanup on an interval, and Discover on its own longer interval
@@ -331,10 +315,6 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 
 	opts = opts.withDefaults()
 
-	rpcClient, err := m.rpcClient()
-	if err != nil {
-		return err
-	}
 	records, err := m.storage.List(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list stored channels: %w", err)
@@ -367,7 +347,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 			opts.reportError(err, record.ChannelID)
 			continue
 		}
-		channel, exists, err := fetchChannelAccount(ctx, rpcClient, channelID)
+		channel, exists, err := fetchChannelAccount(ctx, m.signer, m.network, channelID)
 		if err != nil {
 			opts.reportError(err, record.ChannelID)
 			continue
@@ -399,7 +379,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 				)
 				continue
 			}
-			signature, err := m.submitCloseOrDistribute(ctx, rpcClient, record, channel, channelID)
+			signature, err := m.submitCloseOrDistribute(ctx, record, channel, channelID)
 			if err != nil {
 				opts.reportError(err, record.ChannelID)
 				continue
@@ -417,10 +397,10 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 					Action:      action,
 				})
 			}
-			m.deleteIfGone(ctx, rpcClient, channelID, record.ChannelID, opts)
+			m.deleteIfGone(ctx, channelID, record.ChannelID, opts)
 
 		case paymentchannels.StatusDistributed:
-			slot, err := m.currentSlot(ctx, rpcClient, &currentSlot)
+			slot, err := m.currentSlot(ctx, &currentSlot)
 			if err != nil {
 				opts.reportError(err, record.ChannelID)
 				continue
@@ -442,7 +422,7 @@ func (m *RentCleanupManager) Cleanup(ctx context.Context, opts CleanupOptions) e
 		}
 	}
 
-	m.submitReclaimBatches(ctx, rpcClient, reclaimCandidates, opts)
+	m.submitReclaimBatches(ctx, reclaimCandidates, opts)
 	return nil
 }
 
@@ -464,9 +444,9 @@ func (m *RentCleanupManager) Discover(ctx context.Context, opts DiscoveryOptions
 	m.passMu.Lock()
 	defer m.passMu.Unlock()
 
-	rpcClient, err := m.rpcClient()
-	if err != nil {
-		return err
+	querier := programAccountsQuerier{
+		signer:  assertProgramAccountsSigner(m.signer, "RentCleanupManager.Discover"),
+		network: m.network,
 	}
 	records, err := m.storage.List(ctx)
 	if err != nil {
@@ -485,12 +465,12 @@ func (m *RentCleanupManager) Discover(ctx context.Context, opts DiscoveryOptions
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		found, err := paymentchannels.DiscoverChannelsByRentPayer(ctx, rpcClient, managed)
+		found, err := paymentchannels.DiscoverChannelsByRentPayer(ctx, querier, managed)
 		if err != nil {
 			opts.reportError(fmt.Errorf("discovery failed for rent payer %s: %w", managed, err), "")
 			continue
 		}
-		slot, err := m.currentSlot(ctx, rpcClient, &currentSlot)
+		slot, err := m.currentSlot(ctx, &currentSlot)
 		if err != nil {
 			return err
 		}
@@ -528,11 +508,11 @@ func (m *RentCleanupManager) Discover(ctx context.Context, opts DiscoveryOptions
 
 // currentSlot lazily fetches and caches the slot used to gate reclaims, so a
 // pass with no Distributed records never pays for the RPC round trip.
-func (m *RentCleanupManager) currentSlot(ctx context.Context, rpcClient *rpc.Client, cache **uint64) (uint64, error) {
+func (m *RentCleanupManager) currentSlot(ctx context.Context, cache **uint64) (uint64, error) {
 	if *cache != nil {
 		return **cache, nil
 	}
-	slot, err := rpcClient.GetSlot(ctx, upto.SlotCommitment)
+	slot, err := m.signer.GetSlot(ctx, m.network, upto.SlotCommitment)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch the current slot: %w", err)
 	}
@@ -578,7 +558,6 @@ func orderForScan(records []ChannelRecord, cursor string) []ChannelRecord {
 // distributes an already-Sealed one.
 func (m *RentCleanupManager) submitCloseOrDistribute(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	record ChannelRecord,
 	channel *paymentchannels.Channel,
 	channelID solana.PublicKey,
@@ -618,7 +597,7 @@ func (m *RentCleanupManager) submitCloseOrDistribute(
 		}
 	}
 
-	return submitSettle(ctx, rpcClient, m.signer, feePayer, m.network, instructions, submitSettleOptions{
+	return submitSettle(ctx, m.signer, feePayer, m.network, instructions, submitSettleOptions{
 		ComputeUnitLimit:              m.settleComputeUnitLimit,
 		ComputeUnitPriceMicroLamports: m.computeUnitPriceMicroLamports,
 	})
@@ -634,7 +613,6 @@ func (m *RentCleanupManager) submitCloseOrDistribute(
 // pool.
 func (m *RentCleanupManager) submitReclaimBatches(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	candidates []reclaimCandidate,
 	opts CleanupOptions,
 ) {
@@ -658,7 +636,7 @@ func (m *RentCleanupManager) submitReclaimBatches(
 		go func(rentPayer solana.PublicKey, group []reclaimCandidate) {
 			defer wg.Done()
 			budget := int64(opts.MaxTxsPerSigner)
-			m.submitReclaimGroup(ctx, rpcClient, rentPayer, group, opts, &budget)
+			m.submitReclaimGroup(ctx, rentPayer, group, opts, &budget)
 		}(rentPayer, group)
 	}
 	wg.Wait()
@@ -669,7 +647,6 @@ func (m *RentCleanupManager) submitReclaimBatches(
 // cannot overrun maxTxs.
 func (m *RentCleanupManager) submitReclaimGroup(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	rentPayer solana.PublicKey,
 	group []reclaimCandidate,
 	opts CleanupOptions,
@@ -696,7 +673,7 @@ func (m *RentCleanupManager) submitReclaimGroup(
 		if end > len(group) {
 			end = len(group)
 		}
-		batch := m.refreshReclaimBatch(ctx, rpcClient, group[start:end], opts)
+		batch := m.refreshReclaimBatch(ctx, group[start:end], opts)
 		if len(batch) == 0 {
 			continue
 		}
@@ -710,7 +687,7 @@ func (m *RentCleanupManager) submitReclaimGroup(
 		}
 
 		reclaimLimit := ReclaimComputeUnitLimit(len(batch))
-		signature, err := submitSettle(ctx, rpcClient, m.signer, feePayer, m.network, instructions, submitSettleOptions{
+		signature, err := submitSettle(ctx, m.signer, feePayer, m.network, instructions, submitSettleOptions{
 			ComputeUnitLimit:              &reclaimLimit,
 			ComputeUnitPriceMicroLamports: m.computeUnitPriceMicroLamports,
 		})
@@ -737,13 +714,12 @@ func (m *RentCleanupManager) submitReclaimGroup(
 // the whole batch.
 func (m *RentCleanupManager) refreshReclaimBatch(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	batch []reclaimCandidate,
 	opts CleanupOptions,
 ) []reclaimCandidate {
 	live := make([]reclaimCandidate, 0, len(batch))
 	for _, candidate := range batch {
-		channel, exists, err := fetchChannelAccount(ctx, rpcClient, candidate.channelID)
+		channel, exists, err := fetchChannelAccount(ctx, m.signer, m.network, candidate.channelID)
 		if err != nil {
 			opts.reportError(err, candidate.channelID.String())
 			continue
@@ -765,12 +741,11 @@ func (m *RentCleanupManager) refreshReclaimBatch(
 // deleteIfGone drops the storage entry once the channel account is closed.
 func (m *RentCleanupManager) deleteIfGone(
 	ctx context.Context,
-	rpcClient *rpc.Client,
 	channelID solana.PublicKey,
 	storedID string,
 	opts CleanupOptions,
 ) {
-	exists, err := channelExists(ctx, rpcClient, channelID)
+	exists, err := channelExists(ctx, m.signer, m.network, channelID)
 	if err != nil {
 		opts.reportError(err, storedID)
 		return

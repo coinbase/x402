@@ -29,6 +29,9 @@ export { toClientSvmSigner, toFacilitatorSvmSigner } from "./signer";
 export type {
   ClientSvmSigner,
   FacilitatorSvmSigner,
+  FacilitatorAccountInfo,
+  FacilitatorProgramAccount,
+  FacilitatorSimulateTransactionOptions,
   FacilitatorRpcClient,
   FacilitatorRpcConfig,
   ClientSvmConfig,

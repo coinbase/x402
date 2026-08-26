@@ -248,7 +248,7 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
       expect.objectContaining({ channelId: record.channelId, action: "abandon_close" }),
     );
     expect(submitSettleMock).toHaveBeenCalledTimes(1);
-    const instructions = submitSettleMock.mock.calls[0]![2] as unknown[];
+    const instructions = submitSettleMock.mock.calls[0]![3] as unknown[];
     expect(instructions.length).toBeGreaterThanOrEqual(2);
     expect(await storage.get(record.channelId)).toBeUndefined();
   });
@@ -280,7 +280,7 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     expect(onClose).toHaveBeenCalledWith(
       expect.objectContaining({ channelId: record.channelId, action: "distribute" }),
     );
-    const instructions = submitSettleMock.mock.calls[0]![2] as unknown[];
+    const instructions = submitSettleMock.mock.calls[0]![3] as unknown[];
     expect(instructions).toHaveLength(1);
   });
 
@@ -319,11 +319,11 @@ describe("UptoSvmRentCleanupManager — cleanup", () => {
     expect(onReclaim.mock.calls[0]![0].channelIds).toEqual(
       expect.arrayContaining([a.channelId, b.channelId]),
     );
-    const instructions = submitSettleMock.mock.calls[0]![2] as { data: Uint8Array }[];
+    const instructions = submitSettleMock.mock.calls[0]![3] as { data: Uint8Array }[];
     expect(instructions).toHaveLength(2);
     expect(instructions.every(ix => ix.data[0] === RECLAIM_DISCRIMINATOR)).toBe(true);
     // Reclaim batches carry a per-channel compute-unit limit (base + 2 × per-channel).
-    expect(submitSettleMock.mock.calls[0]![3]).toMatchObject({ computeUnitLimit: 35_000 });
+    expect(submitSettleMock.mock.calls[0]![4]).toMatchObject({ computeUnitLimit: 35_000 });
     expect(await storage.get(a.channelId)).toBeUndefined();
     expect(await storage.get(b.channelId)).toBeUndefined();
   });
@@ -657,6 +657,14 @@ function multiKeySigner(
       if (!signer) throw new Error(`no signer for feePayer ${feePayer}`);
       return signer as unknown as TransactionSigner & { signMessages: never };
     },
+    getAccountInfo: vi.fn(),
+    getLatestBlockhash: vi.fn(),
+    getSlot: vi.fn().mockImplementation(() => getSlotMock()),
+    getProgramAccounts: vi.fn(),
+    signTransaction: vi.fn(),
+    simulateTransaction: vi.fn(),
+    sendTransaction: vi.fn(),
+    confirmTransaction: vi.fn(),
   } as FacilitatorSvmSigner;
 }
 
@@ -706,7 +714,7 @@ describe("UptoSvmRentCleanupManager — onchain discovery", () => {
     const onDiscover = vi.fn();
     await manager.discover({ onDiscover });
 
-    expect(discoverChannelsMock).toHaveBeenCalledWith(expect.anything(), feePayer.address);
+    expect(discoverChannelsMock).toHaveBeenCalledWith(expect.anything(), NETWORK, feePayer.address);
     expect(onDiscover).toHaveBeenCalledWith({ channelIds: [discoveredChannelId] });
     // Only what the chain proves: the Open/Sealed metadata stays empty, which
     // a Distributed channel never needs again.

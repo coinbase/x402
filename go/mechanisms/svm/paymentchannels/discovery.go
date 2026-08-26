@@ -16,6 +16,12 @@ type DiscoveredChannel struct {
 	Channel   Channel
 }
 
+// ProgramAccountsQuerier lists onchain program accounts. Facilitator signers
+// implement this via a thin adapter at the call site.
+type ProgramAccountsQuerier interface {
+	GetProgramAccounts(ctx context.Context, opts *rpc.GetProgramAccountsOpts) (rpc.GetProgramAccountsResult, error)
+}
+
 // DiscoverChannelsByRentPayer finds every payment-channels account this
 // facilitator key fronted rent for, per spec §6. It filters onchain by
 // rent_payer and account size, then rejects any match that fails full
@@ -26,11 +32,11 @@ type DiscoveredChannel struct {
 // time ChannelStorage record, which also carries the distribution recipient.
 func DiscoverChannelsByRentPayer(
 	ctx context.Context,
-	rpcClient *rpc.Client,
+	querier ProgramAccountsQuerier,
 	rentPayer solana.PublicKey,
 ) ([]DiscoveredChannel, error) {
 	accountSize := uint64(ChannelAccountSize)
-	results, err := rpcClient.GetProgramAccountsWithOpts(ctx, ProgramID, &rpc.GetProgramAccountsOpts{
+	results, err := querier.GetProgramAccounts(ctx, &rpc.GetProgramAccountsOpts{
 		Encoding:   solana.EncodingBase64,
 		Commitment: rpc.CommitmentConfirmed,
 		DataSlice:  nil,

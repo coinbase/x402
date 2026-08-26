@@ -20,6 +20,9 @@ type ExactSvmPayloadV1 = ExactSvmPayload
 // ExactSvmPayloadV2 - alias for v2 (currently identical, reserved for future)
 type ExactSvmPayloadV2 = ExactSvmPayload
 
+// UptoSvmPayloadV2 is an alias for v2 compatibility.
+type UptoSvmPayloadV2 = UptoSvmPayload
+
 // UptoSvmPayload is the SVM `upto` payment payload: the client-signed channel
 // `open` plus the channel facts the facilitator rebinds it against.
 type UptoSvmPayload struct {
@@ -117,7 +120,32 @@ func IsUptoSvmPayload(payload map[string]interface{}) bool {
 			return false
 		}
 	}
+	if !jsonNumberIsInt64(payload["expiresAt"]) {
+		return false
+	}
+	if !jsonNumberIsInt64(payload["validAfter"]) {
+		return false
+	}
+	if voucher, present := payload[UptoVoucherSignatureField]; present {
+		if _, ok := voucher.(string); !ok {
+			return false
+		}
+	}
 	return true
+}
+
+func jsonNumberIsInt64(value interface{}) bool {
+	switch v := value.(type) {
+	case float64:
+		return v == float64(int64(v))
+	case int64, int:
+		return true
+	case json.Number:
+		_, err := v.Int64()
+		return err == nil
+	default:
+		return false
+	}
 }
 
 // HasUptoVoucherSignature reports whether the payload carries the voucher key
@@ -162,6 +190,29 @@ type FacilitatorSvmSigner interface {
 	// ConfirmTransaction waits for transaction confirmation
 	// Returns error if confirmation fails or times out
 	ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error
+}
+
+// FacilitatorSimulateTransactionOptions configures facilitator transaction
+// simulation. Nil pointer fields use RPC defaults (sigVerify off,
+// replaceRecentBlockhash off).
+type FacilitatorSimulateTransactionOptions struct {
+	SigVerify              *bool
+	ReplaceRecentBlockhash *bool
+	Commitment             rpc.CommitmentType
+}
+
+// FacilitatorAccountInfo is the account shape returned by GetAccountInfo on
+// facilitator signers that expose read RPC.
+type FacilitatorAccountInfo struct {
+	Data     solana.Data
+	Owner    solana.PublicKey
+	Lamports uint64
+}
+
+// FacilitatorProgramAccount is one row from GetProgramAccounts.
+type FacilitatorProgramAccount struct {
+	Pubkey  solana.PublicKey
+	Account FacilitatorAccountInfo
 }
 
 // SmartWalletRPCCapabilities is the extra read-only RPC surface a
