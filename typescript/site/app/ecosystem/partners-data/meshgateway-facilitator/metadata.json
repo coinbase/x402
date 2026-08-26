@@ -1,0 +1,19 @@
+{
+  "name": "MeshGateway Facilitator",
+  "description": "Open x402 facilitator for Base and Robinhood Chain. Settles exact-scheme payments via EIP-3009 (USDC) and Permit2 (USDG), gasless for buyers and non-custodial by design.",
+  "logoUrl": "/logos/meshgateway.png",
+  "websiteUrl": "https://meshgateway.co/facilitator",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.meshgateway.co",
+    "networks": ["base", "base-sepolia", "robinhood"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009", "Permit2"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
