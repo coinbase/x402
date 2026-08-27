@@ -1,3 +1,0 @@
-kind: added
-body: Declare `upfront` payment flow support on EVM and SVM `exact` server schemes. `authorization` remains the default; servers opt in per route via `accepts.extra.paymentFlow`.
-time: 2026-08-23T15:10:47.585276+02:00

@@ -1,2 +1,0 @@
-kind: changed
-body: Verify SVM exact payments with local Ed25519 signature checks instead of a fee-payer signing round trip; FacilitatorSvmSigner.SimulateTransaction now runs with sigVerify off, and NewExactSvmScheme takes an optional Config
