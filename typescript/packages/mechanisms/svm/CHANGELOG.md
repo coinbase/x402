@@ -1,5 +1,18 @@
 # @x402/svm Changelog
 
+## 2.24.0
+
+### Minor Changes
+
+- [bb46ffc](https://github.com/x402-foundation/x402/commit/bb46ffc): Declare `upfront` payment flow support on SVM `exact` server schemes. `authorization` remains the default; servers opt in per route via `accepts.extra.paymentFlow`. ([#3240](https://github.com/x402-foundation/x402/pull/3240)) - Thanks [@phdargen](https://github.com/phdargen)!
+- [01b0a68](https://github.com/x402-foundation/x402/commit/01b0a68): Verify SVM exact payments without a fee-payer signing round trip: required signatures are checked locally, `simulateTransaction` always runs with `sigVerify` off, and `sendTransaction` skips preflight. Settle checks the duplicate cache before verification, decodes the transaction once (including address lookup tables), and smart-wallet settle fetches a single pre-balance. Confirmation polling starts at 250ms. ([#3263](https://github.com/x402-foundation/x402/pull/3263)) - Thanks [@phdargen](https://github.com/phdargen)!
+- [acaa904](https://github.com/x402-foundation/x402/commit/acaa904): Route SVM `upto` facilitator RPC through `toFacilitatorSvmSigner` instead of scheme config: claim settlement simulates before `skipPreflight` send, deposit composite sim uses `replaceRecentBlockhash` without an extra blockhash fetch, and claim overlaps channel read with blockhash prefetch. `UptoSvmFacilitatorConfig.rpc` / `rpcUrl` are removed — pass a paced RPC client or `{ defaultRpcUrl }` to the signer factory (#3183). ([#3274](https://github.com/x402-foundation/x402/pull/3274)) - Thanks [@phdargen](https://github.com/phdargen)!
+
+### Patch Changes
+
+- [ec0f71e](https://github.com/x402-foundation/x402/commit/ec0f71e): Reject invalid smart-wallet compute-unit and priority-fee limits when smart-wallet verification is enabled or its exported verification helpers are called, preventing non-finite or fractional configuration values from silently disabling fee protections or causing misleading payment failures. Export `assertSmartWalletLimits` and `SmartWalletLimits` for pre-validation. Dormant limits remain ignored while smart-wallet verification is disabled. ([#3122](https://github.com/x402-foundation/x402/pull/3122)) - Thanks [@notorious-d-e-v](https://github.com/notorious-d-e-v)!
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

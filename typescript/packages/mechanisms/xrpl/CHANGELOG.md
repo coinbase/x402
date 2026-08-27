@@ -1,5 +1,13 @@
 # @x402/xrpl
 
+## 2.24.0
+
+### Minor Changes
+
+- [bb46ffc](https://github.com/x402-foundation/x402/commit/bb46ffc): Declare `upfront` payment flow support on XRPL `exact` server schemes. `authorization` remains the default; servers opt in per route via `accepts.extra.paymentFlow`. ([#3240](https://github.com/x402-foundation/x402/pull/3240)) - Thanks [@phdargen](https://github.com/phdargen)!
+- Updated dependencies
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

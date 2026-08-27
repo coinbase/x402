@@ -1,5 +1,19 @@
 # @x402/evm Changelog
 
+## 2.24.0
+
+### Minor Changes
+
+- [121c98f](https://github.com/x402-foundation/x402/commit/121c98f): Add Ethereum mainnet (eip155:1) and Avalanche C-Chain (eip155:43114) native USDC as the default stablecoin ([#3241](https://github.com/x402-foundation/x402/pull/3241)) - Thanks [@phdargen](https://github.com/phdargen) and [@cursoragent](https://github.com/cursoragent)!
+- [6557149](https://github.com/x402-foundation/x402/commit/6557149): Add Sei mainnet (chain ID 1329) and Sei Testnet (chain ID 1328) with native USDC as the default stablecoin ([#3227](https://github.com/x402-foundation/x402/pull/3227)) - Thanks [@alexander-sei](https://github.com/alexander-sei)!
+- [44f6b17](https://github.com/x402-foundation/x402/commit/44f6b17): Align the EVM auth-capture **client** with the v1.1 spec: commerce-payments deployment selection via optional `extra.authCaptureEscrow` (v1.1 default), salt binding when `extra.receiverAuthorizer` or `extra.policy` is non-zero, and v1.0/v1.1 canonical addresses in `@x402/evm/auth-capture/client`. **Breaking (client):** the default commerce-payments deployment is now v1.1 (escrow + token collectors), so PaymentInfo hashes and signatures differ from the previous v1.0-only client unless the server sets `extra.authCaptureEscrow` to the v1.0 escrow. When `extra.receiverAuthorizer` or `extra.policy` is non-zero, collect payloads also include `saltNonce` alongside the derived `salt` (salt binding). ([#3283](https://github.com/x402-foundation/x402/pull/3283)) - Thanks [@phdargen](https://github.com/phdargen)!
+- [bb46ffc](https://github.com/x402-foundation/x402/commit/bb46ffc): Declare `upfront` payment flow support on EVM `exact` server schemes. `authorization` remains the default; servers opt in per route via `accepts.extra.paymentFlow`. ([#3240](https://github.com/x402-foundation/x402/pull/3240)) - Thanks [@phdargen](https://github.com/phdargen)!
+
+### Patch Changes
+
+- [f41d9be](https://github.com/x402-foundation/x402/commit/f41d9be): Stop persisting untrusted batch-settlement `channelState` from PAYMENT-RESPONSE. Successful payment responses update local storage from previous state plus capped `chargedAmount` and any client-signed deposit, except when a present extra `chargedCumulativeAmount` does not equal that next cumulative — then the charge write is skipped. Onchain snapshot diffs and a missing extra cumulative do not block the write. Refunds cap the signed amount to the locally refundable balance. Failed settlements leave local state unchanged. A disagreeing server is handled by existing corrective recovery. ([#3251](https://github.com/x402-foundation/x402/pull/3251)) - Thanks [@phdargen](https://github.com/phdargen)!
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

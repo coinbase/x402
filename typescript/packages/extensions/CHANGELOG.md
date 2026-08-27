@@ -1,5 +1,12 @@
 # @x402/extensions Changelog
 
+## 2.24.0
+
+### Minor Changes
+
+- Updated dependencies
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

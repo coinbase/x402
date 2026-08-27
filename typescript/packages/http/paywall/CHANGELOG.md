@@ -1,5 +1,12 @@
 # @x402/paywall Changelog
 
+## 2.24.0
+
+### Patch Changes
+
+- [6557149](https://github.com/x402-foundation/x402/commit/6557149): Add Sei mainnet (chain ID 1329) and Sei Testnet (chain ID 1328) with native USDC as the default stablecoin ([#3227](https://github.com/x402-foundation/x402/pull/3227)) - Thanks [@alexander-sei](https://github.com/alexander-sei)!
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

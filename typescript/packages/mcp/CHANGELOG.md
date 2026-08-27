@@ -1,5 +1,13 @@
 # @x402/mcp Changelog
 
+## 2.24.0
+
+### Minor Changes
+
+- [8707ab7](https://github.com/x402-foundation/x402/commit/8707ab7): Withhold MCP tool content when after-handler settlement returns `{ success: false }`. ([#3246](https://github.com/x402-foundation/x402/pull/3246)) - Thanks [@phdargen](https://github.com/phdargen)!
+- Updated dependencies
+  - @x402/core@2.24.0
+
 ## 2.23.0
 
 ### Minor Changes

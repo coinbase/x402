@@ -1,5 +1,0 @@
----
-"@x402/evm": minor
----
-
-Add Ethereum mainnet (eip155:1) and Avalanche C-Chain (eip155:43114) native USDC as the default stablecoin
