@@ -2,6 +2,24 @@
 
 <!-- towncrier release notes start -->
 
+## [2.21.0] - 2026-08-27
+
+### Fixed
+
+- Restore Ethereum mainnet (eip155:1) and Avalanche C-Chain (eip155:43114) USDC as default assets so v1-legacy network names keep working after the shared CAIP-2 table migration. ([#3241](https://github.com/x402-foundation/x402/pull/3241)) - Thanks [@phdargen](https://github.com/phdargen) and [@cursoragent](https://github.com/cursoragent)!
+- Stop persisting untrusted batch-settlement `channelState` from PAYMENT-RESPONSE. Successful payment responses update local storage from previous state plus capped `chargedAmount` and any client-signed deposit, except when a present extra `chargedCumulativeAmount` does not equal that next cumulative — then the charge write is skipped. Onchain snapshot diffs and a missing extra cumulative do not block the write. Refunds cap the signed amount to the locally refundable balance. Failed settlements leave local state unchanged. A disagreeing server is handled by existing corrective recovery. ([#3251](https://github.com/x402-foundation/x402/pull/3251)) - Thanks [@phdargen](https://github.com/phdargen)!
+
+### Added
+
+- Add Sei mainnet (chain ID 1329) and Sei Testnet (chain ID 1328) with native USDC as the default stablecoin, and correct the legacy Sei testnet chain ID. ([#3227](https://github.com/x402-foundation/x402/pull/3227)) - Thanks [@alexander-sei](https://github.com/alexander-sei)!
+- Add payment-flow handlers so schemes can declare authorization, upfront, and escrow verify/settle ordering, with matching 402 extra, client selection, and HTTP/MCP settlement receipts. ([#3247](https://github.com/x402-foundation/x402/pull/3247)) - Thanks [@phdargen](https://github.com/phdargen)!
+- Added upfront payment flow support for the exact scheme on EVM, SVM, and TVM. ([#3240](https://github.com/x402-foundation/x402/pull/3240)) - Thanks [@phdargen](https://github.com/phdargen)!
+
+### Misc
+
+- SVM `get_network_config` and `NETWORK_CONFIGS` now hold transport endpoints only (`rpc_url`, `ws_url`). Default assets stay in `default_assets.py`. EVM bundled network config remains removed; use `get_default_asset` and `get_evm_chain_id`. ([#3241](https://github.com/x402-foundation/x402/pull/3241)) - Thanks [@phdargen](https://github.com/phdargen) and [@cursoragent](https://github.com/cursoragent)!
+
+
 ## [2.20.0] - 2026-08-18
 
 ### Fixed
