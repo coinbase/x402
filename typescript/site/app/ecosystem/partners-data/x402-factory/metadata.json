@@ -1,0 +1,7 @@
+{
+  "name": "x402-factory",
+  "description": "117 paid data APIs for AI agents: prediction-market probabilities, weather intelligence with free public verification scores, revision-honest US economic prints (FRED/ALFRED), and SEC/EDGAR + recall feeds. Cents per call in USDC on Base, no accounts or API keys; listed in the x402 Bazaar with OpenAPI, llms.txt, and MCP surfaces.",
+  "logoUrl": "/logos/x402-factory.png",
+  "websiteUrl": "https://x402-factory.com",
+  "category": "Services/Endpoints"
+}
