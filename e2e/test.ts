@@ -995,51 +995,68 @@ async function runTest() {
     log('');
   }
 
-  // Collect unique facilitators and servers
+  // Collect unique facilitators, servers, and clients
   const uniqueFacilitators = new Map<string, any>();
   const uniqueServers = new Map<string, any>();
+  const uniqueClients = new Map<string, any>();
 
   filteredScenarios.forEach(scenario => {
     if (scenario.facilitator) {
       uniqueFacilitators.set(scenario.facilitator.name, scenario.facilitator);
     }
     uniqueServers.set(scenario.server.name, scenario.server);
+    uniqueClients.set(scenario.client.name, scenario.client);
   });
 
-  // Validate environment variables for all selected facilitators
-  log('\n🔍 Validating facilitator environment variables...\n');
-  const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
+  // Validate environment variables for all selected facilitators and clients.
+  // Clients used to be silently skipped here: this loop printed "✅ All
+  // required environment variables are present" having checked only
+  // facilitators, then a family-scoped run could still crash deep inside a
+  // client (e.g. e2e/clients/typescript/client.ts's createE2EClient(), see
+  // x402-foundation/x402#3187) over a missing CLIENT_* credential this check
+  // never looked at. Each component type keeps its own catalog-declared
+  // `config.environment.required` list (client requirements can be more
+  // specific than the generic per-family baseline already enforced above,
+  // same reason the facilitator-specific check existed in the first place),
+  // so this validates every component type against its own list rather than
+  // assuming the earlier, family-generic check already covers it.
+  log('\n🔍 Validating facilitator and client environment variables...\n');
+  const missingEnvVars: { componentName: string; missingVars: string[] }[] = [];
 
-  for (const [facilitatorName, facilitator] of uniqueFacilitators) {
-    const requiredVars = facilitator.config.environment?.required || [];
-    const missing: string[] = [];
+  const componentsToValidate: Map<string, any>[] = [uniqueFacilitators, uniqueClients];
 
-    for (const envVar of requiredVars) {
-      // Skip env keys the harness assigns itself (e.g. PORT), never operator-supplied
-      if (FACILITATOR_ENV_PREFLIGHT_ALLOWLIST.has(envVar)) {
-        continue;
+  for (const components of componentsToValidate) {
+    for (const [componentName, component] of components) {
+      const requiredVars = component.config.environment?.required || [];
+      const missing: string[] = [];
+
+      for (const envVar of requiredVars) {
+        // Skip env keys the harness assigns itself (e.g. PORT), never operator-supplied
+        if (FACILITATOR_ENV_PREFLIGHT_ALLOWLIST.has(envVar)) {
+          continue;
+        }
+        // Skip credentials for families not in this run (catalog marks all wallet
+        // keys required per family; only selected families need them present).
+        const family = protocolFamilyForCredentialKey(envVar);
+        if (family && !selectedProtocolFamilies.has(family)) {
+          continue;
+        }
+
+        if (!process.env[envVar]) {
+          missing.push(envVar);
+        }
       }
-      // Skip credentials for families not in this run (catalog marks all wallet
-      // keys required per family; only selected families need them present).
-      const family = protocolFamilyForCredentialKey(envVar);
-      if (family && !selectedProtocolFamilies.has(family)) {
-        continue;
-      }
 
-      if (!process.env[envVar]) {
-        missing.push(envVar);
+      if (missing.length > 0) {
+        missingEnvVars.push({ componentName, missingVars: missing });
       }
-    }
-
-    if (missing.length > 0) {
-      missingEnvVars.push({ facilitatorName, missingVars: missing });
     }
   }
 
   if (missingEnvVars.length > 0) {
-    errorLog('❌ Missing required environment variables for selected facilitators:\n');
-    for (const { facilitatorName, missingVars } of missingEnvVars) {
-      errorLog(`   ${facilitatorName}:`);
+    errorLog('❌ Missing required environment variables for selected facilitators/clients:\n');
+    for (const { componentName, missingVars } of missingEnvVars) {
+      errorLog(`   ${componentName}:`);
       missingVars.forEach(varName => errorLog(` - ${varName}`));
     }
     errorLog('\n💡 Please set the required environment variables and try again.\n');

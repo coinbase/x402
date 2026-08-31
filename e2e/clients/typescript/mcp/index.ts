@@ -115,7 +115,11 @@ try {
     batchSettlementPhase,
     batchSettlementScheme,
     issueRequest,
-    refund: () => batchSettlementScheme.refund(toolResourceUrl, { fetch: mcpRefundFetch }),
+    // Same as runClientScenario's own sendRefund fallback: this closure only
+    // ever runs once batchSettlementPhase has already been confirmed truthy,
+    // and runClientScenario throws before that point if batchSettlementScheme
+    // (EVM-only) is missing, so the assertion here is safe, not a bypass.
+    refund: () => batchSettlementScheme!.refund(toolResourceUrl, { fetch: mcpRefundFetch }),
   });
 } catch (error: unknown) {
   console.log(

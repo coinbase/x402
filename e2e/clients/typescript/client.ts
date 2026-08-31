@@ -76,61 +76,104 @@ export type E2EClientContext = {
    * setup instead of duplicating it.
    */
   schemes: SchemeRegistration[];
-  batchSettlementScheme: BatchSettlementEvmScheme;
+  batchSettlementScheme: BatchSettlementEvmScheme | undefined;
   batchSettlementPhase: BatchSettlementPhase | undefined;
 };
 
 /**
  * Builds the shared x402 client with all e2e scheme registrations.
+ *
+ * EVM and SVM signer derivation is conditional on their own client
+ * credential (`CLIENT_EVM_PRIVATE_KEY`/`CLIENT_SVM_PRIVATE_KEY`), same as
+ * every other family below (Aptos, Hedera, Keeta, Stellar, AVM, TVM, Near,
+ * XRPL). Both used to be derived unconditionally at the top of this
+ * function, ahead of any family-scoping logic, so a run scoped to a single
+ * non-EVM/SVM family via `--families` still crashed here unless unrelated
+ * EVM/SVM credentials happened to be set too (x402-foundation/x402#3187).
  */
 export async function createE2EClient(): Promise<E2EClientContext> {
   const baseURL = process.env.RESOURCE_SERVER_URL as string;
   const endpointPath = process.env.ENDPOINT_PATH as string;
   const url = `${baseURL}${endpointPath}`;
-  const evmAccount = privateKeyToAccount(process.env.CLIENT_EVM_PRIVATE_KEY as `0x${string}`);
-  const svmSigner = await createKeyPairSignerFromBytes(
-    base58.decode(process.env.CLIENT_SVM_PRIVATE_KEY as string),
-  );
 
-  const evmNetwork = resolveNetworkCaip2("evm");
-  const evmRpcUrl = process.env.EVM_RPC_URL;
-  const evmChain = evmNetwork === "eip155:8453" ? base : baseSepolia;
+  const schemes: SchemeRegistration[] = [];
+  let batchSettlementScheme: BatchSettlementEvmScheme | undefined;
 
-  const publicClient = createPublicClient({
-    chain: evmChain,
-    transport: http(evmRpcUrl),
-  });
+  if (process.env.CLIENT_EVM_PRIVATE_KEY) {
+    const evmAccount = privateKeyToAccount(process.env.CLIENT_EVM_PRIVATE_KEY as `0x${string}`);
 
-  const evmSigner = toClientEvmSigner(evmAccount, publicClient);
+    const evmNetwork = resolveNetworkCaip2("evm");
+    const evmRpcUrl = process.env.EVM_RPC_URL;
+    const evmChain = evmNetwork === "eip155:8453" ? base : baseSepolia;
 
-  const evmSchemeOptions = process.env.EVM_RPC_URL
-    ? { rpcUrl: process.env.EVM_RPC_URL }
-    : undefined;
+    const publicClient = createPublicClient({
+      chain: evmChain,
+      transport: http(evmRpcUrl),
+    });
 
-  const uptoSchemeOptions: UptoEvmSchemeOptions | undefined = process.env.EVM_RPC_URL
-    ? { rpcUrl: process.env.EVM_RPC_URL }
-    : undefined;
-  const svmSchemeOptions = process.env.SVM_RPC_URL ? { rpcUrl: process.env.SVM_RPC_URL } : undefined;
+    const evmSigner = toClientEvmSigner(evmAccount, publicClient);
+
+    const evmSchemeOptions = evmRpcUrl ? { rpcUrl: evmRpcUrl } : undefined;
+
+    const uptoSchemeOptions: UptoEvmSchemeOptions | undefined = evmRpcUrl
+      ? { rpcUrl: evmRpcUrl }
+      : undefined;
+
+    // Batch-settlement scheme uses a per-scenario salt (EVM_BATCH_SETTLEMENT_CHANNEL) so
+    // concurrent e2e runs don't collide on the same on-chain channel id. An optional
+    // voucher signer (CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY) exercises
+    // the alt-EOA voucher branch while deposits keep using the main client signer.
+    const channelSalt = process.env.EVM_BATCH_SETTLEMENT_CHANNEL as `0x${string}` | undefined;
+    const voucherSignerKey = process.env.CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY as
+      | `0x${string}`
+      | undefined;
+    const voucherSigner = voucherSignerKey
+      ? toClientEvmSigner(privateKeyToAccount(voucherSignerKey), publicClient)
+      : undefined;
+    const batchSettlementOptions =
+      channelSalt || voucherSigner
+        ? { ...(channelSalt ? { salt: channelSalt } : {}), ...(voucherSigner ? { voucherSigner } : {}) }
+        : undefined;
+    batchSettlementScheme = new BatchSettlementEvmScheme(evmSigner, batchSettlementOptions);
+
+    schemes.push(
+      { network: networkCaip2Pattern("evm"), client: new ExactEvmScheme(evmSigner, evmSchemeOptions) },
+      {
+        network: networkCaip2Pattern("evm"),
+        client: new UptoEvmClientScheme(evmSigner, uptoSchemeOptions),
+      },
+      { network: networkCaip2Pattern("evm"), client: batchSettlementScheme },
+      { network: "base-sepolia", client: new ExactEvmSchemeV1(evmSigner), x402Version: 1 },
+      { network: "base", client: new ExactEvmSchemeV1(evmSigner), x402Version: 1 },
+    );
+  }
+
+  if (process.env.CLIENT_SVM_PRIVATE_KEY) {
+    const svmSigner = await createKeyPairSignerFromBytes(
+      base58.decode(process.env.CLIENT_SVM_PRIVATE_KEY),
+    );
+    const svmSchemeOptions = process.env.SVM_RPC_URL ? { rpcUrl: process.env.SVM_RPC_URL } : undefined;
+
+    schemes.push(
+      {
+        network: networkCaip2Pattern("svm"),
+        client: new ExactSvmScheme(svmSigner, svmSchemeOptions),
+      },
+      {
+        network: networkCaip2Pattern("svm"),
+        client: new UptoSvmScheme(svmSigner, svmSchemeOptions),
+      },
+      {
+        network: "solana-devnet",
+        client: new ExactSvmSchemeV1(svmSigner, svmSchemeOptions),
+        x402Version: 1,
+      },
+      { network: "solana", client: new ExactSvmSchemeV1(svmSigner, svmSchemeOptions), x402Version: 1 },
+    );
+  }
 
   const ccdPrivateKey = process.env.CLIENT_CCD_PRIVATE_KEY;
   const ccdAddress = process.env.CLIENT_CCD_ADDRESS;
-
-  // Batch-settlement scheme uses a per-scenario salt (EVM_BATCH_SETTLEMENT_CHANNEL) so
-  // concurrent e2e runs don't collide on the same on-chain channel id. An optional
-  // voucher signer (CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY) exercises
-  // the alt-EOA voucher branch while deposits keep using the main client signer.
-  const channelSalt = process.env.EVM_BATCH_SETTLEMENT_CHANNEL as `0x${string}` | undefined;
-  const voucherSignerKey = process.env.CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY as
-    | `0x${string}`
-    | undefined;
-  const voucherSigner = voucherSignerKey
-    ? toClientEvmSigner(privateKeyToAccount(voucherSignerKey), publicClient)
-    : undefined;
-  const batchSettlementOptions =
-    channelSalt || voucherSigner
-      ? { ...(channelSalt ? { salt: channelSalt } : {}), ...(voucherSigner ? { voucherSigner } : {}) }
-      : undefined;
-  const batchSettlementScheme = new BatchSettlementEvmScheme(evmSigner, batchSettlementOptions);
 
   let aptosAccount: Account | undefined;
   if (process.env.CLIENT_APTOS_PRIVATE_KEY) {
@@ -190,30 +233,6 @@ export async function createE2EClient(): Promise<E2EClientContext> {
       )
     : undefined;
 
-  const schemes: SchemeRegistration[] = [
-    { network: networkCaip2Pattern("evm"), client: new ExactEvmScheme(evmSigner, evmSchemeOptions) },
-    {
-      network: networkCaip2Pattern("evm"),
-      client: new UptoEvmClientScheme(evmSigner, uptoSchemeOptions),
-    },
-    { network: networkCaip2Pattern("evm"), client: batchSettlementScheme },
-    { network: "base-sepolia", client: new ExactEvmSchemeV1(evmSigner), x402Version: 1 },
-    { network: "base", client: new ExactEvmSchemeV1(evmSigner), x402Version: 1 },
-    {
-      network: networkCaip2Pattern("svm"),
-      client: new ExactSvmScheme(svmSigner, svmSchemeOptions),
-    },
-    {
-      network: networkCaip2Pattern("svm"),
-      client: new UptoSvmScheme(svmSigner, svmSchemeOptions),
-    },
-    {
-      network: "solana-devnet",
-      client: new ExactSvmSchemeV1(svmSigner, svmSchemeOptions),
-      x402Version: 1,
-    },
-    { network: "solana", client: new ExactSvmSchemeV1(svmSigner, svmSchemeOptions), x402Version: 1 },
-  ];
   if (ccdPrivateKey && ccdAddress) {
     schemes.push({
       network: networkCaip2Pattern("ccd"),
@@ -319,7 +338,12 @@ function aggregateBatchResult(
 export type ClientScenarioDeps = {
   url: string;
   batchSettlementPhase: BatchSettlementPhase | undefined;
-  batchSettlementScheme: BatchSettlementEvmScheme;
+  /**
+   * `undefined` whenever `createE2EClient()` had no `CLIENT_EVM_PRIVATE_KEY`
+   * to derive it from (batch-settlement is EVM-only). Checked below before
+   * `batchSettlementPhase` can ever cause it to be used.
+   */
+  batchSettlementScheme: BatchSettlementEvmScheme | undefined;
   issueRequest: () => Promise<RequestResult>;
   /**
    * Overrides how the cooperative refund request is sent. Defaults to
@@ -334,7 +358,19 @@ export type ClientScenarioDeps = {
  */
 export async function runClientScenario(deps: ClientScenarioDeps): Promise<void> {
   const { url, batchSettlementPhase, batchSettlementScheme, issueRequest } = deps;
-  const sendRefund = deps.refund ?? (() => batchSettlementScheme.refund(url));
+  // A batch-settlement phase only makes sense for EVM, so this only fires
+  // when a scenario's own config is inconsistent (EVM_BATCH_SETTLEMENT_PHASE
+  // set without CLIENT_EVM_PRIVATE_KEY), not from ordinary family scoping,
+  // where batchSettlementPhase is simply left unset. Failing fast here with a
+  // clear message beats a bare "Cannot read properties of undefined" once
+  // sendRefund is actually invoked below.
+  if (batchSettlementPhase && !batchSettlementScheme) {
+    throw new Error(
+      "EVM_BATCH_SETTLEMENT_PHASE is set but no CLIENT_EVM_PRIVATE_KEY was provided to build a " +
+        "batch-settlement scheme from.",
+    );
+  }
+  const sendRefund = deps.refund ?? (() => batchSettlementScheme!.refund(url));
 
   if (!batchSettlementPhase) {
     const result = await issueRequest();
