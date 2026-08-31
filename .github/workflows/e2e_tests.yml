@@ -154,6 +154,10 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
+      - name: Print wallet status
+        if: steps.families.outputs.configured == 'true'
+        run: pnpm wallet:status
+
       - name: Setup E2E components
         if: steps.families.outputs.configured == 'true'
         run: ./setup.sh
