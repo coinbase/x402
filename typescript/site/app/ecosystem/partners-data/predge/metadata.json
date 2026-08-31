@@ -1,0 +1,7 @@
+{
+  "name": "Predge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/predge.png",
+  "description": "Signed, offline-verifiable settled outcomes and prediction-market wallet edge as a pay-per-call x402 API. ed25519 attestations for Polymarket, Kalshi and sports, verifiable against a published key. USDC on Base or Solana.",
+  "websiteUrl": "https://data.predge.io"
+}
