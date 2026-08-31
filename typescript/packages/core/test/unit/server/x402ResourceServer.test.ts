@@ -1996,6 +1996,70 @@ describe("x402ResourceServer", () => {
       expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
     });
 
+    it("fails when client forges builder-code app code without server declaration", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: undefined });
+      const payload = buildPaymentPayload({
+        extensions: {
+          "builder-code": { info: { a: "forged_app" } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({
+        valid: false,
+        invalidReason: "extension_echo_mismatch",
+        extensionKey: "builder-code",
+      });
+    });
+
+    it("fails when client forges builder-code app code while server declares other extensions", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
+      const payload = buildPaymentPayload({
+        extensions: {
+          "builder-code": { info: { a: "forged_app" } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({
+        valid: false,
+        invalidReason: "extension_echo_mismatch",
+        extensionKey: "builder-code",
+      });
+    });
+
+    it("passes when client sends only builder-code service codes without server declaration", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: undefined });
+      const payload = buildPaymentPayload({
+        extensions: {
+          "builder-code": { info: { s: ["bc_client"] } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("fails when client forges builder-code app code that mismatches server declaration", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({
+        extensions: {
+          "builder-code": { info: { a: "bc_app" } },
+        },
+      });
+      const payload = buildPaymentPayload({
+        extensions: {
+          "builder-code": { info: { a: "forged_app" } },
+        },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({
+        valid: false,
+        invalidReason: "extension_echo_mismatch",
+        extensionKey: "builder-code",
+      });
+    });
+
     it("passes when client omits extensions", () => {
       const server = new x402ResourceServer();
       const paymentRequired = buildPaymentRequired({ extensions: serverExtensions });
@@ -2090,6 +2154,19 @@ describe("x402ResourceServer", () => {
       const payload = buildPaymentPayload({
         x402Version: 1,
         extensions: { bazaar: { info: { tool: "wrong" } } },
+      });
+
+      expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
+    });
+
+    it("passes for v1 payloads with forged builder-code app code", () => {
+      const server = new x402ResourceServer();
+      const paymentRequired = buildPaymentRequired({ extensions: undefined });
+      const payload = buildPaymentPayload({
+        x402Version: 1,
+        extensions: {
+          "builder-code": { info: { a: "forged_app" } },
+        },
       });
 
       expect(server.validateExtensions(paymentRequired, payload)).toEqual({ valid: true });
