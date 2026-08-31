@@ -82,14 +82,6 @@ export type E2EClientContext = {
 
 /**
  * Builds the shared x402 client with all e2e scheme registrations.
- *
- * EVM and SVM signer derivation is conditional on their own client
- * credential (`CLIENT_EVM_PRIVATE_KEY`/`CLIENT_SVM_PRIVATE_KEY`), same as
- * every other family below (Aptos, Hedera, Keeta, Stellar, AVM, TVM, Near,
- * XRPL). Both used to be derived unconditionally at the top of this
- * function, ahead of any family-scoping logic, so a run scoped to a single
- * non-EVM/SVM family via `--families` still crashed here unless unrelated
- * EVM/SVM credentials happened to be set too (x402-foundation/x402#3187).
  */
 export async function createE2EClient(): Promise<E2EClientContext> {
   const baseURL = process.env.RESOURCE_SERVER_URL as string;
@@ -338,11 +330,6 @@ function aggregateBatchResult(
 export type ClientScenarioDeps = {
   url: string;
   batchSettlementPhase: BatchSettlementPhase | undefined;
-  /**
-   * `undefined` whenever `createE2EClient()` had no `CLIENT_EVM_PRIVATE_KEY`
-   * to derive it from (batch-settlement is EVM-only). Checked below before
-   * `batchSettlementPhase` can ever cause it to be used.
-   */
   batchSettlementScheme: BatchSettlementEvmScheme | undefined;
   issueRequest: () => Promise<RequestResult>;
   /**
@@ -358,12 +345,6 @@ export type ClientScenarioDeps = {
  */
 export async function runClientScenario(deps: ClientScenarioDeps): Promise<void> {
   const { url, batchSettlementPhase, batchSettlementScheme, issueRequest } = deps;
-  // A batch-settlement phase only makes sense for EVM, so this only fires
-  // when a scenario's own config is inconsistent (EVM_BATCH_SETTLEMENT_PHASE
-  // set without CLIENT_EVM_PRIVATE_KEY), not from ordinary family scoping,
-  // where batchSettlementPhase is simply left unset. Failing fast here with a
-  // clear message beats a bare "Cannot read properties of undefined" once
-  // sendRefund is actually invoked below.
   if (batchSettlementPhase && !batchSettlementScheme) {
     throw new Error(
       "EVM_BATCH_SETTLEMENT_PHASE is set but no CLIENT_EVM_PRIVATE_KEY was provided to build a " +
