@@ -263,7 +263,10 @@ The `VerifyResponse` schema contains the following fields:
 | `isValid`       | `boolean` | Required | Indicates whether the payment authorization is valid    |
 | `invalidReason` | `string`  | Optional | Reason for invalidity (omitted if valid)                |
 | `payer`         | `string`  | Optional | Address of the payer's wallet                           |
+| `extensions`    | `object`  | Optional | Protocol extensions data                                |
 | `extra`         | `object`  | Optional | Scheme-specific additional data                         |
+
+Facilitators MAY expose extension outcomes separately from `extensions` as `extensionResponses` (populated from the transport sidechannel; never serialized to buyers). See section 7.2.1.
 
 **6. Payment Schemes (The Logic)**
 
@@ -419,6 +422,19 @@ Durably commits payment state for the request — establishing finality from the
   "network": "eip155:84532"
 }
 ```
+
+**7.2.1 Extension Responses Sidechannel**
+
+Facilitators MAY communicate extension-specific processing outcomes on verify and settle responses through a transport-specific sidechannel that is **not** part of the JSON response body and **not** forwarded to buyers.
+
+On HTTP, the sidechannel is the `EXTENSION-RESPONSES` header:
+
+| Property | Value |
+| -------- | ----- |
+| Header name | `EXTENSION-RESPONSES` |
+| Header value | Base64-encoded JSON object keyed by extension name |
+
+Each key holds the extension's outcome object. Extension specs define the payload shape under their key (for example, `bazaar` in `specs/extensions/bazaar.md`).
 
 **7.3 GET /supported**
 
