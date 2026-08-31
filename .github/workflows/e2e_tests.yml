@@ -163,6 +163,18 @@ jobs:
         if: steps.families.outputs.configured == 'true'
         run: ./setup.sh
 
+      # Create/fund the Swig smart wallet when SVM is in the run and persist
+      # SWIG_ACCOUNT_ADDRESS to e2e/.env for the test step (and later steps).
+      - name: Setup Swig smart wallet
+        if: steps.families.outputs.configured == 'true' && contains(steps.families.outputs.families, 'svm')
+        run: |
+          set -a
+          # shellcheck disable=SC1091
+          source .env
+          set +a
+          export SVM_RPC_URL="${SVM_TESTNET_RPC_URL:-}"
+          pnpm swig:setup
+
       - name: Run minimized e2e tests (testnet)
         if: steps.families.outputs.configured == 'true'
         run: |

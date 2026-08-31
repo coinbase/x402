@@ -175,11 +175,56 @@ function clientRequiresSwigSetup(client: { config: { environment?: { required?: 
   return (client.config.environment?.required ?? []).includes('SWIG_ACCOUNT_ADDRESS');
 }
 
+type SwigSetupResult = {
+  ok?: boolean;
+  swigAccountAddress?: string;
+  created?: boolean;
+  swigIdBase58?: string;
+};
+
+function applySwigSetupResult(result: SwigSetupResult, logCreation: boolean): boolean {
+  if (!result.ok || !result.swigAccountAddress) {
+    return false;
+  }
+
+  process.env.SWIG_ACCOUNT_ADDRESS = result.swigAccountAddress;
+  if (result.swigIdBase58) {
+    process.env.SWIG_ID_BASE58 = result.swigIdBase58;
+  }
+
+  if (logCreation && result.created) {
+    log(`  ✅ New Swig smart wallet: SWIG_ACCOUNT_ADDRESS=${result.swigAccountAddress}`);
+    if (result.swigIdBase58) {
+      log(`     SWIG_ID_BASE58=${result.swigIdBase58}`);
+    }
+  } else {
+    verboseLog(`  ✅ Swig setup complete: ${result.swigAccountAddress}`);
+  }
+
+  return true;
+}
+
+function parseSwigSetupOutput(stdout: string): SwigSetupResult | undefined {
+  const lines = stdout.trim().split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(lines[i]!) as SwigSetupResult;
+      if (parsed.ok && parsed.swigAccountAddress) {
+        return parsed;
+      }
+    } catch {
+      // not JSON — keep scanning
+    }
+  }
+  return undefined;
+}
+
 /**
  * Prepare Swig smart-wallet state for svm-smart-wallet e2e client tests.
- * Called before each endpoint; creates/funds via scripts/swig-setup.ts when balance is low.
+ * Creates/funds via scripts/swig-setup.ts when SWIG_ACCOUNT_ADDRESS is unset or
+ * USDC balance is low; reuses SWIG_ACCOUNT_ADDRESS from env when already set.
  */
-async function setupSwigWallet(svmRpcUrl: string): Promise<boolean> {
+async function setupSwigWallet(svmRpcUrl: string, logCreation = false): Promise<boolean> {
   return new Promise((resolve) => {
     verboseLog('  🔧 Running Swig wallet setup...');
 
@@ -198,7 +243,16 @@ async function setupSwigWallet(svmRpcUrl: string): Promise<boolean> {
     child.stdout?.on('data', (data) => {
       const text = data.toString();
       stdout += text;
-      verboseLog(text.trim());
+      if (logCreation) {
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            log(trimmed);
+          }
+        }
+      } else {
+        verboseLog(text.trim());
+      }
     });
 
     child.stderr?.on('data', (data) => {
@@ -216,19 +270,10 @@ async function setupSwigWallet(svmRpcUrl: string): Promise<boolean> {
         return;
       }
 
-      const lines = stdout.trim().split('\n');
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const parsed = JSON.parse(lines[i]!) as { ok?: boolean; swigAccountAddress?: string };
-          if (parsed.ok && parsed.swigAccountAddress) {
-            process.env.SWIG_ACCOUNT_ADDRESS = parsed.swigAccountAddress;
-            verboseLog(`  ✅ Swig setup complete: ${parsed.swigAccountAddress}`);
-            resolve(true);
-            return;
-          }
-        } catch {
-          // not JSON — keep scanning
-        }
+      const parsed = parseSwigSetupOutput(stdout);
+      if (parsed && applySwigSetupResult(parsed, logCreation)) {
+        resolve(true);
+        return;
       }
 
       if (process.env.SWIG_ACCOUNT_ADDRESS) {
@@ -988,7 +1033,7 @@ async function runTest() {
   const hasSwigSmartWalletScenarios = filteredScenarios.some(s => clientRequiresSwigSetup(s.client));
 
   if (hasSwigSmartWalletScenarios) {
-    log('🔧 Swig smart-wallet scenarios detected — swig-setup runs before each endpoint when balance is low');
+    log('🔧 Swig smart-wallet scenarios detected — swig-setup creates/funds when needed (see e2e/.env)');
     log('');
   }
 
@@ -1021,6 +1066,13 @@ async function runTest() {
         if (FACILITATOR_ENV_PREFLIGHT_ALLOWLIST.has(envVar)) {
           continue;
         }
+        // Swig smart-wallet: swig-setup creates/persists these before each scenario.
+        if (
+          clientRequiresSwigSetup(component) &&
+          (envVar === 'SWIG_ACCOUNT_ADDRESS' || envVar === 'SWIG_ID_BASE58')
+        ) {
+          continue;
+        }
         // Skip credentials for families not in this run (catalog marks all wallet
         // keys required per family; only selected families need them present).
         const family = protocolFamilyForCredentialKey(envVar);
@@ -1050,6 +1102,16 @@ async function runTest() {
   }
 
   log('  ✅ All required environment variables are present\n');
+
+  if (hasSwigSmartWalletScenarios) {
+    log('🔧 Bootstrapping Swig smart wallet (create if unset, fund if low)...\n');
+    const swigReady = await setupSwigWallet(networks.svm.rpcUrl, true);
+    if (!swigReady) {
+      errorLog('❌ Swig wallet bootstrap failed — fund CLIENT_SVM_PRIVATE_KEY with devnet SOL and USDC');
+      process.exit(1);
+    }
+    log('');
+  }
 
   // Clean up any processes on test ports from previous runs
   try {
