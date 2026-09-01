@@ -6,7 +6,7 @@
  * distribution recipient that Open/Sealed actions need.
  */
 
-import { address, type Address, type Base58EncodedBytes } from "@solana/kit";
+import { address, type Address, type Base58EncodedBytes, getBase64Encoder } from "@solana/kit";
 
 import type { FacilitatorSvmSigner } from "../signer";
 import type { Channel } from "./generated/accounts/channel";
@@ -102,7 +102,7 @@ async function validateDiscoveredAccount(
 ): Promise<DiscoveredChannel | undefined> {
   if (owner !== expectedProgram) return undefined;
 
-  const bytes = Buffer.from(base64Data, "base64");
+  const bytes = getBase64Encoder().encode(base64Data);
   if (bytes.byteLength < Number(CHANNEL_ACCOUNT_SIZE)) return undefined;
 
   let channel: Channel;
