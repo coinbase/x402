@@ -1,0 +1,7 @@
+{
+  "name": "x402 Micro Tollgate",
+  "description": "Open-source Express HTTP 402 seller gateway and same-process MCP server. Verify/settle via Coinbase CDP on Base mainnet. Live paid demo: GET /v1/fetch-md (webpage→Markdown) at $0.001 USDC. npx x402-micro-tollgate.",
+  "logoUrl": "/logos/x402-micro-tollgate.png",
+  "websiteUrl": "https://github.com/kevin2003050666-coder/x402-micro-tollgate",
+  "category": "Infrastructure & Tooling"
+}
