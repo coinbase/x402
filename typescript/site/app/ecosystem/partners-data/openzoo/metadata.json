@@ -1,0 +1,7 @@
+{
+  "name": "OpenZoo",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/openzoo.png",
+  "description": "OpenAI-compatible inference API with no API key or signup — every request settles per-call via x402 on Solana and Base.",
+  "websiteUrl": "https://openzoo.fun"
+}
