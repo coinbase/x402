@@ -1,0 +1,4 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <path d="M64 8 L112 24 L112 60 C112 92 92 112 64 120 C36 112 16 92 16 60 L16 24 Z" fill="#0A0E1A" stroke="#5EA6F0" stroke-width="4"/>
+  <text x="64" y="80" font-family="-apple-system, sans-serif" font-size="56" font-weight="700" fill="#5EA6F0" text-anchor="middle">A</text>
+</svg>
