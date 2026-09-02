@@ -12,7 +12,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { Api } from "@stellar/stellar-sdk/rpc";
 import { STELLAR_WILDCARD_CAIP2 } from "../../constants";
-import { gatherAuthEntrySignatureStatus } from "../../shared";
+import { gatherAuthEntrySignatureStatus, getAddressCredentials } from "../../shared";
 import { ExactStellarPayloadV2 } from "../../types";
 import {
   getEstimatedLedgerCloseTimeSeconds,
@@ -742,18 +742,17 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
     }
 
     for (const auth of invokeOp.auth) {
-      const credentialsType = auth.credentials().switch();
-
-      // Only address-based credentials are allowed
-      if (credentialsType !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
+      // Only address-based credentials are allowed: legacy V1 or CAP-71 V2,
+      // which the network accepts from Protocol 28 onward. Source-account and
+      // delegated credentials are rejected.
+      const addressCredentials = getAddressCredentials(auth.credentials());
+      if (!addressCredentials) {
         return invalidVerifyResponse(
           "invalid_exact_stellar_payload_unsupported_credential_type",
           fromAddress,
         );
       }
 
-      // Extract address from credentials
-      const addressCredentials = auth.credentials().address();
       const authAddress = Address.fromScAddress(addressCredentials.address()).toString();
 
       // Facilitator must not appear in auth entries
