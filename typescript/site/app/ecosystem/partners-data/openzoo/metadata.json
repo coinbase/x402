@@ -1,0 +1,7 @@
+{
+  "name": "OpenZoo",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/openzoo.png",
+  "description": "Local x402-paying proxy (npx openzoo) + OpenAI-compatible inference endpoint: no account, no API key; every call is paid per request via x402 on Solana and Base. The hosted gateway answers 402 unless the caller pays x402 or presents a subscription key.",
+  "websiteUrl": "https://openzoo.fun"
+}
