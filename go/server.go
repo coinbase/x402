@@ -908,6 +908,53 @@ func asStringAnyMap(v interface{}) (map[string]interface{}, bool) {
 	return nil, false
 }
 
+// normalizeJSONValue converts typed Go values to their generic wire shape.
+func normalizeJSONValue(v interface{}) interface{} {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	var decoded interface{}
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return v
+	}
+	return decoded
+}
+
+// extensionInfo returns the normalized info envelope when present, otherwise
+// the normalized extension value itself.
+func extensionInfo(v interface{}) interface{} {
+	normalized := normalizeJSONValue(v)
+	if extension, ok := asStringAnyMap(normalized); ok {
+		if info, has := extension["info"]; has {
+			return info
+		}
+	}
+	return normalized
+}
+
+// serverOwnedInfoFieldsMatch reports whether every server-owned field supplied
+// by the client was independently declared by the resource server with the same
+// value. Undeclared extensions are treated as having no server-owned fields.
+func serverOwnedInfoFieldsMatch(advertised, echoed interface{}, fields map[string]struct{}) bool {
+	echoedMap, ok := asStringAnyMap(echoed)
+	if !ok {
+		return true
+	}
+	advertisedMap, _ := asStringAnyMap(advertised)
+	for field := range fields {
+		echoedValue, present := echoedMap[field]
+		if !present {
+			continue
+		}
+		advertisedValue, declared := advertisedMap[field]
+		if !declared || !DeepEqual(advertisedValue, echoedValue) {
+			return false
+		}
+	}
+	return true
+}
+
 // ExtensionValidationResult is returned by ValidateExtensions. Valid is true
 // when the client either omitted extensions or echoed every server-advertised
 // field; otherwise InvalidReason/ExtensionKey describe the mismatch.
@@ -920,7 +967,8 @@ type ExtensionValidationResult struct {
 // ValidateExtensions checks that the client-echoed extension info preserves the
 // server-advertised subset for every key the server declared. Clients may add
 // fields and may omit extension keys entirely, but may not drop or change a
-// server-advertised value.
+// server-advertised value. Fields listed in serverOwnedInfoFields may not be
+// added without a matching declaration.
 func (s *x402ResourceServer) ValidateExtensions(
 	serverExtensions map[string]interface{},
 	payload types.PaymentPayload,
@@ -928,7 +976,7 @@ func (s *x402ResourceServer) ValidateExtensions(
 	if payload.X402Version != 2 {
 		return ExtensionValidationResult{Valid: true}
 	}
-	if len(serverExtensions) == 0 || len(payload.Extensions) == 0 {
+	if len(payload.Extensions) == 0 {
 		return ExtensionValidationResult{Valid: true}
 	}
 
@@ -946,40 +994,24 @@ func (s *x402ResourceServer) ValidateExtensions(
 		field              string
 	}
 
-	// normalize converts a server-declared value (which may be a typed struct)
-	// into the generic JSON shape the echoed payload already uses.
-	// Falls back to the original value when it is not JSON-encodable.
-	normalize := func(v interface{}) interface{} {
-		encoded, err := json.Marshal(v)
-		if err != nil {
-			return v
-		}
-		var decoded interface{}
-		if err := json.Unmarshal(encoded, &decoded); err != nil {
-			return v
-		}
-		return decoded
-	}
-
 	for key, echoedValue := range payload.Extensions {
 		serverValue, declared := serverExtensions[key]
+		advertisedInfo := extensionInfo(serverValue)
+		echoedInfo := extensionInfo(echoedValue)
+		fields := serverOwnedInfoFields[key]
 		if !declared {
+			if len(fields) > 0 && !serverOwnedInfoFieldsMatch(advertisedInfo, echoedInfo, fields) {
+				return ExtensionValidationResult{
+					Valid:         false,
+					InvalidReason: "extension_echo_mismatch",
+					ExtensionKey:  key,
+				}
+			}
 			continue
 		}
 
-		// Compare the `info` envelope when present, otherwise the flat value.
-		advertised := normalize(serverValue)
-		if m, ok := advertised.(map[string]interface{}); ok {
-			if info, has := m["info"]; has {
-				advertised = info
-			}
-		}
-		echoed := echoedValue
-		if m, ok := echoedValue.(map[string]interface{}); ok {
-			if info, has := m["info"]; has {
-				echoed = info
-			}
-		}
+		advertised := advertisedInfo
+		echoed := echoedInfo
 
 		// Exclude fields the extension regenerates per response (e.g. nonces)
 		// so a fresh server value is not flagged against the client's echo.
@@ -1041,7 +1073,7 @@ func (s *x402ResourceServer) ValidateExtensions(
 			}
 		}
 
-		if mismatch {
+		if mismatch || (len(fields) > 0 && !serverOwnedInfoFieldsMatch(advertisedInfo, echoedInfo, fields)) {
 			return ExtensionValidationResult{
 				Valid:         false,
 				InvalidReason: "extension_echo_mismatch",
@@ -1074,6 +1106,14 @@ var additiveArrayInfoFields = map[string]map[string]bool{
 // from go/extensions/buildercode/types.go and must be kept in sync by hand.
 var additiveArrayMaxLengths = map[string]map[string]int{
 	"builder-code": {"s": 10},
+}
+
+// serverOwnedInfoFields lists extension info fields, keyed by extension key,
+// that clients may echo only when the resource server independently declared
+// the same value. Core cannot import extension packages, so these identifiers
+// are duplicated here alongside additiveArrayInfoFields.
+var serverOwnedInfoFields = map[string]map[string]struct{}{
+	"builder-code": {"a": {}},
 }
 
 // dynamicInfoFields returns the dynamic `info` field names declared by the

@@ -1334,6 +1334,51 @@ func TestValidateExtensions(t *testing.T) {
 		}
 	})
 
+	t.Run("fails when undeclared builder-code carries app attribution", func(t *testing.T) {
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "attacker_app"},
+			},
+		})
+		r := server.ValidateExtensions(nil, p)
+		if r.Valid || r.InvalidReason != "extension_echo_mismatch" || r.ExtensionKey != "builder-code" {
+			t.Fatalf("expected echo mismatch on undeclared builder-code app attribution, got %+v", r)
+		}
+	})
+
+	t.Run("fails when another extension is declared but builder-code app attribution is not", func(t *testing.T) {
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "attacker_app"},
+			},
+		})
+		r := server.ValidateExtensions(serverExtensions, p)
+		if r.Valid || r.InvalidReason != "extension_echo_mismatch" || r.ExtensionKey != "builder-code" {
+			t.Fatalf("expected echo mismatch on undeclared builder-code app attribution, got %+v", r)
+		}
+	})
+
+	t.Run("passes when undeclared builder-code carries only client service attribution", func(t *testing.T) {
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"s": []interface{}{"client_service"}},
+			},
+		})
+		if r := server.ValidateExtensions(nil, p); !r.Valid {
+			t.Fatalf("expected valid client-only service attribution, got %+v", r)
+		}
+	})
+
+	t.Run("fails when flat undeclared builder-code carries app attribution", func(t *testing.T) {
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{"a": "attacker_app"},
+		})
+		r := server.ValidateExtensions(nil, p)
+		if r.Valid || r.InvalidReason != "extension_echo_mismatch" || r.ExtensionKey != "builder-code" {
+			t.Fatalf("expected echo mismatch on flat undeclared builder-code app attribution, got %+v", r)
+		}
+	})
+
 	t.Run("passes when client omits extensions", func(t *testing.T) {
 		if r := server.ValidateExtensions(serverExtensions, payloadWith(nil)); !r.Valid {
 			t.Fatalf("expected valid, got %+v", r)
@@ -1405,6 +1450,20 @@ func TestValidateExtensions(t *testing.T) {
 		}
 	})
 
+	t.Run("passes for v1 payloads with forged builder-code app attribution", func(t *testing.T) {
+		p := types.PaymentPayload{
+			X402Version: 1,
+			Extensions: map[string]interface{}{
+				"builder-code": map[string]interface{}{
+					"info": map[string]interface{}{"a": "forged_app"},
+				},
+			},
+		}
+		if r := server.ValidateExtensions(nil, p); !r.Valid {
+			t.Fatalf("expected v1 extensions to remain outside echo validation, got %+v", r)
+		}
+	})
+
 	// Extensions declared as typed Go structs (e.g. eip2612gassponsor.Extension)
 	// must validate the same way as map-declared extensions. Mirrors the gas
 	// extension shape inline to avoid an import cycle (eip2612gassponsor imports
@@ -1437,6 +1496,42 @@ func TestValidateExtensions(t *testing.T) {
 		})
 		if r := server.ValidateExtensions(structExtensions, p); !r.Valid {
 			t.Fatalf("expected valid, got %+v", r)
+		}
+	})
+
+	t.Run("passes with struct-declared builder-code and matching echo", func(t *testing.T) {
+		type builderInfo struct {
+			AppCode string `json:"a"`
+		}
+		type builderExtension struct {
+			Info builderInfo `json:"info"`
+		}
+		advertised := map[string]interface{}{
+			"builder-code": builderExtension{Info: builderInfo{AppCode: "honest_app"}},
+		}
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "honest_app"},
+			},
+		})
+		if r := server.ValidateExtensions(advertised, p); !r.Valid {
+			t.Fatalf("expected matching typed builder-code declaration to pass, got %+v", r)
+		}
+	})
+
+	t.Run("fails when typed undeclared builder-code carries app attribution", func(t *testing.T) {
+		type builderInfo struct {
+			AppCode string `json:"a"`
+		}
+		type builderExtension struct {
+			Info builderInfo `json:"info"`
+		}
+		p := payloadWith(map[string]interface{}{
+			"builder-code": builderExtension{Info: builderInfo{AppCode: "attacker_app"}},
+		})
+		r := server.ValidateExtensions(nil, p)
+		if r.Valid || r.InvalidReason != "extension_echo_mismatch" || r.ExtensionKey != "builder-code" {
+			t.Fatalf("expected echo mismatch on typed undeclared builder-code app attribution, got %+v", r)
 		}
 	})
 
@@ -1519,6 +1614,23 @@ func TestValidateExtensions(t *testing.T) {
 		})
 		if r := server.ValidateExtensions(advertised, p); !r.Valid {
 			t.Fatalf("expected valid additive s merge, got %+v", r)
+		}
+	})
+
+	t.Run("fails when builder-code app attribution differs from the declaration", func(t *testing.T) {
+		advertised := map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "honest_app"},
+			},
+		}
+		p := payloadWith(map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "attacker_app"},
+			},
+		})
+		r := server.ValidateExtensions(advertised, p)
+		if r.Valid || r.InvalidReason != "extension_echo_mismatch" || r.ExtensionKey != "builder-code" {
+			t.Fatalf("expected echo mismatch on builder-code app attribution, got %+v", r)
 		}
 	})
 
@@ -1659,4 +1771,33 @@ func TestValidateExtensions(t *testing.T) {
 			t.Fatalf("expected echo mismatch on sign-in-with-x, got %+v", r)
 		}
 	})
+}
+
+func TestVerifyPaymentWithExtensionsRejectsUndeclaredBuilderCodeAppAttribution(t *testing.T) {
+	server := Newx402ResourceServer()
+	payload := types.PaymentPayload{
+		X402Version: 2,
+		Extensions: map[string]interface{}{
+			"builder-code": map[string]interface{}{
+				"info": map[string]interface{}{"a": "attacker_app"},
+			},
+		},
+	}
+
+	result, err := server.VerifyPaymentWithExtensions(
+		context.Background(),
+		payload,
+		types.PaymentRequirements{},
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected undeclared builder-code app attribution to fail verification")
+	}
+	if result == nil || result.IsValid || result.InvalidReason != "extension_echo_mismatch" {
+		t.Fatalf("expected invalid extension echo result, got %+v", result)
+	}
+	var verifyErr *VerifyError
+	if !errors.As(err, &verifyErr) || verifyErr.InvalidReason != "extension_echo_mismatch" {
+		t.Fatalf("expected extension_echo_mismatch verify error, got %v", err)
+	}
 }
