@@ -7,7 +7,7 @@
  * readable. All RPC access is threaded in by the caller.
  */
 
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha256";
 import {
   getSetComputeUnitLimitInstruction,
   getSetComputeUnitPriceInstruction,
@@ -587,7 +587,7 @@ function assertChannelAddress(label: string, actual: string, expected: string): 
  * @returns SHA-256 of the program's canonical distribution preimage
  */
 export function getChannelDistributionHash(splits: readonly ChannelSplit[]): Uint8Array {
-  const hasher = createHash("sha256");
+  const hasher = sha256.create();
   const count = new Uint8Array(4);
   new DataView(count.buffer).setUint32(0, splits.length, true);
   hasher.update(count);

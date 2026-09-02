@@ -1186,6 +1186,9 @@ importers:
 
   ../../typescript/packages/mechanisms/svm:
     dependencies:
+      '@noble/hashes':
+        specifier: ^1.8.0
+        version: 1.8.0
       '@solana-program/compute-budget':
         specifier: ^0.11.0
         version: 0.11.0(@solana/kit@5.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)))
