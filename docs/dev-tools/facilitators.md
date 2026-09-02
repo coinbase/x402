@@ -25,6 +25,7 @@ If you are evaluating a mainnet EVM route, decide on your production facilitator
 | [Corbits](https://corbits.dev) | Production-grade multi-network, multi-token facilitator supporting EVM and Solana |
 | [Dexter](https://dexter.cash/facilitator) | Free public x402 facilitator across Solana and EVM chains with no fees and no account required |
 | [Fireblocks Facilitator](https://developers.fireblocks.com/docs/x402-facilitator-overview) | Open-source and hosted facilitator with Fireblocks vault settlement; private keys never leave Fireblocks |
+| [FTP Canton Facilitator](https://www.ftptech.xyz/x402) | Production x402 facilitator for Canton Network mainnet, supporting Canton Coin and CIP-56 tokens |
 | [HPP Facilitator](https://docs.hpp.io/x402/facilitator) | Gasless, public x402 facilitator for HPP Mainnet and Sepolia |
 | [Meridian](https://mrdn.finance) | Multi-chain facilitator with developer-first features |
 | [Mogami Facilitator](https://facilitator.mogami.tech) | Free, developer-focused facilitator for Base with optional self-hosted Docker deployment |
