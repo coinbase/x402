@@ -9,6 +9,7 @@
       "@x402/extensions",
       "@x402/hedera",
       "@x402/evm",
+      "@x402/base",
       "@x402/avm",
       "@x402/aptos",
       "@x402/stellar",
