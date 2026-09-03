@@ -1,0 +1,3 @@
+kind: changed
+body: Exit the process when eager facilitator sync fails with a permanent capability or route-configuration error, instead of staying up until the first paid request. Transient facilitator timeouts remain retryable.
+time: 2026-09-02T10:45:00Z

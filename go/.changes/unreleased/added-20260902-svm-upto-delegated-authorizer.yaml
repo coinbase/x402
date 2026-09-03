@@ -1,0 +1,3 @@
+kind: added
+body: Add an optional facilitator-delegated receiver-authorizer mode to SVM `upto`. The facilitator may advertise `receiverAuthorizer` in `/supported`; a server that omits `ReceiverAuthorizerSigner` delegates voucher signing, and the facilitator signs after correlating the claim settle to the same authenticated caller that opened the channel.
+time: 2026-09-02T11:00:00Z
