@@ -1,0 +1,7 @@
+{
+  "name": "Cracked",
+  "description": "Cracked is a tool router for AI agents: 9,500+ API endpoints and 50,000+ Apify actors behind one API. POST https://cracked.ai/v1/run accepts x402 v2 (exact scheme, USDC on Base), so an agent with a wallet can pay per call without an account; runs that fail upstream are never settled.",
+  "logoUrl": "/logos/cracked.png",
+  "websiteUrl": "https://cracked.ai/docs/x402",
+  "category": "Services/Endpoints"
+}
