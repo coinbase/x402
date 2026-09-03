@@ -11,7 +11,7 @@ import {
   partiallySignTransaction,
   type KeyPairSigner,
 } from "@solana/kit";
-import type { PaymentPayload, PaymentRequirements } from "@x402/core/types";
+import type { PaymentPayload, PaymentRequirements, SupportedKind } from "@x402/core/types";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -333,7 +333,7 @@ describe("upto SVM scheme", () => {
       maxTimeoutSeconds: 300,
     };
 
-    it("skips voucher signing on before-handler deposit settle", async () => {
+    it("stamps type=deposit on before-handler settle without a voucher", async () => {
       const enrichment = await server.enrichSettlementPayload!({
         paymentPayload: {
           x402Version: 2,
@@ -344,7 +344,7 @@ describe("upto SVM scheme", () => {
         declaredExtensions: {},
         phase: "before-handler",
       });
-      expect(enrichment).toBeUndefined();
+      expect(enrichment).toEqual({ type: "deposit" });
     });
 
     it("signs a voucher the facilitator accepts", async () => {
@@ -362,7 +362,7 @@ describe("upto SVM scheme", () => {
         declaredExtensions: {},
         phase: "after-handler",
       });
-      expect(enrichment).toMatchObject({ voucherSignature: expect.any(String) });
+      expect(enrichment).toMatchObject({ type: "claim", voucherSignature: expect.any(String) });
 
       const { verifyVoucherSignature } = await import("../../src/payment-channels/voucher");
       await expect(
@@ -393,7 +393,7 @@ describe("upto SVM scheme", () => {
         declaredExtensions: {},
         phase: "cancel",
       });
-      expect(enrichment).toMatchObject({ voucherSignature: expect.any(String) });
+      expect(enrichment).toMatchObject({ type: "claim", voucherSignature: expect.any(String) });
 
       const { verifyVoucherSignature } = await import("../../src/payment-channels/voucher");
       await expect(
@@ -407,6 +407,110 @@ describe("upto SVM scheme", () => {
           signerBase58: serverAuthorizer.address,
         }),
       ).resolves.toBe(true);
+    });
+  });
+
+  describe("server delegated receiver authorizer", () => {
+    const advertisedAuthorizer = USDC_MAINNET_ADDRESS;
+    const supportedKind: SupportedKind = {
+      x402Version: 2,
+      scheme: "upto",
+      network: SOLANA_DEVNET_CAIP2,
+      extra: {
+        feePayer: advertisedAuthorizer,
+        receiverAuthorizer: advertisedAuthorizer,
+      },
+    };
+    const requirements: PaymentRequirements = {
+      scheme: "upto",
+      network: SOLANA_DEVNET_CAIP2,
+      asset: MINT,
+      amount: "1000000",
+      payTo: PAY_TO,
+      maxTimeoutSeconds: 300,
+      extra: {},
+    };
+
+    it("falls back to facilitator extra.receiverAuthorizer when no local signer", async () => {
+      const delegated = new UptoServerScheme({ withdrawDelay: WITHDRAW_DELAY });
+      const result = await delegated.enhancePaymentRequirements(requirements, supportedKind, []);
+      expect(result.extra?.receiverAuthorizer).toBe(advertisedAuthorizer);
+    });
+
+    it("throws when neither side supplies a receiverAuthorizer", async () => {
+      const delegated = new UptoServerScheme({ withdrawDelay: WITHDRAW_DELAY });
+      await expect(
+        delegated.enhancePaymentRequirements(
+          requirements,
+          {
+            ...supportedKind,
+            extra: { feePayer: advertisedAuthorizer },
+          },
+          [],
+        ),
+      ).rejects.toThrow(/valid extra.receiverAuthorizer/);
+    });
+
+    it("validateFacilitatorSupport fails without a local signer or advertisement", () => {
+      const delegated = new UptoServerScheme({ withdrawDelay: WITHDRAW_DELAY });
+      const problem = delegated.validateFacilitatorSupport?.(
+        SOLANA_DEVNET_CAIP2,
+        {
+          x402Version: 2,
+          scheme: "upto",
+          network: SOLANA_DEVNET_CAIP2,
+          extra: { feePayer: advertisedAuthorizer },
+        },
+        [],
+      );
+      expect(problem).toMatch(/receiverAuthorizer/);
+    });
+
+    it("validateFacilitatorSupport accepts a facilitator-advertised authorizer", () => {
+      const delegated = new UptoServerScheme({ withdrawDelay: WITHDRAW_DELAY });
+      expect(
+        delegated.validateFacilitatorSupport?.(SOLANA_DEVNET_CAIP2, supportedKind, []),
+      ).toBeUndefined();
+    });
+
+    it("stamps type and omits voucherSignature when delegating", async () => {
+      const delegated = new UptoServerScheme({ withdrawDelay: WITHDRAW_DELAY });
+      const payload = {
+        from: PAY_TO,
+        maxAmount: "1000000",
+        deposit: "1000000",
+        channelId: USDC_MAINNET_ADDRESS,
+        authorizedSigner: advertisedAuthorizer,
+        openTransaction: "unused",
+        openSlot: OPEN_SLOT.toString(),
+        expiresAt: FAR_FUTURE,
+        validAfter: 0,
+        nonce: "1",
+      };
+      await expect(
+        delegated.enrichSettlementPayload!({
+          paymentPayload: {
+            x402Version: 2,
+            accepted: requirements,
+            payload,
+          },
+          requirements,
+          declaredExtensions: {},
+          phase: "before-handler",
+        }),
+      ).resolves.toEqual({ type: "deposit" });
+      await expect(
+        delegated.enrichSettlementPayload!({
+          paymentPayload: {
+            x402Version: 2,
+            accepted: requirements,
+            payload,
+          },
+          requirements: { ...requirements, amount: "1858" },
+          declaredExtensions: {},
+          phase: "after-handler",
+        }),
+      ).resolves.toEqual({ type: "claim" });
     });
   });
 

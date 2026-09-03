@@ -15,7 +15,7 @@ import {
   buildSettleResponse,
 } from "../../mocks";
 import { Network } from "../../../src/types";
-import type { SettleResponse } from "../../../src/types/facilitator";
+import { FacilitatorCapabilityError, type SettleResponse } from "../../../src/types/facilitator";
 
 describe("x402ResourceServer", () => {
   describe("Construction", () => {
@@ -351,6 +351,7 @@ describe("x402ResourceServer", () => {
       server.register("eip155:8453" as Network, new ValidatingScheme("exact", "needs a signer"));
 
       await expect(server.initialize()).rejects.toThrow(/exact on eip155:8453: needs a signer/);
+      await expect(server.initialize()).rejects.toBeInstanceOf(FacilitatorCapabilityError);
     });
 
     it("resolves when the hook returns void", async () => {
