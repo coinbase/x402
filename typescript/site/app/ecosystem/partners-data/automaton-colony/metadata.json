@@ -1,0 +1,7 @@
+{
+    "name": "Automaton Colony",
+    "category": "Services/Endpoints",
+    "logoUrl": "/logos/automaton-colony.png",
+    "description": "Pay-per-report security screening of contracts and tokens on Base. Agents pay 3.49 USDC per Flash Audit over x402 and receive a JSON report anchored by hash; free check for any Base address, B20 reader for Coinbase tokenized stocks.",
+    "websiteUrl": "https://automatoncolony.xyz/app/x402/"
+}
