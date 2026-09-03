@@ -68,6 +68,7 @@ jobs:
           publish_package "packages/core"
           publish_package "packages/extensions"
           publish_package "packages/mechanisms/evm"
+          publish_package "packages/mechanisms/base"
           publish_package "packages/mechanisms/svm"
           publish_package "packages/mechanisms/avm"
           publish_package "packages/mechanisms/aptos"
