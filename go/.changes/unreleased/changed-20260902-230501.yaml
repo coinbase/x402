@@ -1,0 +1,3 @@
+kind: added
+body: EVM exact facilitator verify can start the onchain transfer simulation concurrently with signature classification, removing one RPC round trip. Opt in with ExactEvmSchemeConfig.EnableParallelVerifySimulation (or VerifyPermit2Options.EnableParallelSimulation for direct VerifyPermit2 callers); it covers EIP-3009 and the Permit2 standard settle path. Off by default, since the tradeoff is one wasted eth_call per payment rejected on signature grounds.
+time: 2026-09-02T23:05:01.000000-04:00

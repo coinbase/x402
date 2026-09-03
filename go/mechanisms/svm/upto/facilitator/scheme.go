@@ -99,6 +99,17 @@ type Config struct {
 	// at deposit and checked at claim. Defaults to InMemoryDelegatedAuthStore.
 	// Inject a shared implementation for a multi-replica facilitator.
 	DelegatedAuthStore DelegatedAuthStore
+
+	// ChannelReadMaxAttempts caps how many times settle re-reads a channel
+	// account that a confirmed open has not made visible yet. Unset defaults to
+	// DefaultChannelReadMaxAttempts.
+	ChannelReadMaxAttempts *int
+
+	// ChannelReadBackoffStep is the linear backoff step between those re-reads:
+	// attempt N waits N * step, totalling step * (attempts-1) * attempts / 2.
+	// Unset defaults to DefaultChannelReadBackoffStep. Raise either field to
+	// widen the budget on a provider with slower replica convergence.
+	ChannelReadBackoffStep *time.Duration
 }
 
 // DelegatedSettleStep is the settle phase passed to ResolveCallerIdentity.
@@ -585,7 +596,7 @@ func (f *UptoSvmScheme) settleDeposit(
 		Deposit:          auth.maxAmount,
 		GracePeriod:      auth.channelConfig.WithdrawDelay,
 		Splits:           auth.channelConfig.Splits,
-	}); err != nil {
+	}, f.resolveChannelReadPolicy()); err != nil {
 		f.settlementCache.Delete(depositKey)
 		return nil, x402.NewSettleError(ErrChannelState, uptoPayload.From, network, openSignature, err.Error())
 	}
@@ -700,7 +711,7 @@ func (f *UptoSvmScheme) settleClaim(
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		channel, channelErr = fetchAndVerifyOpenChannel(ctx, f.signer, networkStr, channelID, expected)
+		channel, channelErr = fetchAndVerifyOpenChannel(ctx, f.signer, networkStr, channelID, expected, f.resolveChannelReadPolicy())
 	}()
 	go func() {
 		defer wg.Done()
