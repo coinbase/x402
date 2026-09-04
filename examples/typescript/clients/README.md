@@ -10,6 +10,7 @@ This directory contains TypeScript client examples demonstrating how to make HTT
 | [`axios/`](./axios/) | Using `@x402/axios` with Axios |
 | [`advanced/`](./advanced/) | Advanced patterns: lifecycle hooks, network preferences |
 | [`custom/`](./custom/) | Manual implementation using only `@x402/core` |
+| [`who-lookup/`](./who-lookup/) | The only mainnet example; opt-in — pays a real, live endpoint on Base mainnet so you can try the flow with no local server |
 
 ## Framework Examples
 
@@ -39,9 +40,21 @@ The **custom** directory shows how to implement x402 payment handling manually u
 - You're integrating with an HTTP client we don't have a package for
 - You want to understand how x402 works under the hood
 
+## Try It Against a Live Endpoint
+
+Every example above defaults to `http://localhost:4021` and expects you to
+run a [server](../servers/) yourself. If you'd rather see a real payment go
+through first, [`who-lookup/`](./who-lookup/) points at a live, cheap
+($0.05 USDC on Base mainnet) third-party endpoint instead — no local server,
+no signup, just a funded EVM wallet.
+
+**It's the only mainnet example here, and it's opt-in.** It spends real
+money and has no testnet twin, so it refuses to run unless you set
+`X402_ALLOW_MAINNET=1` — see its README before running it.
+
 ## Getting Started
 
 1. Pick an example directory
 2. Follow the README in that directory
-3. Make sure you have a [server](../servers/) running to test against
+3. Make sure you have a [server](../servers/) running to test against (or use [`who-lookup/`](./who-lookup/) to try a live endpoint instead)
 
