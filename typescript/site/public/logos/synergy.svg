@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Synergy">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#131E3A"/>
+      <stop offset="1" stop-color="#0A0F1E"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <g stroke="#1C2A4E" stroke-width="24" stroke-linecap="round">
+    <line x1="256" y1="150" x2="140" y2="368"/>
+    <line x1="256" y1="150" x2="372" y2="368"/>
+    <line x1="140" y1="368" x2="372" y2="368"/>
+  </g>
+  <g>
+    <circle cx="256" cy="150" r="52" fill="url(#acc)"/>
+    <circle cx="256" cy="150" r="26" fill="#0A0F1E"/>
+    <circle cx="140" cy="368" r="52" fill="url(#acc)"/>
+    <circle cx="140" cy="368" r="26" fill="#0A0F1E"/>
+    <circle cx="372" cy="368" r="52" fill="url(#acc)"/>
+    <circle cx="372" cy="368" r="26" fill="#0A0F1E"/>
+  </g>
+</svg>

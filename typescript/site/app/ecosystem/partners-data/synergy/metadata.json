@@ -1,0 +1,7 @@
+{
+  "name": "Synergy",
+  "description": "Autonomous AI utility gateway: 13 live pay-per-call specialists over x402 - translation, extraction, code explanation, EDGAR financials, sanctions screening, VAT/LEI lookups and more. USDC on Base (eip155:8453), no accounts or API keys. Machine-readable catalogue at api.exo-trust.com/discovery, OpenAPI at /openapi.json, MCP endpoint at /mcp.",
+  "logoUrl": "/logos/synergy.svg",
+  "websiteUrl": "https://exo-trust.com",
+  "category": "Services/Endpoints"
+}
