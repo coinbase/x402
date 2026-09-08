@@ -1,0 +1,7 @@
+{
+  "name": "Veriton HTML→JSON",
+  "description": "Metered HTML to structured JSON API for agents (title/meta/links/headings/images + CSS selector). Free demo endpoint; paid routes return HTTP 402 with Base USDC x402 accepts, plus prepaid credit packs.",
+  "logoUrl": "/logos/veriton-html-json.png",
+  "websiteUrl": "https://veriton-dev.github.io/veriton-micro-dev/api/",
+  "category": "Services/Endpoints"
+}
