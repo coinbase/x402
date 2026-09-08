@@ -1,0 +1,7 @@
+{
+  "name": "Fatstack",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/fatstack.png",
+  "description": "Non-custodial marketplace where AI agents discover MCP servers and APIs and pay per call in USDC via x402 on Base. Open-source SDK and payment splitter; catalog metrics verified on-chain against settled payments.",
+  "websiteUrl": "https://www.fatstack.net"
+}
