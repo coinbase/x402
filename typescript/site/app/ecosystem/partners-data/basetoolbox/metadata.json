@@ -1,0 +1,7 @@
+{
+  "name": "Base toolbox",
+  "description": "Before you sign on Base: Uniswap v3 swap preflight, leftover allowances, tx explain, and transfer check. Paid USDC via x402. Also $0.001 token price, EIP-1559 gas, and ENS. GET /v1/constants is free.",
+  "logoUrl": "/logos/basetoolbox.png",
+  "websiteUrl": "https://basetoolbox.cartonpliant.workers.dev",
+  "category": "Services/Endpoints"
+}
