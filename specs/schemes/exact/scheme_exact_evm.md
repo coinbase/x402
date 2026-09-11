@@ -66,6 +66,26 @@ The `payload` field must contain:
 }
 ```
 
+### EIP-712 Domain
+
+The `signature` above is an EIP-712 signature over the `TransferWithAuthorization` types defined in
+[`x402-specification-v2.md`](../../x402-specification-v2.md) §6.1.1. The domain is the **token
+contract's own** EIP-712 domain — inherited from EIP-3009 rather than defined by x402 — and its
+parameters are populated from the payment fields as follows:
+
+| `EIP712Domain` field | Source                                               | Value in the example above                   |
+| :------------------- | :--------------------------------------------------- | :------------------------------------------- |
+| `name`               | `accepted.extra.name`                                 | `"USDC"`                                     |
+| `version`            | `accepted.extra.version`                              | `"2"`                                        |
+| `chainId`            | the chain reference of the CAIP-2 `accepted.network`  | `84532`                                      |
+| `verifyingContract`  | `accepted.asset`                                      | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+
+`extra.name` and `extra.version` MUST match the values the token contract at `asset` reports for its
+own EIP-712 domain (`name()` / `version()`, or `eip712Domain()` where EIP-5267 is implemented). They
+describe the token instance rather than x402 itself, and a mismatch does not surface as a typed
+error: it yields a signature that recovers to a different address, which Phase 2 step 1 can only
+report as an invalid signature.
+
 ### Phase 2: Verification Logic
 
 1.  **Verify** the signature is valid and recovers to the `authorization.from` address.
