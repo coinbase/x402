@@ -1,0 +1,10 @@
+packages:
+  - "clients/*"
+  - "servers/*"
+  - "fullstack/*"
+  - "facilitator/*"
+  - "../../typescript/packages/core"
+  - "../../typescript/packages/extensions"
+  - "../../typescript/packages/mcp"
+  - "../../typescript/packages/http/*"
+  - "../../typescript/packages/mechanisms/*"
