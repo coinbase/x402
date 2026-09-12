@@ -1,0 +1,7 @@
+{
+  "name": "aiworker-data",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/aiworker.png",
+  "description": "Deterministic-first data for agents, paid per call in USDC over x402 v2 on Base and Solana: DeFi yields, Base token and wallet cards, Polymarket odds and backtests, news, fact checks and cited briefs. 20 routes, $0.005-$1, no key.",
+  "websiteUrl": "https://aiworker.duckdns.org"
+}
