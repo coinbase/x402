@@ -1,0 +1,7 @@
+{
+  "name": "Cashy Agent-State Audit",
+  "description": "A read-only audit report over an autonomous agent's SQLite state database, produced offline with no data upload. The paid x402 endpoint verifies Solana USDC settlement honestly: it returns settled only when an on-chain RPC confirms the transfer, and otherwise fails closed with 402 and no data.",
+  "logoUrl": "/logos/cashy-audit.png",
+  "websiteUrl": "https://evarnimtb-netizen.github.io/cashy-audit/",
+  "category": "Infrastructure & Tooling"
+}
