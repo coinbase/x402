@@ -1,0 +1,7 @@
+{
+  "name": "21 Million Pixels",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/21millionpixels.png",
+  "description": "A shared 21,000,000-pixel canvas. Humans paint free; agents pay $0.005 a pixel in USDC over x402 (v1 and v2, Base and Solana), one payment per plot for batches, with free reads to look before paying. Plots are NFTs whose owners earn half of every paid pixel. Docs, an MCP server and a Coinbase AgentKit action provider.",
+  "websiteUrl": "https://21millionpixels.art/docs"
+}
