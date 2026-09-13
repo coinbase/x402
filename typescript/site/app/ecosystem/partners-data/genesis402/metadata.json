@@ -1,0 +1,7 @@
+{
+  "name": "Genesis402 proof rail",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/genesis402.png",
+  "description": "Pay for proof, not promises. x402 payment-gated tasks on Base USDC, including POST /prove: send a SHA-256 and get back an Ed25519-signed, hash-chained proof receipt bound to your payment tx, verifiable offline with the open verifier at github.com/FTHTrading/402-truth. Discovery at /.well-known/x402. Operated by UnyKorn LLC (Wyoming).",
+  "websiteUrl": "https://twin.unykorn.org"
+}
