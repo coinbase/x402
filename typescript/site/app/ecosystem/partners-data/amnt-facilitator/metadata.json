@@ -1,0 +1,22 @@
+{
+  "name": "AMNT Facilitator",
+  "description": "Free, open-source x402 facilitator for Hedera mainnet. Open access, no API key. Testnet also covers Base Sepolia and Solana devnet. Every settlement is shown on a public dashboard.",
+  "logoUrl": "/logos/amnt.svg",
+  "websiteUrl": "https://www.amnt.io/facilitators/hedera-x402-facilitator",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.amnt.io",
+    "networks": ["hedera"],
+    "schemes": ["exact"],
+    "assets": ["USDC"],
+    "addresses": {
+      "hedera": ["0.0.10774954"]
+    },
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
