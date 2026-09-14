@@ -1,0 +1,7 @@
+{
+  "name": "x402 Bazaar Rank",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402-bazaar-rank.png",
+  "description": "Ranked discovery over the live x402 service market: 15k+ indexed x402 services scored by real 30-day calls, with paying-wallet counts reported as honest bounds. Pay-per-query over x402 (USDC on Base), plus an MCP endpoint for agents; free sample endpoint.",
+  "websiteUrl": "https://x402-bazaar-rank.x402-bazaar-rank-worker.workers.dev/join"
+}
