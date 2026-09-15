@@ -1,5 +1,13 @@
 # @x402/axios Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+  - @x402/core@2.26.0
+- [cbc4593](https://github.com/x402-foundation/x402/commit/cbc4593): Fixed payment-required hook URLs to use Axios base-path joining and query serialization when the transport does not expose a final response URL. ([#3454](https://github.com/x402-foundation/x402/pull/3454)) - Thanks [@sunruize93-cmyk](https://github.com/sunruize93-cmyk)!
+
 ## 2.25.0
 
 ### Minor Changes

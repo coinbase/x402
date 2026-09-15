@@ -1,5 +1,20 @@
 # @x402/next Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+- Updated dependencies [8ae5ff6](https://github.com/x402-foundation/x402/commit/8ae5ff6)
+  - @x402/core@2.26.0
+  - @x402/extensions@2.26.0
+  - @x402/paywall@2.26.0
+
+### Patch Changes
+
+- [b444ce6](https://github.com/x402-foundation/x402/commit/b444ce6): Fixed Next.js adapter body reads consuming the request body before the route handler could read it. ([#3451](https://github.com/x402-foundation/x402/pull/3451)) - Thanks [@viviviviviid](https://github.com/viviviviviid)!
+- [bb05610](https://github.com/x402-foundation/x402/commit/bb05610): Preserved leading empty values in repeated query parameters returned by the request adapter. ([#3456](https://github.com/x402-foundation/x402/pull/3456)) - Thanks [@sunruize93-cmyk](https://github.com/sunruize93-cmyk)!
+
 ## 2.25.0
 
 ### Minor Changes

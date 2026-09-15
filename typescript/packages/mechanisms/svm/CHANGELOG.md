@@ -1,5 +1,14 @@
 # @x402/svm Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+  - @x402/core@2.26.0
+- [14e9c2a](https://github.com/x402-foundation/x402/commit/14e9c2a): SVM upto facilitator channel-account re-reads now back off linearly (200/400/600/800/1000ms across 6 reads) rather than doubling (200/400/800/1600ms across 5 reads). Replica lag behind a confirmed open is a small multiple of Solana's slot time, so the same 3.0s budget now buys one more read and caps any single wait at 1s. `UptoSvmFacilitatorConfig.channelReadMaxAttempts` and `channelReadBackoffStepMs` make it configurable. ([#3367](https://github.com/x402-foundation/x402/pull/3367)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+- [3c2ddfb](https://github.com/x402-foundation/x402/commit/3c2ddfb): SVM upto delegated claim settle now returns `invalid_upto_svm_delegated_auth_store` when the identity store Get fails, instead of collapsing that outage into unauthenticated. ([#3431](https://github.com/x402-foundation/x402/pull/3431)) - Thanks [@phdargen](https://github.com/phdargen)!
+
 ## 2.25.0
 
 ### Minor Changes

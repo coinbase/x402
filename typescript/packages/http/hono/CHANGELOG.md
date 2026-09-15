@@ -1,5 +1,19 @@
 # @x402/hono Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+- Updated dependencies [8ae5ff6](https://github.com/x402-foundation/x402/commit/8ae5ff6)
+  - @x402/core@2.26.0
+  - @x402/extensions@2.26.0
+  - @x402/paywall@2.26.0
+
+### Patch Changes
+
+- [ba7fc20](https://github.com/x402-foundation/x402/commit/ba7fc20): Preserved all values of repeated query parameters in the request adapter while keeping single values as strings. ([#3455](https://github.com/x402-foundation/x402/pull/3455)) - Thanks [@sunruize93-cmyk](https://github.com/sunruize93-cmyk)!
+
 ## 2.25.0
 
 ### Minor Changes

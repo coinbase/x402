@@ -1,5 +1,13 @@
 # @x402/extensions Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+  - @x402/core@2.26.0
+- [8ae5ff6](https://github.com/x402-foundation/x402/commit/8ae5ff6): `isValidRouteTemplate` now decodes a routeTemplate to a fixed point (up to a bounded pass budget) before running its traversal/scheme-injection checks, instead of a single decode pass. A double- or deeper-encoded payload (`%252e%252e`, `%253a%252f%252f`, ...) previously survived one decode still percent-encoded and slipped past the `..`/`://` checks, letting a malicious routeTemplate cause the facilitator to catalog a payment under an arbitrary URL. ([#3213](https://github.com/x402-foundation/x402/pull/3213)) - Thanks [@ygd58](https://github.com/ygd58)!
+
 ## 2.25.0
 
 ### Minor Changes

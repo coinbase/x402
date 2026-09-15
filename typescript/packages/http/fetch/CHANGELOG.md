@@ -1,5 +1,12 @@
 # @x402/fetch Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- Updated dependencies [76fe973](https://github.com/x402-foundation/x402/commit/76fe973)
+  - @x402/core@2.26.0
+
 ## 2.25.0
 
 ### Minor Changes
