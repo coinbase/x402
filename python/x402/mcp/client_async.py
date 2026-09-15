@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
 from typing import Any
 
 from ..schemas import PaymentPayload, PaymentRequired
@@ -21,6 +20,9 @@ from .utils import (
     convert_mcp_result,
     extract_payment_required_from_result,
     extract_payment_response_from_meta,
+    paid_read_timeout_seconds,
+    probe_read_timeout_seconds,
+    resolve_max_request_timeout_seconds,
 )
 
 # Async hook type aliases
@@ -68,6 +70,7 @@ class x402MCPClient:
         on_payment_requested: (
             Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
         ) = None,
+        max_request_timeout_seconds: int | None = None,
     ):
         """Initialize async x402 MCP client.
 
@@ -81,6 +84,9 @@ class x402MCPClient:
         self._payment_client = payment_client
         self._auto_payment = auto_payment
         self._on_payment_requested = on_payment_requested
+        self._max_request_timeout_seconds = resolve_max_request_timeout_seconds(
+            max_request_timeout_seconds
+        )
         self._payment_required_hooks: list[PaymentRequiredHook] = []
         self._before_payment_hooks: list[BeforePaymentHook] = []
         self._after_payment_hooks: list[AfterPaymentHook] = []
@@ -151,9 +157,7 @@ class x402MCPClient:
         Args:
             name: Tool name
             args: Tool arguments
-            **kwargs: Additional MCP client options. ``read_timeout_seconds``
-                overrides accept ``maxTimeoutSeconds``. The initial 402 probe
-                uses 300s when omitted.
+            **kwargs: MCP client options (``read_timeout_seconds`` overrides accept/cap).
 
         Returns:
             Tool call result with payment metadata
@@ -163,9 +167,9 @@ class x402MCPClient:
         """
         # First attempt without payment
         call_params = {"name": name, "arguments": args}
-        probe_timeout = kwargs.get("read_timeout_seconds")
-        if probe_timeout is None:
-            probe_timeout = timedelta(seconds=300)
+        probe_timeout = probe_read_timeout_seconds(
+            kwargs.get("read_timeout_seconds"), self._max_request_timeout_seconds
+        )
         probe_kwargs = {**kwargs, "read_timeout_seconds": probe_timeout}
         result = await self._call_mcp_tool(call_params, **probe_kwargs)
 
@@ -245,8 +249,7 @@ class x402MCPClient:
             name: Tool name
             args: Tool arguments
             payload: Payment payload
-            **kwargs: Additional MCP client options. ``read_timeout_seconds``
-                overrides accept ``maxTimeoutSeconds``.
+            **kwargs: MCP client options (``read_timeout_seconds`` overrides accept/cap).
 
         Returns:
             Tool call result with payment metadata
@@ -254,15 +257,13 @@ class x402MCPClient:
         # Build call params with payment in _meta
         call_params = attach_payment_to_meta({"name": name, "arguments": args}, payload)
 
-        accepted = getattr(payload, "accepted", None)
-        max_timeout_seconds = (
-            getattr(accepted, "max_timeout_seconds", None) if accepted is not None else None
+        accepted = payload.accepted
+        max_timeout_seconds = accepted.max_timeout_seconds if accepted is not None else None
+        paid_timeout = paid_read_timeout_seconds(
+            kwargs.get("read_timeout_seconds"),
+            max_timeout_seconds,
+            self._max_request_timeout_seconds,
         )
-        paid_timeout = kwargs.get("read_timeout_seconds")
-        if paid_timeout is None:
-            paid_timeout = timedelta(
-                seconds=300 if max_timeout_seconds is None else max_timeout_seconds
-            )
         paid_kwargs = {**kwargs, "read_timeout_seconds": paid_timeout}
 
         # Call with payment
@@ -449,6 +450,7 @@ def create_x402_mcp_client(
     on_payment_requested: (
         Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
     ) = None,
+    max_request_timeout_seconds: int | None = None,
 ) -> x402MCPClient:
     """Create a new async x402MCPClient instance.
 
@@ -468,6 +470,7 @@ def create_x402_mcp_client(
         payment_client,
         auto_payment=auto_payment,
         on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
     )
 
 
@@ -479,6 +482,7 @@ def wrap_mcp_client_with_payment(
     on_payment_requested: (
         Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
     ) = None,
+    max_request_timeout_seconds: int | None = None,
 ) -> x402MCPClient:
     """Wrap an existing async MCP client with x402 payment handling.
 
@@ -515,6 +519,7 @@ def wrap_mcp_client_with_payment(
         payment_client,
         auto_payment=auto_payment,
         on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
     )
 
 
@@ -526,6 +531,7 @@ def wrap_mcp_client_with_payment_from_config(
     on_payment_requested: (
         Callable[[PaymentRequiredContext], bool | Awaitable[bool]] | None
     ) = None,
+    max_request_timeout_seconds: int | None = None,
 ) -> x402MCPClient:
     """Wrap an existing async MCP client with x402 payment handling from client config.
 
@@ -570,6 +576,7 @@ def wrap_mcp_client_with_payment_from_config(
         payment_client,
         auto_payment=auto_payment,
         on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
     )
 
 
@@ -620,6 +627,7 @@ def create_x402_mcp_client_from_config(
 
     auto_payment = config.get("auto_payment", True)
     on_payment_requested = config.get("on_payment_requested")
+    max_request_timeout_seconds = config.get("max_request_timeout_seconds")
 
     payment_client = x402ClientAsync.from_config(build_x402_client_config(config))
 
@@ -628,4 +636,5 @@ def create_x402_mcp_client_from_config(
         payment_client,
         auto_payment=auto_payment,
         on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
     )

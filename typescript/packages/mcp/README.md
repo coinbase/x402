@@ -273,6 +273,7 @@ For tool results, the client checks `result.structuredContent` first, then falls
 |--------|------|---------|-------------|
 | `autoPayment` | `boolean` | `true` | Automatically retry with payment when payment is required |
 | `onPaymentRequested` | `function` | `() => true` | Hook for human-in-the-loop approval when payment is requested |
+| `maxRequestTimeoutSeconds` | `number` | `600` | Cap on derived MCP waits from accept `maxTimeoutSeconds` |
 
 ### MCPToolPaymentConfig
 

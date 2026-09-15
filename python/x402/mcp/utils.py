@@ -1,6 +1,7 @@
 """Utility functions for MCP payment handling."""
 
 import json
+from datetime import timedelta
 from typing import Any
 
 from ..schemas import (
@@ -10,6 +11,12 @@ from ..schemas import (
     SettleResponse,
     parse_payment_required,
 )
+from .constants import (
+    DEFAULT_ACCEPT_TIMEOUT_SECONDS,
+    DEFAULT_MAX_REQUEST_TIMEOUT_SECONDS,
+    DEFAULT_PROBE_TIMEOUT_SECONDS,
+    MAX_READ_TIMEOUT_SECONDS,
+)
 from .types import (
     MCP_PAYMENT_META_KEY,
     MCP_PAYMENT_REQUIRED_CODE,
@@ -17,6 +24,48 @@ from .types import (
     MCPToolResult,
     PaymentRequiredError,
 )
+
+
+def resolve_max_request_timeout_seconds(value: int | None) -> int:
+    if value is None:
+        return DEFAULT_MAX_REQUEST_TIMEOUT_SECONDS
+    if not isinstance(value, int) or value <= 0:
+        raise ValueError(f"max_request_timeout_seconds must be a positive int, got {value!r}")
+    return value
+
+
+def effective_accept_timeout_seconds(max_timeout_seconds: int | None) -> int:
+    if max_timeout_seconds is not None and max_timeout_seconds > 0:
+        return max_timeout_seconds
+    return DEFAULT_ACCEPT_TIMEOUT_SECONDS
+
+
+def _clamp_read_timeout_seconds(seconds: int) -> int:
+    return min(seconds, MAX_READ_TIMEOUT_SECONDS)
+
+
+def probe_read_timeout_seconds(
+    override: timedelta | None,
+    max_request_timeout_seconds: int,
+) -> timedelta:
+    if override is not None:
+        return override
+    seconds = _clamp_read_timeout_seconds(
+        min(DEFAULT_PROBE_TIMEOUT_SECONDS, max_request_timeout_seconds)
+    )
+    return timedelta(seconds=seconds)
+
+
+def paid_read_timeout_seconds(
+    override: timedelta | None,
+    max_timeout_seconds: int | None,
+    max_request_timeout_seconds: int,
+) -> timedelta:
+    if override is not None:
+        return override
+    accept_seconds = effective_accept_timeout_seconds(max_timeout_seconds)
+    seconds = _clamp_read_timeout_seconds(min(accept_seconds, max_request_timeout_seconds))
+    return timedelta(seconds=seconds)
 
 
 def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:

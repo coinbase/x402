@@ -1438,4 +1438,131 @@ describe("x402MCPClient McpError(-32042) handling", () => {
       await expect(client.getToolPaymentRequirements("tool")).rejects.toThrow(networkError);
     });
   });
+
+  describe("callTool - request timeouts", () => {
+    /**
+     * Builds PaymentRequired with a custom accept timeout.
+     *
+     * @param maxTimeoutSeconds - Accept timeout hint
+     * @returns PaymentRequired fixture
+     */
+    function paymentRequiredWithTimeout(maxTimeoutSeconds: number): PaymentRequired {
+      return {
+        ...mockPaymentRequired,
+        accepts: [{ ...mockPaymentRequired.accepts[0], maxTimeoutSeconds }],
+      };
+    }
+
+    /**
+     * Builds PaymentPayload with a custom accept timeout.
+     *
+     * @param maxTimeoutSeconds - Accept timeout hint
+     * @returns PaymentPayload fixture
+     */
+    function payloadWithTimeout(maxTimeoutSeconds: number): PaymentPayload {
+      return {
+        ...mockPaymentPayload,
+        accepted: { ...mockPaymentRequired.accepts[0], maxTimeoutSeconds },
+      };
+    }
+
+    /**
+     * Reads callTool options.timeout from a mock call record.
+     *
+     * @param call - mockMcpClient.callTool mock invocation
+     * @returns timeout ms from third argument
+     */
+    function thirdArgTimeout(call: unknown): number | undefined {
+      const args = call as [unknown, unknown, { timeout?: number } | undefined];
+      return args[2]?.timeout;
+    }
+
+    it("uses 300s probe timeout by default", async () => {
+      mockMcpClient.callTool.mockResolvedValue({
+        content: [{ type: "text", text: "pong" }],
+        isError: false,
+      });
+
+      await client.callTool("ping");
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[0])).toBe(300_000);
+    });
+
+    it("sizes paid retry from accept maxTimeoutSeconds up to the client cap", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(paymentRequiredWithTimeout(120)))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+      mockPaymentClient.createPaymentPayload.mockResolvedValueOnce(payloadWithTimeout(120));
+
+      await client.callTool("paid_tool");
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[0])).toBe(300_000);
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[1])).toBe(120_000);
+    });
+
+    it("waits up to 600s when accept maxTimeoutSeconds is 600", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(paymentRequiredWithTimeout(600)))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+      mockPaymentClient.createPaymentPayload.mockResolvedValueOnce(payloadWithTimeout(600));
+
+      await client.callTool("paid_tool");
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[1])).toBe(600_000);
+    });
+
+    it("clamps hostile accept maxTimeoutSeconds to the default 600s cap", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(paymentRequiredWithTimeout(1_000_000)))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+      mockPaymentClient.createPaymentPayload.mockResolvedValueOnce(payloadWithTimeout(1_000_000));
+
+      await client.callTool("paid_tool");
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[1])).toBe(600_000);
+    });
+
+    it("allows a longer accept when maxRequestTimeoutSeconds is raised", async () => {
+      const cappedClient = new x402MCPClient(
+        mockMcpClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[0],
+        mockPaymentClient as unknown as Parameters<typeof wrapMCPClientWithPayment>[1],
+        { maxRequestTimeoutSeconds: 900 },
+      );
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(paymentRequiredWithTimeout(900)))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+      mockPaymentClient.createPaymentPayload.mockResolvedValueOnce(payloadWithTimeout(900));
+
+      await cappedClient.callTool("paid_tool");
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[1])).toBe(900_000);
+    });
+
+    it("uses per-call timeout instead of probe or accept defaults", async () => {
+      mockMcpClient.callTool
+        .mockResolvedValueOnce(createEmbeddedPaymentError(paymentRequiredWithTimeout(600)))
+        .mockResolvedValueOnce({
+          content: [{ type: "text", text: "ok" }],
+          _meta: { "x402/payment-response": mockSettleResponse },
+        });
+      mockPaymentClient.createPaymentPayload.mockResolvedValueOnce(payloadWithTimeout(600));
+
+      await client.callTool("paid_tool", {}, { timeout: 12_000 });
+
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[0])).toBe(12_000);
+      expect(thirdArgTimeout(mockMcpClient.callTool.mock.calls[1])).toBe(12_000);
+    });
+  });
 });

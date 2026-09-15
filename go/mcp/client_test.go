@@ -1245,3 +1245,98 @@ func TestX402MCPClient_CallTool_RespectsCallerDeadline(t *testing.T) {
 	}
 	assertApproxTimeout(t, mockCaller.timeouts[0], 15*time.Second)
 }
+
+func TestX402MCPClient_CallTool_PaidTimeoutClampsHugeAcceptToDefaultCap(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{{
+			Scheme:            "exact",
+			Network:           "eip155:84532",
+			Amount:            "1000",
+			Asset:             "USDC",
+			PayTo:             "0xrecipient",
+			MaxTimeoutSeconds: 1_000_000,
+		}},
+	}
+	mockCaller := &mockMCPCaller{
+		callToolResults: []MCPToolResult{
+			mcp402Result(t, paymentRequired),
+			mcpPaidResult(),
+		},
+	}
+	paymentClient := x402.Newx402Client()
+	paymentClient.Register("eip155:84532", &mockSchemeNetworkClient{scheme: "exact"})
+	client := NewX402MCPClient(mockCaller, paymentClient, Options{AutoPayment: BoolPtr(true)})
+
+	if _, err := client.CallTool(context.Background(), "paid_tool", map[string]interface{}{}); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	assertApproxTimeout(t, mockCaller.timeouts[1], defaultMaxRequestTimeout)
+}
+
+func TestX402MCPClient_CallTool_PaidTimeoutHonoursRaisedMaxRequestTimeout(t *testing.T) {
+	paymentRequired := types.PaymentRequired{
+		X402Version: 2,
+		Accepts: []types.PaymentRequirements{{
+			Scheme:            "exact",
+			Network:           "eip155:84532",
+			Amount:            "1000",
+			Asset:             "USDC",
+			PayTo:             "0xrecipient",
+			MaxTimeoutSeconds: 900,
+		}},
+	}
+	mockCaller := &mockMCPCaller{
+		callToolResults: []MCPToolResult{
+			mcp402Result(t, paymentRequired),
+			mcpPaidResult(),
+		},
+	}
+	paymentClient := x402.Newx402Client()
+	paymentClient.Register("eip155:84532", &mockSchemeNetworkClient{scheme: "exact"})
+	client := NewX402MCPClient(mockCaller, paymentClient, Options{
+		AutoPayment:       BoolPtr(true),
+		MaxRequestTimeout: 15 * time.Minute,
+	})
+
+	if _, err := client.CallTool(context.Background(), "paid_tool", map[string]interface{}{}); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	assertApproxTimeout(t, mockCaller.timeouts[1], 900*time.Second)
+}
+
+func TestX402MCPClient_V1PaidCallGetsTimeoutFromAccept(t *testing.T) {
+	mockCaller := &mockMCPCaller{
+		callToolResults: []MCPToolResult{
+			{
+				IsError: true,
+				StructuredContent: map[string]interface{}{
+					"x402Version": float64(1),
+					"accepts": []interface{}{
+						map[string]interface{}{
+							"scheme":            "exact",
+							"network":           "base",
+							"maxAmountRequired": "10000",
+							"payTo":             "0xrecipient",
+							"maxTimeoutSeconds": float64(120),
+							"asset":             "0xdef",
+						},
+					},
+				},
+			},
+			mcpPaidResult(),
+		},
+	}
+	paymentClient := x402.Newx402Client()
+	paymentClient.RegisterV1("base", &mockSchemeNetworkClientV1{scheme: "exact"})
+	client := NewX402MCPClient(mockCaller, paymentClient, Options{AutoPayment: BoolPtr(true)})
+
+	if _, err := client.CallTool(context.Background(), "paid_tool", map[string]interface{}{}); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(mockCaller.timeouts) < 2 {
+		t.Fatalf("expected probe and paid calls, got %d", len(mockCaller.timeouts))
+	}
+	assertApproxTimeout(t, mockCaller.timeouts[0], 300*time.Second)
+	assertApproxTimeout(t, mockCaller.timeouts[1], 120*time.Second)
+}

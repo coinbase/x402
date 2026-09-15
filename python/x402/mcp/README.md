@@ -108,6 +108,8 @@ x402_mcp = wrap_mcp_client_with_payment(
 )
 ```
 
+Derived read timeouts use accept `maxTimeoutSeconds` (default 300s), capped by `max_request_timeout_seconds` (default 600). Per-call `read_timeout_seconds` overrides both.
+
 #### `wrap_mcp_client_with_payment_from_config`
 
 Wraps an MCP client using scheme registrations directly.

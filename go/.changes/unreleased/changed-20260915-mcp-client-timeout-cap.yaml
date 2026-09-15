@@ -1,0 +1,3 @@
+kind: changed
+body: Cap MCP tool-call timeouts with Options.MaxRequestTimeout (default 10m) while still honoring accept maxTimeoutSeconds up to that ceiling; v1 paid retries now apply the same timeout helper.
+time: 2026-09-15T07:00:00Z

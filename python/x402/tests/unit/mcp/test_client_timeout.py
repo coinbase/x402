@@ -206,3 +206,117 @@ def test_sync_client_paid_timeout_uses_accept_max_timeout_seconds() -> None:
     probe_call, paid_call = mock_mcp.call_tool.call_args_list
     assert probe_call.kwargs["read_timeout_seconds"] == timedelta(seconds=300)
     assert paid_call.kwargs["read_timeout_seconds"] == timedelta(seconds=600)
+
+
+@pytest.mark.asyncio
+async def test_session_paid_timeout_clamps_huge_accept_to_default_cap() -> None:
+    session = SimpleNamespace(
+        call_tool=AsyncMock(
+            side_effect=[
+                _SessionResult(is_error=True, text=_payment_required_text(1_000_000)),
+                _SessionResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    x402_client = SimpleNamespace(
+        create_payment_payload=AsyncMock(return_value=_payload(1_000_000))
+    )
+
+    result = await x402MCPSession(session, x402_client).call_tool("paid_tool", {})
+
+    assert result.payment_made is True
+    _, paid_call = session.call_tool.await_args_list
+    assert _read_timeout(paid_call) == timedelta(seconds=600)
+
+
+@pytest.mark.asyncio
+async def test_session_paid_timeout_under_cap_uses_accept() -> None:
+    session = SimpleNamespace(
+        call_tool=AsyncMock(
+            side_effect=[
+                _SessionResult(is_error=True, text=_payment_required_text(120)),
+                _SessionResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    x402_client = SimpleNamespace(create_payment_payload=AsyncMock(return_value=_payload(120)))
+
+    await x402MCPSession(session, x402_client).call_tool("paid_tool", {})
+
+    _, paid_call = session.call_tool.await_args_list
+    assert _read_timeout(paid_call) == timedelta(seconds=120)
+
+
+@pytest.mark.asyncio
+async def test_session_paid_timeout_honours_raised_cap() -> None:
+    session = SimpleNamespace(
+        call_tool=AsyncMock(
+            side_effect=[
+                _SessionResult(is_error=True, text=_payment_required_text(900)),
+                _SessionResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    x402_client = SimpleNamespace(create_payment_payload=AsyncMock(return_value=_payload(900)))
+
+    await x402MCPSession(session, x402_client, max_request_timeout_seconds=900).call_tool(
+        "paid_tool", {}
+    )
+
+    _, paid_call = session.call_tool.await_args_list
+    assert _read_timeout(paid_call) == timedelta(seconds=900)
+
+
+@pytest.mark.asyncio
+async def test_async_client_paid_timeout_clamps_huge_accept() -> None:
+    mock_mcp = SimpleNamespace(
+        call_tool=AsyncMock(
+            side_effect=[
+                _McpResult(is_error=True, text=_payment_required_text(1_000_000)),
+                _McpResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    mock_payment = SimpleNamespace(
+        create_payment_payload=AsyncMock(return_value=_payload(1_000_000))
+    )
+
+    await x402MCPClient(mock_mcp, mock_payment).call_tool("paid_tool", {})
+
+    _, paid_call = mock_mcp.call_tool.await_args_list
+    assert paid_call.kwargs["read_timeout_seconds"] == timedelta(seconds=600)
+
+
+@pytest.mark.asyncio
+async def test_async_client_paid_timeout_under_cap() -> None:
+    mock_mcp = SimpleNamespace(
+        call_tool=AsyncMock(
+            side_effect=[
+                _McpResult(is_error=True, text=_payment_required_text(120)),
+                _McpResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    mock_payment = SimpleNamespace(create_payment_payload=AsyncMock(return_value=_payload(120)))
+
+    await x402MCPClient(mock_mcp, mock_payment).call_tool("paid_tool", {})
+
+    _, paid_call = mock_mcp.call_tool.await_args_list
+    assert paid_call.kwargs["read_timeout_seconds"] == timedelta(seconds=120)
+
+
+def test_sync_client_paid_timeout_clamps_huge_accept() -> None:
+    mock_mcp = SimpleNamespace(
+        call_tool=Mock(
+            side_effect=[
+                _McpResult(is_error=True, text=_payment_required_text(1_000_000)),
+                _McpResult(is_error=False, text="ok"),
+            ]
+        )
+    )
+    mock_payment = SimpleNamespace(create_payment_payload=Mock(return_value=_payload(1_000_000)))
+
+    x402MCPClientSync(mock_mcp, mock_payment).call_tool("paid_tool", {})
+
+    _, paid_call = mock_mcp.call_tool.call_args_list
+    assert paid_call.kwargs["read_timeout_seconds"] == timedelta(seconds=600)
