@@ -13,6 +13,7 @@ from ..errors import (
     ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED,
     ERR_CUMULATIVE_AMOUNT_MISMATCH,
     ERR_CUMULATIVE_EXCEEDS_BALANCE,
+    ERR_DEPOSIT_BELOW_MIN_DEPOSIT,
     ERR_INVALID_VOUCHER_SIGNATURE,
     ERR_VERIFICATION_STATE_UNAVAILABLE,
 )
@@ -190,6 +191,14 @@ def handle_before_verify(scheme: BatchSettlementEvmScheme, ctx: VerifyContext):
     is_zero_charge_payload = is_refund_payload(raw)
     if not is_paid_payload and not is_zero_charge_payload:
         return None
+
+    if scheme.get_enforce_min_deposit() and is_deposit_payload(raw):
+        min_deposit = int(scheme.resolve_min_deposit_hint(requirements))
+        if int(raw["deposit"]["amount"]) < min_deposit:
+            return AbortResult(
+                reason=ERR_DEPOSIT_BELOW_MIN_DEPOSIT,
+                message="Deposit amount is below the server minimum",
+            )
 
     try:
         voucher = raw["voucher"]

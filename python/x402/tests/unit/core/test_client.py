@@ -32,6 +32,7 @@ class MockSchemeClient:
     def __init__(self, scheme: str = "mock"):
         self.scheme = scheme
         self.create_calls: list = []
+        self.create_contexts: list = []
         # Treat any asset as a recognized default so non-spend-control tests pass
         # the default allowlist (USD cap still applies unless overridden).
         self.find_default_asset = lambda asset, _network=None: {
@@ -40,8 +41,9 @@ class MockSchemeClient:
             "symbol": "MOCK",
         }
 
-    def create_payment_payload(self, requirements):
+    def create_payment_payload(self, requirements, context=None):
         self.create_calls.append(requirements)
+        self.create_contexts.append(context)
         return {"mock": "payload", "network": requirements.network}
 
     def set_find_default_asset(self, lookup):
@@ -1133,6 +1135,61 @@ class TestSpendControls:
             await client.create_payment_payload(
                 self._required(self._req(asset=rlusd["asset"], amount="1.01", network=xrpl))
             )
+
+    @pytest.mark.asyncio
+    async def test_passes_the_resolved_atomic_spend_cap_on_payment_payload_context(self):
+        client, mock_client = self._client_with_default_asset(self.usdc)
+        await client.create_payment_payload(
+            self._required(self._req(asset=self.usdc["asset"], amount="1000"))
+        )
+        assert mock_client.create_contexts[0].max_amount_per_payment == "1000000"
+
+    @pytest.mark.asyncio
+    async def test_omits_the_spend_cap_on_context_when_spend_controls_are_disabled(self):
+        client, mock_client = self._client_with_default_asset(self.usdc, False)
+        await client.create_payment_payload(
+            self._required(self._req(asset=self.usdc["asset"], amount="5000000"))
+        )
+        assert mock_client.create_contexts[0].max_amount_per_payment is None
+
+    @pytest.mark.asyncio
+    async def test_omits_the_spend_cap_on_context_when_the_usd_cap_is_disabled(self):
+        client, mock_client = self._client_with_default_asset(
+            self.usdc, {"max_amount_per_payment": False}
+        )
+        await client.create_payment_payload(
+            self._required(self._req(asset=self.usdc["asset"], amount="5000000"))
+        )
+        assert mock_client.create_contexts[0].max_amount_per_payment is None
+
+    @pytest.mark.asyncio
+    async def test_passes_a_custom_money_usd_cap_on_context_in_atomic_units(self):
+        client, mock_client = self._client_with_default_asset(
+            self.usdc, {"max_amount_per_payment": "$5"}
+        )
+        await client.create_payment_payload(
+            self._required(self._req(asset=self.usdc["asset"], amount="1000"))
+        )
+        assert mock_client.create_contexts[0].max_amount_per_payment == "5000000"
+
+    @pytest.mark.asyncio
+    async def test_passes_an_allowed_assets_atomic_cap_on_context(self):
+        client, mock_client = self._client_with_default_asset(
+            self.usdc,
+            {
+                "allowed_assets": [
+                    {
+                        "asset": self.usdc["asset"],
+                        "network": self.network,
+                        "max_amount_per_payment": "500000",
+                    }
+                ]
+            },
+        )
+        await client.create_payment_payload(
+            self._required(self._req(asset=self.usdc["asset"], amount="100"))
+        )
+        assert mock_client.create_contexts[0].max_amount_per_payment == "500000"
 
 
 class TestPaymentFlowSelection:

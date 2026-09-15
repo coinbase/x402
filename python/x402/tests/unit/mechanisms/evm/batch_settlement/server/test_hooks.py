@@ -13,11 +13,13 @@ try:
         ERR_CHANNEL_BUSY,
         ERR_CHANNEL_ID_MISMATCH,
         ERR_CUMULATIVE_AMOUNT_MISMATCH,
+        ERR_DEPOSIT_BELOW_MIN_DEPOSIT,
         ERR_INVALID_CHANNEL_ID,
         ERR_VERIFICATION_STATE_UNAVAILABLE,
     )
     from x402.mechanisms.evm.batch_settlement.server.scheme import (
         BatchSettlementEvmScheme,
+        BatchSettlementEvmSchemeServerConfig,
     )
     from x402.mechanisms.evm.batch_settlement.server.settle import handle_before_settle
     from x402.mechanisms.evm.batch_settlement.server.storage import (
@@ -91,6 +93,31 @@ def _voucher_payload(
             max_timeout_seconds=60,
             extra={},
         ),
+    )
+
+
+def _deposit_payload(
+    deposit_amount: str,
+    max_claimable: str = "1000",
+    *,
+    channel_id: str | None = None,
+) -> PaymentPayload:
+    return PaymentPayload(
+        x402_version=2,
+        payload={
+            "type": "deposit",
+            "channelConfig": _channel_config().to_dict(),
+            "voucher": {
+                "channelId": channel_id or _channel_id(),
+                "maxClaimableAmount": max_claimable,
+                "signature": "0x" + "11" * 65,
+            },
+            "deposit": {
+                "amount": deposit_amount,
+                "authorization": {},
+            },
+        },
+        accepted=_requirements(amount=max_claimable),
     )
 
 
@@ -227,6 +254,74 @@ class TestHandleBeforeVerify:
         )
         out = handle_before_verify(scheme, ctx)
         assert out is None
+
+    def test_does_not_reject_deposits_below_min_deposit_when_enforcement_is_disabled(self):
+        scheme = _scheme()
+        requirements = PaymentRequirements(
+            scheme=SCHEME_BATCH_SETTLEMENT,
+            network=NETWORK,
+            asset=USDC,
+            amount="1000",
+            pay_to=RECEIVER,
+            max_timeout_seconds=60,
+            extra={"receiverAuthorizer": AUTHORIZER, "minDeposit": "10000"},
+        )
+        result = handle_before_verify(
+            scheme,
+            VerifyContext(
+                payment_payload=_deposit_payload("5000", "1000"),
+                requirements=requirements,
+            ),
+        )
+        assert result is None
+
+    def test_rejects_deposits_below_min_deposit_when_enforcement_is_enabled(self):
+        enforcing_server = BatchSettlementEvmScheme(
+            RECEIVER, BatchSettlementEvmSchemeServerConfig(enforce_min_deposit=True)
+        )
+        requirements = PaymentRequirements(
+            scheme=SCHEME_BATCH_SETTLEMENT,
+            network=NETWORK,
+            asset=USDC,
+            amount="1000",
+            pay_to=RECEIVER,
+            max_timeout_seconds=60,
+            extra={"receiverAuthorizer": AUTHORIZER, "minDeposit": "10000"},
+        )
+
+        below_min = handle_before_verify(
+            enforcing_server,
+            VerifyContext(
+                payment_payload=_deposit_payload("5000", "1000"),
+                requirements=requirements,
+            ),
+        )
+        assert isinstance(below_min, AbortResult)
+        assert below_min.reason == ERR_DEPOSIT_BELOW_MIN_DEPOSIT
+
+        at_min = handle_before_verify(
+            enforcing_server,
+            VerifyContext(
+                payment_payload=_deposit_payload("10000", "1000"),
+                requirements=requirements,
+            ),
+        )
+        assert at_min is None
+
+    def test_enforces_the_default_10x_min_deposit_hint_when_extra_min_deposit_is_omitted(self):
+        enforcing_server = BatchSettlementEvmScheme(
+            RECEIVER, BatchSettlementEvmSchemeServerConfig(enforce_min_deposit=True)
+        )
+        requirements = _requirements(amount="1000")
+        below_default = handle_before_verify(
+            enforcing_server,
+            VerifyContext(
+                payment_payload=_deposit_payload("5000", "1000"),
+                requirements=requirements,
+            ),
+        )
+        assert isinstance(below_default, AbortResult)
+        assert below_default.reason == ERR_DEPOSIT_BELOW_MIN_DEPOSIT
 
 
 class TestHandleAfterVerify:

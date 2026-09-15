@@ -29,6 +29,7 @@ ERR_INSUFFICIENT_BALANCE = "invalid_batch_settlement_evm_insufficient_balance"
 
 ERR_DEPOSIT_PAYLOAD = "invalid_batch_settlement_evm_deposit_payload"
 ERR_DEPOSIT_SIMULATION_FAILED = "invalid_batch_settlement_evm_deposit_simulation_failed"
+ERR_DEPOSIT_BELOW_MIN_DEPOSIT = "invalid_batch_settlement_evm_deposit_below_min_deposit"
 ERR_DEPOSIT_TRANSACTION_FAILED = "invalid_batch_settlement_evm_deposit_transaction_failed"
 
 # ERC-6492 counterfactual deployment errors (ERC-3009 deposit path). Wire values keep the

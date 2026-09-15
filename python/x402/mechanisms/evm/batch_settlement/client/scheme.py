@@ -11,6 +11,7 @@ except ImportError as e:
         "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
     ) from e
 
+from .....interfaces import PaymentPayloadContext
 from .....schemas import PaymentRequired, PaymentRequirements, SettleResponse
 from ....evm.constants import ERC20_ALLOWANCE_ABI, PERMIT2_ADDRESS
 from ....evm.signer import (
@@ -32,7 +33,9 @@ from .config import (
     BatchSettlementDepositPolicy,
     BatchSettlementDepositStrategyContext,
     BatchSettlementEvmSchemeOptions,
+    apply_max_deposit,
     deposit_amount_for_request,
+    max_deposit_from_spend_cap,
     normalize_strategy_deposit_amount,
     resolve_client_options,
     validate_deposit_policy,
@@ -105,8 +108,21 @@ class BatchSettlementEvmScheme:
         self,
         requirements: PaymentRequirements,
         extensions: dict[str, Any] | None = None,
+        context: PaymentPayloadContext | None = None,
     ) -> dict[str, Any]:
-        """Create the inner payment payload dict for a batch-settlement request."""
+        """Create the inner payment payload dict for a batch-settlement request.
+
+        Args:
+            requirements: Server payment requirements (scheme, network, asset, amount).
+            extensions: Server-declared extensions from PaymentRequired.
+            context: Optional extensions and the resolved atomic spend cap.
+        """
+        if context is not None:
+            if context.extensions is not None:
+                extensions = context.extensions
+            max_amount_per_payment = context.max_amount_per_payment
+        else:
+            max_amount_per_payment = None
         deps = self._deps()
         config = build_channel_config(deps, requirements)
         channel_id = compute_channel_id(config, str(requirements.network))
@@ -131,8 +147,20 @@ class BatchSettlementEvmScheme:
         needs_top_up = not needs_initial_deposit and int(max_claimable_amount) > current_balance
 
         if needs_initial_deposit or needs_top_up:
-            computed_deposit = deposit_amount_for_request(self._deposit_policy, request_amount)
-            minimum_deposit_amount = str(int(max_claimable_amount) - current_balance)
+            minimum_deposit_amount = int(max_claimable_amount) - current_balance
+            multiplier = (
+                self._deposit_policy.deposit_multiplier
+                if (self._deposit_policy and self._deposit_policy.deposit_multiplier)
+                else 5
+            )
+            max_deposit = max_deposit_from_spend_cap(max_amount_per_payment, multiplier)
+            computed_deposit = deposit_amount_for_request(
+                self._deposit_policy,
+                request_amount,
+                minimum_deposit_amount,
+                requirements.extra,
+                max_deposit,
+            )
             deposit_amount = self._resolve_deposit_amount(
                 BatchSettlementDepositStrategyContext(
                     payment_requirements=requirements,
@@ -142,8 +170,9 @@ class BatchSettlementEvmScheme:
                     request_amount=str(request_amount),
                     max_claimable_amount=max_claimable_amount,
                     current_balance=str(current_balance),
-                    minimum_deposit_amount=minimum_deposit_amount,
+                    minimum_deposit_amount=str(minimum_deposit_amount),
                     deposit_amount=computed_deposit,
+                    max_deposit=None if max_deposit is None else str(max_deposit),
                 )
             )
             if deposit_amount is None:
@@ -221,7 +250,11 @@ class BatchSettlementEvmScheme:
                 f"deposit_strategy returned {deposit_amount}, below required top-up "
                 f"{context.minimum_deposit_amount}"
             )
-        return deposit_amount
+        return apply_max_deposit(
+            int(deposit_amount),
+            int(context.minimum_deposit_amount),
+            None if context.max_deposit is None else int(context.max_deposit),
+        )
 
     def _create_voucher_payload(
         self,
