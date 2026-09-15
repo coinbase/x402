@@ -1,3 +1,0 @@
-kind: fixed
-body: MCP client dispatches HandlePaymentResponse after paid tool calls so batch-settlement can persist channel state.
-time: 2026-09-15T08:24:00Z

@@ -1,3 +1,0 @@
-kind: changed
-body: Split SVM upto delegated-auth store Get failures from unauthenticated so hosts can map infra errors separately.
-time: 2026-09-09T12:00:00Z
