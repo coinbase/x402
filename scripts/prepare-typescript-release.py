@@ -60,6 +60,7 @@ PUBLISH_WORKFLOWS = [
             ("@x402/avm", "Publish @x402/avm package to NPM"),
             ("@x402/aptos", "Publish @x402/aptos package to NPM"),
             ("@x402/cardano", "Publish @x402/cardano package to NPM"),
+            ("@x402/casper", "Publish @x402/casper package to NPM"),
             ("@x402/stellar", "Publish @x402/stellar package to NPM"),
             ("@x402/hedera", "Publish @x402/hedera package to NPM"),
             ("@x402/tvm", "Publish @x402/tvm package to NPM"),

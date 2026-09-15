@@ -29,6 +29,14 @@ import {
   toClientCardanoSigner,
   toFacilitatorCardanoSigner,
 } from "@x402/cardano";
+import {
+  createClientCasperSigner,
+  createFacilitatorCasperSigner,
+  dictionaryKeyForAddress,
+  getActiveContractForToken,
+  getDefaultAsset as getCasperDefaultAsset,
+  readDictionaryU256OrDefault,
+} from "@x402/casper";
 import { getDefaultAsset as getAvmDefaultAsset, toClientAvmSigner } from "@x402/avm";
 import {
   getConcordiumGrpcUrl,
@@ -58,6 +66,7 @@ import {
   TVM_PROVIDER_TONAPI,
   TVM_PROVIDER_TONCENTER,
 } from "@x402/tvm";
+import { HttpHandler, KeyAlgorithm, RpcClient } from "casper-js-sdk";
 import { config } from "dotenv";
 import { createPublicClient, formatEther, formatUnits, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -708,6 +717,115 @@ async function reportCardano(mode: NetworkMode): Promise<FamilyReport> {
   };
 }
 
+const CSPR_DECIMALS = 9;
+const CASPER_BALANCES_DICTIONARY = "balances";
+
+function casperKeyAlgorithm(algorithmEnvKey: string): KeyAlgorithm {
+  return env(algorithmEnvKey) === "secp256k1" ? KeyAlgorithm.SECP256K1 : KeyAlgorithm.ED25519;
+}
+
+function normalizeCasperAssetPackageHash(asset: string): string {
+  return asset.trim().replace(/^(hash-|contract-)/, "");
+}
+
+async function casperCsprBalance(rpcUrl: string, publicKeyHex: string): Promise<Balance> {
+  return withBalance("CSPR", async () => {
+    const rootResult = await rpcJson(rpcUrl, "chain_get_state_root_hash", []);
+    if (!isRecord(rootResult)) {
+      throw new Error("unexpected Casper state root response");
+    }
+    const stateRootHash = String(rootResult.state_root_hash ?? "");
+    if (!stateRootHash) {
+      throw new Error("Casper state root hash missing from RPC response");
+    }
+    const balanceResult = await nearRpcJson(rpcUrl, "state_get_balance", {
+      state_root_hash: stateRootHash,
+      purse_identifier: { main_purse_under_public_key: publicKeyHex },
+    });
+    if (!isRecord(balanceResult)) {
+      throw new Error("unexpected Casper balance response");
+    }
+    const motes = BigInt(String(balanceResult.balance_value ?? balanceResult.balance ?? 0));
+    return formatAmount(motes, CSPR_DECIMALS);
+  });
+}
+
+async function casperTokenBalance(
+  rpcUrl: string,
+  assetPackageHash: string,
+  accountAddress: string,
+  decimals: number,
+  symbol: string,
+): Promise<Balance> {
+  return withBalance(symbol, async () => {
+    const rpcClient = new RpcClient(new HttpHandler(rpcUrl));
+    const contract = await getActiveContractForToken(
+      rpcClient,
+      normalizeCasperAssetPackageHash(assetPackageHash),
+    );
+    const raw = await readDictionaryU256OrDefault(
+      rpcClient,
+      contract.contractHash,
+      CASPER_BALANCES_DICTIONARY,
+      dictionaryKeyForAddress(accountAddress),
+    );
+    return formatAmount(raw, decimals);
+  });
+}
+
+async function reportCasper(mode: NetworkMode): Promise<FamilyReport> {
+  const net = getNetworkForProtocol(mode, "casper");
+  const rpcUrl = net.rpcUrl;
+  const rpcUrlConfig = { [net.caip2]: rpcUrl };
+
+  const facilitatorSigner = await createFacilitatorCasperSigner(
+    requireEnv("FACILITATOR_CASPER_PRIVATE_KEY"),
+    casperKeyAlgorithm("FACILITATOR_CASPER_PRIVATE_KEY_ALGORITHM"),
+    { rpcUrlConfig },
+  );
+  const clientSigner = await createClientCasperSigner(
+    requireEnv("CLIENT_CASPER_PRIVATE_KEY"),
+    casperKeyAlgorithm("CLIENT_CASPER_PRIVATE_KEY_ALGORITHM"),
+  );
+
+  const facilitatorAddress = facilitatorSigner.getAddresses(net.caip2)[0] ?? "(unknown)";
+  const clientAddress = clientSigner.accountAddress();
+  const server = requireEnv(serverAddressKey("casper"));
+
+  const paymentAsset =
+    env("SERVER_CASPER_ASSET") ?? env("CASPER_ASSET") ?? getCasperDefaultAsset(net.caip2).asset;
+  const paymentMeta =
+    env("SERVER_CASPER_ASSET") || env("CASPER_ASSET")
+      ? {
+          symbol: env("CASPER_TOKEN_NAME") ?? paymentAsset.slice(0, 12),
+          decimals: Number(env("SERVER_CASPER_TOKEN_DECIMALS") ?? env("CASPER_TOKEN_DECIMALS") ?? 6),
+        }
+      : getCasperDefaultAsset(net.caip2);
+
+  const native = await casperCsprBalance(
+    rpcUrl,
+    facilitatorSigner.getPublicKeyHex(net.caip2),
+  );
+  const payment = await casperTokenBalance(
+    rpcUrl,
+    paymentAsset,
+    clientAddress,
+    paymentMeta.decimals,
+    paymentMeta.symbol,
+  );
+
+  return {
+    family: "casper",
+    networkName: net.name,
+    caip2: net.caip2,
+    rows: [
+      { role: "facilitator", address: facilitatorAddress, balance: native },
+      { role: "client", address: clientAddress, balance: payment },
+      { role: "server", address: server },
+    ],
+  };
+}
+
 async function reportNear(mode: NetworkMode): Promise<FamilyReport> {
   const net = getNetworkForProtocol(mode, "near");
   const facilitator = requireEnv("FACILITATOR_NEAR_ACCOUNT_ID");
@@ -811,6 +929,7 @@ const HANDLERS: Record<string, (mode: NetworkMode) => Promise<FamilyReport>> = {
   near: reportNear,
   xrpl: reportXrpl,
   cardano: reportCardano,
+  casper: reportCasper,
 };
 
 async function reportFamily(family: ProtocolFamily, mode: NetworkMode): Promise<FamilyReport> {

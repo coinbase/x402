@@ -34,6 +34,7 @@
     "@x402/avm": "workspace:*",
     "@x402/cardano": "workspace:*",
     "@x402/casper": "workspace:*",
+    "casper-js-sdk": "5.1.1",
     "@x402/concordium": "workspace:*",
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",

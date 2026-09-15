@@ -76,6 +76,9 @@ importers:
       '@x402/tvm':
         specifier: workspace:*
         version: link:../typescript/packages/mechanisms/tvm
+      casper-js-sdk:
+        specifier: 5.1.1
+        version: 5.1.1
       dotenv:
         specifier: ^17.0.1
         version: 17.0.1

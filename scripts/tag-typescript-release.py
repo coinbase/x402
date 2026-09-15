@@ -42,6 +42,7 @@ PUBLISHED_PACKAGES = [
     "@x402/avm",
     "@x402/aptos",
     "@x402/cardano",
+    "@x402/casper",
     "@x402/stellar",
     "@x402/hedera",
     "@x402/keeta",

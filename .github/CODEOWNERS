@@ -189,7 +189,7 @@
 # ── Casper ────────────────────────────────────────────────────────────────────
 /specs/schemes/**/scheme_*_casper.md                                      @x402-foundation/casper
 /typescript/packages/mechanisms/casper/                                     @x402-foundation/casper
-/.github/workflows/publish_npm_scoped_x402_casper.yml                 @x402-foundation/concordium
+/.github/workflows/publish_npm_scoped_x402_casper.yml                 @x402-foundation/casper
 
 # ── Concordium ────────────────────────────────────────────────────────────────
 /specs/schemes/**/scheme_*_concordium.md                                  @x402-foundation/concordium
