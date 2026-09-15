@@ -1340,3 +1340,211 @@ func TestX402MCPClient_V1PaidCallGetsTimeoutFromAccept(t *testing.T) {
 	assertApproxTimeout(t, mockCaller.timeouts[0], 300*time.Second)
 	assertApproxTimeout(t, mockCaller.timeouts[1], 120*time.Second)
 }
+
+// hookSchemeMCPClient implements SchemeNetworkClient and PaymentResponseHandler for MCP hook dispatch tests.
+type hookSchemeMCPClient struct {
+	scheme           string
+	settleCalls      int
+	correctiveCalls  int
+	signalRecover    bool
+	settleErr        error
+	createPayloadCnt int
+}
+
+func (m *hookSchemeMCPClient) Scheme() string { return m.scheme }
+
+func (m *hookSchemeMCPClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+	m.createPayloadCnt++
+	return types.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{"voucher": m.createPayloadCnt},
+	}, nil
+}
+
+func (m *hookSchemeMCPClient) OnPaymentResponse(ctx context.Context, prCtx x402.PaymentResponseContext) (x402.PaymentResponseResult, error) {
+	if prCtx.SettleResponse != nil {
+		m.settleCalls++
+		if m.settleErr != nil {
+			return x402.PaymentResponseResult{}, m.settleErr
+		}
+		return x402.PaymentResponseResult{}, nil
+	}
+	if prCtx.PaymentRequired != nil {
+		m.correctiveCalls++
+		return x402.PaymentResponseResult{Recovered: m.signalRecover}, nil
+	}
+	return x402.PaymentResponseResult{}, nil
+}
+
+func testPaymentRequirements() types.PaymentRequirements {
+	return types.PaymentRequirements{
+		Scheme:            "test-scheme",
+		Network:           "eip155:1",
+		Asset:             "USDC",
+		Amount:            "100",
+		PayTo:             "0xrecipient",
+		MaxTimeoutSeconds: 300,
+	}
+}
+
+func paymentRequiredMCPToolResult(t *testing.T, pr types.PaymentRequired) MCPToolResult {
+	t.Helper()
+	structuredBytes, err := json.Marshal(pr)
+	if err != nil {
+		t.Fatalf("marshal PaymentRequired: %v", err)
+	}
+	var structuredContent map[string]interface{}
+	if err := json.Unmarshal(structuredBytes, &structuredContent); err != nil {
+		t.Fatalf("unmarshal structured content: %v", err)
+	}
+	return MCPToolResult{
+		IsError:           true,
+		StructuredContent: structuredContent,
+		Content:           []MCPContentItem{{Type: "text", Text: string(structuredBytes)}},
+	}
+}
+
+func TestX402MCPClient_CallToolWithPayment_DispatchesOnPaymentResponseOnSuccess(t *testing.T) {
+	scheme := &hookSchemeMCPClient{scheme: "test-scheme"}
+	paymentClient := x402.Newx402Client().DisableSpendControls()
+	paymentClient.Register("eip155:1", scheme)
+
+	mockMCPCaller := &mockMCPCaller{
+		callToolResult: MCPToolResult{
+			Content: []MCPContentItem{{Type: "text", Text: "ok"}},
+			Meta: map[string]interface{}{
+				MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
+					"success":     true,
+					"transaction": "0xtx",
+					"network":     "eip155:1",
+				},
+			},
+		},
+	}
+	client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
+	req := testPaymentRequirements()
+	payload := types.PaymentPayload{X402Version: 2, Accepted: req, Payload: map[string]interface{}{"deposit": true}}
+
+	_, err := client.CallToolWithPayment(context.Background(), "paid_tool", map[string]interface{}{}, payload)
+	if err != nil {
+		t.Fatalf("CallToolWithPayment: %v", err)
+	}
+	if scheme.settleCalls != 1 {
+		t.Fatalf("expected OnPaymentResponse(settle) once, got %d", scheme.settleCalls)
+	}
+	if scheme.correctiveCalls != 0 {
+		t.Fatalf("did not expect corrective dispatch, got %d", scheme.correctiveCalls)
+	}
+}
+
+func TestX402MCPClient_CallToolWithPayment_PropagatesPaymentResponseHookErrors(t *testing.T) {
+	hookErr := errors.New("payment response hook failed")
+	scheme := &hookSchemeMCPClient{scheme: "test-scheme", settleErr: hookErr}
+	paymentClient := x402.Newx402Client().DisableSpendControls()
+	paymentClient.Register("eip155:1", scheme)
+
+	mockMCPCaller := &mockMCPCaller{
+		callToolResult: MCPToolResult{
+			Content: []MCPContentItem{{Type: "text", Text: "ok"}},
+			Meta: map[string]interface{}{
+				MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
+					"success":     true,
+					"transaction": "0xtx",
+					"network":     "eip155:1",
+				},
+			},
+		},
+	}
+	client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
+	req := testPaymentRequirements()
+	payload := types.PaymentPayload{X402Version: 2, Accepted: req, Payload: map[string]interface{}{"sig": "0x"}}
+
+	_, err := client.CallToolWithPayment(context.Background(), "paid_tool", map[string]interface{}{}, payload)
+	if !errors.Is(err, hookErr) {
+		t.Fatalf("CallToolWithPayment() error = %v, want %v", err, hookErr)
+	}
+}
+
+func TestX402MCPClient_CallToolWithPayment_RetriesOnceWhenHookSignalsRecovered(t *testing.T) {
+	scheme := &hookSchemeMCPClient{scheme: "test-scheme", signalRecover: true}
+	paymentClient := x402.Newx402Client().DisableSpendControls()
+	paymentClient.Register("eip155:1", scheme)
+
+	pr := types.PaymentRequired{
+		X402Version: 2,
+		Accepts:     []types.PaymentRequirements{testPaymentRequirements()},
+	}
+	mockMCPCaller := &mockMCPCaller{
+		callToolResults: []MCPToolResult{
+			paymentRequiredMCPToolResult(t, pr),
+			{
+				Content: []MCPContentItem{{Type: "text", Text: "ok"}},
+				Meta: map[string]interface{}{
+					MCP_PAYMENT_RESPONSE_META_KEY: map[string]interface{}{
+						"success":     true,
+						"transaction": "0xtx",
+						"network":     "eip155:1",
+					},
+				},
+			},
+		},
+	}
+	client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
+	req := testPaymentRequirements()
+	payload := types.PaymentPayload{X402Version: 2, Accepted: req, Payload: map[string]interface{}{"deposit": true}}
+
+	result, err := client.CallToolWithPayment(context.Background(), "paid_tool", map[string]interface{}{}, payload)
+	if err != nil {
+		t.Fatalf("CallToolWithPayment: %v", err)
+	}
+	if result.IsError {
+		t.Fatal("expected success after recovery retry")
+	}
+	if mockMCPCaller.callCount != 2 {
+		t.Fatalf("expected 2 paid tool calls, got %d", mockMCPCaller.callCount)
+	}
+	if scheme.correctiveCalls != 1 {
+		t.Fatalf("expected one corrective dispatch, got %d", scheme.correctiveCalls)
+	}
+	if scheme.settleCalls != 1 {
+		t.Fatalf("expected one settle dispatch on recovery retry, got %d", scheme.settleCalls)
+	}
+	if scheme.createPayloadCnt != 1 {
+		t.Fatalf("expected payload rebuilt once on recovery, got %d", scheme.createPayloadCnt)
+	}
+}
+
+func TestX402MCPClient_CallToolWithPayment_NoRecoveryWhenHookDeclines(t *testing.T) {
+	scheme := &hookSchemeMCPClient{scheme: "test-scheme", signalRecover: false}
+	paymentClient := x402.Newx402Client().DisableSpendControls()
+	paymentClient.Register("eip155:1", scheme)
+
+	pr := types.PaymentRequired{
+		X402Version: 2,
+		Accepts:     []types.PaymentRequirements{testPaymentRequirements()},
+	}
+	mockMCPCaller := &mockMCPCaller{
+		callToolResults: []MCPToolResult{paymentRequiredMCPToolResult(t, pr)},
+	}
+	client := NewX402MCPClient(mockMCPCaller, paymentClient, Options{})
+	req := testPaymentRequirements()
+	payload := types.PaymentPayload{X402Version: 2, Accepted: req, Payload: map[string]interface{}{"deposit": true}}
+
+	result, err := client.CallToolWithPayment(context.Background(), "paid_tool", map[string]interface{}{}, payload)
+	if err != nil {
+		t.Fatalf("CallToolWithPayment: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected corrective IsError result when recovery declined")
+	}
+	if mockMCPCaller.callCount != 1 {
+		t.Fatalf("expected 1 paid tool call, got %d", mockMCPCaller.callCount)
+	}
+	if scheme.correctiveCalls != 1 {
+		t.Fatalf("expected one corrective dispatch, got %d", scheme.correctiveCalls)
+	}
+	if scheme.settleCalls != 0 {
+		t.Fatalf("expected no settle dispatch, got %d", scheme.settleCalls)
+	}
+}

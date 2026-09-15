@@ -226,7 +226,90 @@ func (c *X402MCPClient) callToolWithPayload(ctx context.Context, name string, ar
 		})
 	}
 
+	var paymentRequired *types.PaymentRequired
+	if paymentResponse == nil && result.IsError {
+		paymentRequired = extractPaymentRequired(result)
+	}
+
+	recovered, err := c.handlePaidToolPaymentResponse(ctx, payload, paymentResponse, paymentRequired)
+	if err != nil {
+		return nil, err
+	}
+
+	if recovered && paymentRequired != nil {
+		freshPayload, err := c.paymentClient.CreatePaymentPayload(
+			ctx,
+			payload.Accepted,
+			paymentRequired.Resource,
+			paymentRequired.Extensions,
+		)
+		if err != nil {
+			return buildMCPToolCallResultFromSDK(result, true), nil
+		}
+
+		retryParams := &mcp.CallToolParams{
+			Name:      name,
+			Arguments: args,
+			Meta:      mcp.Meta{MCP_PAYMENT_META_KEY: freshPayload},
+		}
+		retryTimeout := freshPayload.Accepted.MaxTimeoutSeconds
+		if retryTimeout == 0 {
+			retryTimeout = 300
+		}
+		retryCtx, retryCancel := withTimeoutIfNone(ctx, time.Duration(retryTimeout)*time.Second)
+		defer retryCancel()
+
+		retryResult, err := c.caller.CallTool(retryCtx, retryParams)
+		if err != nil {
+			return nil, fmt.Errorf("paid tool call failed: %w", err)
+		}
+
+		retryPaymentResponse := extractPaymentResponseFromSDK(retryResult)
+		if c.onAfterPay != nil && retryPaymentResponse != nil {
+			mcpResult := callToolResultToMCPToolResult(retryResult)
+			_ = c.onAfterPay(AfterPaymentContext{
+				ToolName:       name,
+				PaymentPayload: freshPayload,
+				Result:         mcpResult,
+				SettleResponse: retryPaymentResponse,
+			})
+		}
+
+		var retryPaymentRequired *types.PaymentRequired
+		if retryPaymentResponse == nil && retryResult.IsError {
+			retryPaymentRequired = extractPaymentRequired(retryResult)
+		}
+		if _, err := c.handlePaidToolPaymentResponse(ctx, freshPayload, retryPaymentResponse, retryPaymentRequired); err != nil {
+			return nil, err
+		}
+
+		return buildMCPToolCallResultFromSDK(retryResult, true), nil
+	}
+
 	return buildMCPToolCallResultFromSDK(result, true), nil
+}
+
+func (c *X402MCPClient) handlePaidToolPaymentResponse(
+	ctx context.Context,
+	payload types.PaymentPayload,
+	settleResponse *x402.SettleResponse,
+	paymentRequired *types.PaymentRequired,
+) (bool, error) {
+	if settleResponse == nil && paymentRequired == nil {
+		return false, nil
+	}
+
+	prCtx := x402.PaymentResponseContext{
+		PaymentPayload:  payload,
+		Requirements:    payload.Accepted,
+		SettleResponse:  settleResponse,
+		PaymentRequired: paymentRequired,
+	}
+	result, err := c.paymentClient.HandlePaymentResponse(ctx, prCtx)
+	if err != nil {
+		return false, err
+	}
+	return result.Recovered, nil
 }
 
 // callToolWithV1Payment handles the x402 v1 payment flow (legacy). v1 PaymentRequired

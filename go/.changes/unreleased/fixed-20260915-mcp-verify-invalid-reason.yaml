@@ -1,0 +1,3 @@
+kind: fixed
+body: MCP server surfaces VerifyError.InvalidReason on paid-tool 402s so batch-settlement recovery can match the protocol error code.
+time: 2026-09-15T08:40:00Z

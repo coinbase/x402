@@ -10,6 +10,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
@@ -131,13 +132,9 @@ func (w *PaymentWrapper) Wrap(handler ToolHandler) ToolHandler {
 
 		// Verify payment -- return tool error result, NOT Go error
 		verifyResp, err := w.server.VerifyPaymentWithExtensions(ctx, payload, requirements, declaredExtensions)
-		if err != nil {
+		if err != nil || verifyResp == nil || !verifyResp.IsValid {
 			return w.paymentRequiredResult(
-				toolName, fmt.Sprintf("Payment verification error: %v", err), &payload), nil
-		}
-		if !verifyResp.IsValid {
-			return w.paymentRequiredResult(
-				toolName, fmt.Sprintf("Payment verification failed: %s", verifyResp.InvalidReason), &payload), nil
+				toolName, paymentRequiredErrorFromVerify(err, verifyResp), &payload), nil
 		}
 
 		args := parseArgsFromRequest(request)
@@ -366,19 +363,39 @@ func (w *PaymentWrapper) buildToolResourceInfo(toolName string) *types.ResourceI
 	}
 }
 
+// paymentRequiredErrorFromVerify prefers the protocol error code (VerifyError.InvalidReason
+// or VerifyResponse.InvalidReason) over a free-form wrapped message so scheme enrichers
+// and client recovery can match on a stable identifier. Mirrors HTTP ProcessHTTPRequest.
+func paymentRequiredErrorFromVerify(err error, verifyResp *x402.VerifyResponse) string {
+	var ve *x402.VerifyError
+	if errors.As(err, &ve) && ve.InvalidReason != "" {
+		return ve.InvalidReason
+	}
+	if verifyResp != nil && verifyResp.InvalidReason != "" {
+		return verifyResp.InvalidReason
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "Payment verification failed"
+}
+
 // paymentRequiredResult creates an MCP error result with payment required info.
 // Per spec, sets both structuredContent and content[0].text with isError: true.
 func (w *PaymentWrapper) paymentRequiredResult(toolName, errorMsg string, payload *types.PaymentPayload) *mcp.CallToolResult {
 	resource := w.buildToolResourceInfo(toolName)
+	// Enrichers may mutate Extra in place (e.g. batch-settlement channelState).
+	// Snapshot so wrapper config stays a stable match baseline across tool calls.
+	accepts := x402.SnapshotPaymentRequirementsList(w.config.Accepts)
 
 	var pr types.PaymentRequired
 	if payload != nil {
 		pr = w.server.CreatePaymentRequiredResponseWithPayload(
-			w.config.Accepts, resource, errorMsg, w.config.Extensions, payload,
+			accepts, resource, errorMsg, w.config.Extensions, payload,
 		)
 	} else {
 		pr = w.server.CreatePaymentRequiredResponse(
-			w.config.Accepts, resource, errorMsg, w.config.Extensions,
+			accepts, resource, errorMsg, w.config.Extensions,
 		)
 	}
 
