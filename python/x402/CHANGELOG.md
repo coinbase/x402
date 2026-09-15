@@ -2,6 +2,27 @@
 
 <!-- towncrier release notes start -->
 
+## [2.23.0] - 2026-09-15
+
+### Fixed
+
+- EVM exact settle's ERC-6492 branch now reads payer deployment from the verify it already awaited rather than issuing a second eth_getCode. Both reads happen within one settle call and before any deploy transaction, so this is not the post-deploy re-read that races RPC state propagation. ([#3366](https://github.com/x402-foundation/x402/pull/3366)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+- HTTP adapters now exit on permanent facilitator capability or route configuration errors during initialize, matching TypeScript and Go. Transient facilitator timeouts stay retryable. ([#3364](https://github.com/x402-foundation/x402/pull/3364)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen), [@cursoragent](https://github.com/cursoragent)!
+- HTTPFacilitatorClient now defaults to a 90s per-request timeout so long settle() calls can finish. ([#3409](https://github.com/x402-foundation/x402/pull/3409)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+- MCP clients cap tool-call read timeouts at `max_request_timeout_seconds` (default 600s) while honoring accept `maxTimeoutSeconds` below that ceiling. ([#3481](https://github.com/x402-foundation/x402/pull/3481)) - Thanks [@phdargen](https://github.com/phdargen)!
+- MCP tool calls now derive their request timeout from the accept's maxTimeoutSeconds (default 300s) instead of the MCP SDK's 60s default, so slow-finality settlements no longer abort mid-flight. The initial 402 probe uses a 300s ceiling unless the caller passes an explicit read_timeout_seconds. ([#3443](https://github.com/x402-foundation/x402/pull/3443)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+- `_is_valid_route_template` now decodes a routeTemplate to a fixed point (up to a bounded pass budget) before running its traversal/scheme-injection checks, instead of a single unquote pass. A double- or deeper-encoded payload (`%252e%252e`, `%253a%252f%252f`, ...) previously survived one decode still percent-encoded and slipped past the `..`/`://` checks, letting a malicious routeTemplate cause the facilitator to catalog a payment under an arbitrary URL. ([#3440](https://github.com/x402-foundation/x402/pull/3440)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+
+### Added
+
+- Add Celo mainnet USDT and USAT (EIP-3009) as default assets for `eip155:42220` so `"$0.10 USDT"` and `"$0.10 USAT"` resolve on Celo; bare `"$0.10"` still resolves to USDC. ([#3457](https://github.com/x402-foundation/x402/pull/3457)) - Thanks [@GigaHierz](https://github.com/GigaHierz)!
+- Pass the resolved atomic `spend_controls` cap to every scheme on `PaymentPayloadContext.max_amount_per_payment` (omitted when uncapped) so capital-locking schemes can reuse client policy without re-resolving it. Batch-settlement EVM servers always announce `extra.minDeposit` (default `10 × amount`, optional per-route override via `accepts.extra.minDeposit`). Clients size deposits from the hint when valid, clamped to that cap × `deposit_multiplier` when a spend cap is set. Uncapped payments (`spend_controls=False` or no per-asset cap) also leave deposits uncapped. Older 402s fall back to `deposit_multiplier` for sizing. Servers may opt in to SDK enforcement via `enforce_min_deposit=True` (default off; facilitator never enforces). Export `invalid_batch_settlement_evm_deposit_below_min_deposit` for custom server enforcement. ([#3480](https://github.com/x402-foundation/x402/pull/3480)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+
+### Misc
+
+- EVM facilitators now cache a positive asset-contract check for 15 minutes instead of issuing a fresh eth_getCode on the payment token for every payment. Only positive results are cached, so a token observed mid-deployment still recovers on the next request. ([#3362](https://github.com/x402-foundation/x402/pull/3362)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+
+
 ## [2.22.0] - 2026-09-04
 
 ### Fixed
