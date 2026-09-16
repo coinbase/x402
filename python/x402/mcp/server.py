@@ -32,6 +32,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from ..hook_policy import snapshot_payment_requirements_list
 from ..schemas.payments import PaymentPayload, PaymentRequirements, ResourceInfo
 from .constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
 from .types import (
@@ -397,6 +398,9 @@ def _create_payment_required_result(
     """Create a payment required CallToolResult."""
     from mcp.types import CallToolResult, TextContent
 
+    # Enrichers may mutate Extra in place (e.g. batch-settlement channelState).
+    # Snapshot so wrapper config stays a stable match baseline across tool calls.
+    accepts = snapshot_payment_requirements_list(accepts)
     accepts_dicts = [req.model_dump(by_alias=True, exclude_none=True) for req in accepts]
     payment_required: dict[str, Any] = {
         "x402Version": 2,

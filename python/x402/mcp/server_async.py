@@ -6,6 +6,7 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from ..hook_policy import snapshot_payment_requirements_list
 from ..payment_flow import (
     resolve_failure_path_settlement,
     resolve_payment_flow_phases,
@@ -609,10 +610,13 @@ async def _create_payment_required_result_async(
         Structured 402 error result with payment requirements
     """
     resource_info = build_tool_resource_info(tool_name, config.resource)
+    # Enrichers may mutate Extra in place (e.g. batch-settlement channelState).
+    # Snapshot so wrapper config stays a stable match baseline across tool calls.
+    accepts = snapshot_payment_requirements_list(config.accepts)
 
     try:
         payment_required = await resource_server.create_payment_required_response(
-            config.accepts,
+            accepts,
             resource_info,
             error_message,
             config.extensions,
@@ -621,7 +625,7 @@ async def _create_payment_required_result_async(
         )
     except TypeError:
         payment_required = await resource_server.create_payment_required_response(
-            config.accepts,
+            accepts,
             resource_info,
             error_message,
             config.extensions,

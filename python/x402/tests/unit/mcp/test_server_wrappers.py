@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 
-from x402.mcp.constants import MCP_PAYMENT_RESPONSE_META_KEY
+from x402.mcp.constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
 from x402.mcp.server import _create_settlement_failed_result
 from x402.mcp.server_async import (
     PaymentWrapperConfig,
     _create_settlement_failed_result_async,
+    create_payment_wrapper,
 )
-from x402.mcp.server_sync import _create_settlement_failed_result_sync
+from x402.mcp.server_sync import (
+    _create_settlement_failed_result_sync,
+    create_payment_wrapper_sync,
+)
 from x402.mcp.types import SyncPaymentWrapperConfig
-from x402.schemas import PaymentRequirements, ResourceInfo
+from x402.schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequirements,
+    ResourceInfo,
+    SettleResponse,
+)
+from x402.server_base import _payment_requirements_match_accepted
 
 
 def make_payment_requirements() -> PaymentRequirements:
@@ -168,3 +181,176 @@ def test_fastmcp_settlement_failure_preserves_extensions() -> None:
     assert result.structuredContent is not None
     assert result.structuredContent["extensions"] == extensions
     assert result.structuredContent[MCP_PAYMENT_RESPONSE_META_KEY]["success"] is False
+
+
+MISMATCH_REASON = "invalid_batch_settlement_evm_cumulative_amount_mismatch"
+
+
+def _cash_requirements() -> PaymentRequirements:
+    return PaymentRequirements(
+        scheme="cash",
+        network="x402:cash",
+        asset="USD",
+        amount="1000",
+        pay_to="test-recipient",
+        max_timeout_seconds=300,
+        extra={},
+    )
+
+
+def _paid_tool_extra(payload: PaymentPayload) -> dict:
+    return {
+        "_meta": {MCP_PAYMENT_META_KEY: payload.model_dump(by_alias=True)},
+        "toolName": "paid_tool",
+    }
+
+
+class _MismatchOnlyEnricherMixin:
+    """Mirrors batch-settlement: writes recovery extra only on a corrective 402."""
+
+    calls = 0
+
+    def _enrich_if_mismatch(self, accepts, error_msg) -> None:
+        if error_msg != MISMATCH_REASON:
+            return
+        self.calls += 1
+        for req in accepts:
+            if req.extra is None:
+                req.extra = {}
+            req.extra["channelState"] = {"chargedCumulativeAmount": "2000"}
+
+
+class _MismatchSyncServer(_MismatchOnlyEnricherMixin):
+    def __init__(self) -> None:
+        self.calls = 0
+        self.verify_calls = 0
+        self._abort_once = True
+        self.verify_payment = Mock(side_effect=self._verify)
+        self.settle_payment = Mock(
+            return_value=SettleResponse(
+                success=True,
+                transaction="0xtx",
+                network="x402:cash",
+            )
+        )
+        self.create_payment_cancellation_dispatcher = Mock(
+            return_value=Mock(cancel=Mock(return_value=None), cancel_sync=Mock(return_value=None))
+        )
+        self.get_payment_flow = Mock(return_value="authorization")
+
+    def _verify(self, payload, requirements, **kwargs):
+        if self._abort_once:
+            self._abort_once = False
+            return Mock(is_valid=False, invalid_reason=MISMATCH_REASON, skip_handler=None)
+        self.verify_calls += 1
+        return Mock(is_valid=True, skip_handler=None)
+
+    def find_matching_requirements(self, available, payload):
+        for req in available:
+            if _payment_requirements_match_accepted(req, payload.accepted):
+                return req
+        return None
+
+    def create_payment_required_response(  # noqa: PLR0913
+        self, accepts, resource_info, error_msg, extensions=None, *args, **kwargs
+    ):
+        self._enrich_if_mismatch(accepts, error_msg)
+        return PaymentRequired(
+            x402_version=2,
+            accepts=accepts,
+            error=error_msg,
+            resource=resource_info,
+        )
+
+
+class _MismatchAsyncServer(_MismatchOnlyEnricherMixin):
+    def __init__(self) -> None:
+        self.calls = 0
+        self.verify_calls = 0
+        self._abort_once = True
+        self.verify_payment = AsyncMock(side_effect=self._verify)
+        self.settle_payment = AsyncMock(
+            return_value=SettleResponse(
+                success=True,
+                transaction="0xtx",
+                network="x402:cash",
+            )
+        )
+        self.create_payment_cancellation_dispatcher = Mock(
+            return_value=Mock(
+                cancel=AsyncMock(return_value=None),
+                cancel_sync=Mock(return_value=None),
+            )
+        )
+        self.get_payment_flow = Mock(return_value="authorization")
+
+    async def _verify(self, payload, requirements, **kwargs):
+        if self._abort_once:
+            self._abort_once = False
+            return Mock(is_valid=False, invalid_reason=MISMATCH_REASON, skip_handler=None)
+        self.verify_calls += 1
+        return Mock(is_valid=True, skip_handler=None)
+
+    def find_matching_requirements(self, available, payload):
+        for req in available:
+            if _payment_requirements_match_accepted(req, payload.accepted):
+                return req
+        return None
+
+    async def create_payment_required_response(  # noqa: PLR0913
+        self, accepts, resource_info, error_msg, extensions=None, *args, **kwargs
+    ):
+        self._enrich_if_mismatch(accepts, error_msg)
+        return PaymentRequired(
+            x402_version=2,
+            accepts=accepts,
+            error=error_msg,
+            resource=resource_info,
+        )
+
+
+def test_payment_wrapper_payment_required_does_not_mutate_config_accepts() -> None:
+    server = _MismatchSyncServer()
+    config = SyncPaymentWrapperConfig(accepts=[_cash_requirements()])
+    wrapped = create_payment_wrapper_sync(server, config)(
+        lambda _args, _ctx: {"content": [{"type": "text", "text": "ok"}]}
+    )
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted=_cash_requirements(),
+        payload={"signature": "~test-payer"},
+    )
+    extra = _paid_tool_extra(payload)
+
+    first = wrapped({}, extra)
+    assert first.is_error is True
+    assert server.calls == 1
+    assert "channelState" not in (config.accepts[0].extra or {})
+
+    second = wrapped({}, extra)
+    assert second.is_error is False
+    assert server.verify_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_async_payment_wrapper_payment_required_does_not_mutate_config_accepts() -> None:
+    server = _MismatchAsyncServer()
+    config = PaymentWrapperConfig(accepts=[_cash_requirements()])
+    wrapped = create_payment_wrapper(server, config)(
+        lambda _args, _ctx: {"content": [{"type": "text", "text": "ok"}]}
+    )
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted=_cash_requirements(),
+        payload={"signature": "~test-payer"},
+    )
+    extra = _paid_tool_extra(payload)
+
+    first = await wrapped({}, extra)
+    assert first.is_error is True
+    assert server.calls == 1
+    assert "channelState" not in (config.accepts[0].extra or {})
+
+    second = await wrapped({}, extra)
+    assert second.is_error is False
+    assert server.verify_calls == 1

@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from ..hook_policy import snapshot_payment_requirements_list
 from ..payment_flow import (
     resolve_failure_path_settlement,
     resolve_payment_flow_phases,
@@ -439,9 +440,12 @@ def _create_payment_required_result_sync(
 ) -> MCPToolResult:
     """Create a 402 payment required result (sync)."""
     resource_info = build_tool_resource_info(tool_name, config.resource)
+    # Enrichers may mutate Extra in place (e.g. batch-settlement channelState).
+    # Snapshot so wrapper config stays a stable match baseline across tool calls.
+    accepts = snapshot_payment_requirements_list(config.accepts)
 
     payment_required = resource_server.create_payment_required_response(
-        config.accepts,
+        accepts,
         resource_info,
         error_message,
         config.extensions,
