@@ -44,6 +44,7 @@ func (c *AuthCaptureEvmScheme) FindDefaultAsset(asset string, network x402.Netwo
 func (c *AuthCaptureEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
+	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
 	extra, deployment, err := parseAuthCaptureExtra(requirements)
 	if err != nil {

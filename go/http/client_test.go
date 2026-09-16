@@ -1175,7 +1175,7 @@ func (m *mockSchemeClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements, _ x402.PaymentPayloadContext) (types.PaymentPayload, error) {
 	return types.PaymentPayload{
 		X402Version: 2,
 		Payload:     map[string]interface{}{"mock": "payload"},
@@ -1195,7 +1195,7 @@ type hookSchemeClient struct {
 
 func (m *hookSchemeClient) Scheme() string { return m.scheme }
 
-func (m *hookSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+func (m *hookSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements, _ x402.PaymentPayloadContext) (types.PaymentPayload, error) {
 	m.createPayloadCnt++
 	return types.PaymentPayload{
 		X402Version: 2,

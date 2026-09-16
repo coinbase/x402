@@ -262,24 +262,112 @@ func TestBuildChannelConfig_ExplicitPayerAuthorizer(t *testing.T) {
 	}
 }
 
-// ---------- calculateDepositAmount ----------
+// ---------- depositAmountForRequest ----------
 
-func TestCalculateDepositAmount_BasicMultiplier(t *testing.T) {
-	scheme := NewBatchSettlementEvmScheme(&mockSigner{address: "0x1"}, nil)
-	// Default multiplier 5 → 5 * 100 = 500.
-	got := scheme.calculateDepositAmount(big.NewInt(100))
-	if got.Cmp(big.NewInt(500)) != 0 {
-		t.Fatalf("got %s", got.String())
+func TestDepositAmountForRequest_UsesAnnouncedMinDepositWhenValid(t *testing.T) {
+	cap := big.NewInt(1_000_000)
+	got, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "12000"}, cap)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != "12000" {
+		t.Fatalf("got %s", got)
 	}
 }
 
-func TestCalculateDepositAmount_HonorsCustomMultiplier(t *testing.T) {
-	scheme := NewBatchSettlementEvmScheme(&mockSigner{address: "0x1"}, &BatchSettlementEvmSchemeOptions{
-		DepositMultiplier: 100,
-	})
-	got := scheme.calculateDepositAmount(big.NewInt(100))
-	if got.Cmp(big.NewInt(10_000)) != 0 {
-		t.Fatalf("got %s", got.String())
+func TestDepositAmountForRequest_IgnoresInvalidMinDepositValues(t *testing.T) {
+	cap := big.NewInt(1_000_000)
+	got, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "abc"}, cap)
+	if err != nil || got != "5000" {
+		t.Fatalf("abc: got %s err=%v", got, err)
+	}
+	got, err = DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "0"}, cap)
+	if err != nil || got != "5000" {
+		t.Fatalf("0: got %s err=%v", got, err)
+	}
+	got, err = DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "500"}, cap)
+	if err != nil || got != "5000" {
+		t.Fatalf("500: got %s err=%v", got, err)
+	}
+}
+
+func TestDepositAmountForRequest_FallsBackToDepositMultiplier(t *testing.T) {
+	cap := big.NewInt(1_000_000)
+	got, err := DepositAmountForRequest(7, big.NewInt(1000), big.NewInt(1000), nil, cap)
+	if err != nil || got != "7000" {
+		t.Fatalf("got %s err=%v", got, err)
+	}
+}
+
+func TestDepositAmountForRequest_UsesVoucherGapWhenItExceedsTarget(t *testing.T) {
+	cap := big.NewInt(1_000_000)
+	got, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(8000), map[string]interface{}{"minDeposit": "5000"}, cap)
+	if err != nil || got != "8000" {
+		t.Fatalf("got %s err=%v", got, err)
+	}
+}
+
+func TestDepositAmountForRequest_ClampsTargetToMaxDeposit(t *testing.T) {
+	got, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "12000"}, big.NewInt(4000))
+	if err != nil || got != "4000" {
+		t.Fatalf("got %s err=%v", got, err)
+	}
+}
+
+func TestDepositAmountForRequest_ThrowsWhenVoucherGapExceedsMaxDeposit(t *testing.T) {
+	_, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(8000), map[string]interface{}{"minDeposit": "5000"}, big.NewInt(4000))
+	if err == nil || !strings.Contains(err.Error(), "exceeds depositMultiplier") {
+		t.Fatalf("expected exceeds error, got %v", err)
+	}
+}
+
+func TestDepositAmountForRequest_SkipsCeilingWhenNoSpendCap(t *testing.T) {
+	got, err := DepositAmountForRequest(5, big.NewInt(1000), big.NewInt(1000), map[string]interface{}{"minDeposit": "15000"}, nil)
+	if err != nil || got != "15000" {
+		t.Fatalf("got %s err=%v", got, err)
+	}
+}
+
+func TestMaxDepositFromSpendCap(t *testing.T) {
+	got := MaxDepositFromSpendCap("1000", 5)
+	if got == nil || got.Cmp(big.NewInt(5000)) != 0 {
+		t.Fatalf("default multiplier = %v", got)
+	}
+	got = MaxDepositFromSpendCap("1000", 7)
+	if got == nil || got.Cmp(big.NewInt(7000)) != 0 {
+		t.Fatalf("custom multiplier = %v", got)
+	}
+	if MaxDepositFromSpendCap("", 5) != nil {
+		t.Fatal("expected nil when no spend cap")
+	}
+}
+
+func TestApplyMaxDeposit(t *testing.T) {
+	got, err := ApplyMaxDeposit(big.NewInt(12000), big.NewInt(1000), big.NewInt(20000))
+	if err != nil || got != "12000" {
+		t.Fatalf("within ceiling: got %s err=%v", got, err)
+	}
+	got, err = ApplyMaxDeposit(big.NewInt(12000), big.NewInt(1000), nil)
+	if err != nil || got != "12000" {
+		t.Fatalf("uncapped: got %s err=%v", got, err)
+	}
+}
+
+func TestParseAnnouncedMinDeposit(t *testing.T) {
+	if got := ParseAnnouncedMinDeposit("1000", big.NewInt(1000)); got == nil || got.Cmp(big.NewInt(1000)) != 0 {
+		t.Fatalf("equal: %v", got)
+	}
+	if got := ParseAnnouncedMinDeposit("5000", big.NewInt(1000)); got == nil || got.Cmp(big.NewInt(5000)) != 0 {
+		t.Fatalf("above: %v", got)
+	}
+	if ParseAnnouncedMinDeposit(nil, big.NewInt(1000)) != nil {
+		t.Fatal("undefined should be rejected")
+	}
+	if ParseAnnouncedMinDeposit("999", big.NewInt(1000)) != nil {
+		t.Fatal("below request amount should be rejected")
+	}
+	if ParseAnnouncedMinDeposit("-1", big.NewInt(1000)) != nil {
+		t.Fatal("negative should be rejected")
 	}
 }
 
@@ -686,7 +774,7 @@ func TestUpdateChannelFromSettle_IgnoresInflatedServerCumulative(t *testing.T) {
 		t.Fatalf("session = %+v", got)
 	}
 
-	result, err := scheme.CreatePaymentPayload(context.Background(), req)
+	result, err := scheme.CreatePaymentPayload(context.Background(), req, x402.PaymentPayloadContext{})
 	if err != nil {
 		t.Fatalf("CreatePaymentPayload: %v", err)
 	}
@@ -896,7 +984,7 @@ func TestUpdateChannelFromSettle_WritesNothingWhenExtraCumulativeNotInteger(t *t
 
 func TestCreatePaymentPayload_FirstRequestDeposit(t *testing.T) {
 	scheme := NewBatchSettlementEvmScheme(&mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}, nil)
-	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements())
+	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements(), x402.PaymentPayloadContext{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -919,7 +1007,7 @@ func TestCreatePaymentPayload_VoucherWhenSessionHasFunds(t *testing.T) {
 	channelId, _ = batchsettlement.NormalizeChannelId(channelId)
 	_ = storage.Set(channelId, &BatchSettlementClientContext{Balance: "1000", ChargedCumulativeAmount: "100"})
 
-	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements())
+	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements(), x402.PaymentPayloadContext{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -941,7 +1029,7 @@ func TestCreatePaymentPayload_TopsUpOnInsufficient(t *testing.T) {
 	channelId, _ = batchsettlement.NormalizeChannelId(channelId)
 	_ = storage.Set(channelId, &BatchSettlementClientContext{Balance: "50", ChargedCumulativeAmount: "0"})
 
-	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements())
+	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements(), x402.PaymentPayloadContext{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -971,7 +1059,7 @@ func TestCreatePaymentPayload_DepositStrategySkipYieldsVoucher(t *testing.T) {
 	channelId, _ = batchsettlement.NormalizeChannelId(channelId)
 	_ = storage.Set(channelId, &BatchSettlementClientContext{Balance: "50"})
 
-	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements())
+	payload, err := scheme.CreatePaymentPayload(context.Background(), defaultRequirements(), x402.PaymentPayloadContext{})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -980,11 +1068,120 @@ func TestCreatePaymentPayload_DepositStrategySkipYieldsVoucher(t *testing.T) {
 	}
 }
 
+func depositAmountOf(t *testing.T, payload types.PaymentPayload) string {
+	t.Helper()
+	dep, ok := payload.Payload["deposit"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected deposit payload, got %+v", payload.Payload)
+	}
+	amt, _ := dep["amount"].(string)
+	return amt
+}
+
+func requirementsWithMinDeposit(amount, minDeposit string) types.PaymentRequirements {
+	req := defaultRequirements()
+	req.Amount = amount
+	req.Extra["minDeposit"] = minDeposit
+	return req
+}
+
+const testSpendCap = "1000000"
+
+func TestCreatePaymentPayload_HonorsValidMinDepositOverMultiplier(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, &BatchSettlementEvmSchemeOptions{DepositMultiplier: 7})
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithMinDeposit("1000", "15000"), x402.PaymentPayloadContext{MaxAmountPerPayment: testSpendCap})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got := depositAmountOf(t, payload); got != "15000" {
+		t.Fatalf("deposit.amount = %s", got)
+	}
+}
+
+func TestCreatePaymentPayload_FallsBackWhenMinDepositBelowAmount(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, &BatchSettlementEvmSchemeOptions{DepositMultiplier: 5})
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithMinDeposit("1000", "500"), x402.PaymentPayloadContext{MaxAmountPerPayment: testSpendCap})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got := depositAmountOf(t, payload); got != "5000" {
+		t.Fatalf("deposit.amount = %s", got)
+	}
+}
+
+func TestCreatePaymentPayload_ClampsMinDepositToSpendCapTimesMultiplier(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, &BatchSettlementEvmSchemeOptions{DepositMultiplier: 5})
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithMinDeposit("1000", "15000"), x402.PaymentPayloadContext{MaxAmountPerPayment: "800"})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got := depositAmountOf(t, payload); got != "4000" {
+		t.Fatalf("deposit.amount = %s", got)
+	}
+}
+
+func TestCreatePaymentPayload_RejectsWhenVoucherGapExceedsSpendCapTimesMultiplier(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, nil)
+	_, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithAmount("1000"), x402.PaymentPayloadContext{MaxAmountPerPayment: "100"})
+	if err == nil || !strings.Contains(err.Error(), "exceeds depositMultiplier") {
+		t.Fatalf("expected exceeds error, got %v", err)
+	}
+}
+
+func TestCreatePaymentPayload_AllowsDepositWhenNoSpendCap(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, nil)
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithAmount("1000"), x402.PaymentPayloadContext{})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got := depositAmountOf(t, payload); got != "5000" {
+		t.Fatalf("deposit.amount = %s", got)
+	}
+}
+
+func TestCreatePaymentPayload_DepositStrategyContextIncludesMaxDeposit(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	var seen DepositStrategyContext
+	scheme := NewBatchSettlementEvmScheme(signer, &BatchSettlementEvmSchemeOptions{
+		DepositStrategy: func(_ context.Context, c DepositStrategyContext) (DepositStrategyResult, error) {
+			seen = c
+			return DepositStrategyResult{}, nil
+		},
+	})
+	_, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithAmount("1000"), x402.PaymentPayloadContext{MaxAmountPerPayment: testSpendCap})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if seen.MaxDeposit != "5000000" {
+		t.Fatalf("maxDeposit = %q", seen.MaxDeposit)
+	}
+	if seen.DepositAmount != "5000" {
+		t.Fatalf("depositAmount = %q", seen.DepositAmount)
+	}
+}
+
+func TestCreatePaymentPayload_CustomMultiplier(t *testing.T) {
+	signer := &mockSigner{address: "0x1111111111111111111111111111111111111111", sig: []byte{0xaa}}
+	scheme := NewBatchSettlementEvmScheme(signer, &BatchSettlementEvmSchemeOptions{DepositMultiplier: 7})
+	payload, err := scheme.CreatePaymentPayload(context.Background(), requirementsWithAmount("1000"), x402.PaymentPayloadContext{MaxAmountPerPayment: testSpendCap})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got := depositAmountOf(t, payload); got != "7000" {
+		t.Fatalf("deposit.amount = %s", got)
+	}
+}
+
 func TestCreatePaymentPayload_BadAmount(t *testing.T) {
 	scheme := NewBatchSettlementEvmScheme(&mockSigner{address: "0x1"}, nil)
 	req := defaultRequirements()
 	req.Amount = "not-a-number"
-	if _, err := scheme.CreatePaymentPayload(context.Background(), req); err == nil {
+	if _, err := scheme.CreatePaymentPayload(context.Background(), req, x402.PaymentPayloadContext{}); err == nil {
 		t.Fatal("expected error")
 	}
 }

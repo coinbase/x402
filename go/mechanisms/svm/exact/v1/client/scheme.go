@@ -57,6 +57,7 @@ func (c *ExactSvmSchemeV1) FindDefaultAsset(asset string, network x402.Network) 
 func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirementsV1,
+	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayloadV1, error) {
 
 	// Validate network (V1 uses simple names, normalize to CAIP-2 internally)

@@ -1,0 +1,3 @@
+kind: changed
+body: Pass PaymentPayloadContext (server extensions and resolved spend cap) on SchemeNetworkClient and SchemeNetworkClientV1 CreatePaymentPayload. Remove the optional CreatePaymentPayloadWithExtensions / ExtensionAwareClient split so every scheme uses one payload API.
+time: 2026-09-15T09:00:00Z

@@ -56,6 +56,7 @@ func (c *ExactSvmScheme) FindDefaultAsset(asset string, network x402.Network) *x
 func (c *ExactSvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
+	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
 	// Validate network
 	networkStr := string(requirements.Network)

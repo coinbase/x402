@@ -383,6 +383,88 @@ func (c *x402Client) SelectPaymentRequirements(requirements []types.PaymentRequi
 
 var atomicAmountPattern = regexp.MustCompile(`^\d+$`)
 
+func isAtomicAmount(amount string) bool {
+	return atomicAmountPattern.MatchString(amount)
+}
+
+func findSpendControlAssetEntry(
+	controls SpendControls,
+	network Network,
+	asset string,
+	defaultAsset *DefaultAsset,
+) *SpendControlAsset {
+	if controls.AllowAnyAsset {
+		return nil
+	}
+	for i := range controls.AllowedAssets {
+		entry := &controls.AllowedAssets[i]
+		if !MatchesNetwork(entry.Network, network) {
+			continue
+		}
+		if strings.EqualFold(entry.Asset, asset) {
+			return entry
+		}
+		if defaultAsset != nil && strings.EqualFold(defaultAsset.Symbol, entry.Asset) {
+			return entry
+		}
+	}
+	return nil
+}
+
+func resolveAtomicSpendCap(
+	controls SpendControls,
+	network Network,
+	asset string,
+	defaultAsset *DefaultAsset,
+) (string, error) {
+	assetEntry := findSpendControlAssetEntry(controls, network, asset, defaultAsset)
+	if assetEntry != nil && assetEntry.MaxAmountPerPayment != "" {
+		if !isAtomicAmount(assetEntry.MaxAmountPerPayment) {
+			return "", fmt.Errorf(
+				"spendControls.allowedAssets[].maxAmountPerPayment must be an integer atomic amount, not a dollar value; got %q",
+				assetEntry.MaxAmountPerPayment,
+			)
+		}
+		return assetEntry.MaxAmountPerPayment, nil
+	}
+
+	if defaultAsset == nil || controls.DisableMaxAmountPerPayment {
+		return "", nil
+	}
+
+	usdLimit := DefaultMaxAmountPerPayment
+	if controls.MaxAmountPerPayment != "" {
+		usdLimit = controls.MaxAmountPerPayment
+	}
+	parsed, err := ParseMoneyString(usdLimit)
+	if err != nil {
+		return "", err
+	}
+	return ConvertToTokenAmount(parsed, defaultAsset.Decimals)
+}
+
+func (c *x402Client) resolvePaymentPayloadContext(
+	client any,
+	network Network,
+	asset string,
+	extensions map[string]interface{},
+) (PaymentPayloadContext, error) {
+	payloadCtx := PaymentPayloadContext{Extensions: extensions}
+	if !c.spendControlsEnabled {
+		return payloadCtx, nil
+	}
+	var defaultAsset *DefaultAsset
+	if finder, ok := client.(DefaultAssetFinder); ok {
+		defaultAsset = finder.FindDefaultAsset(asset, network)
+	}
+	cap, err := resolveAtomicSpendCap(c.spendControls, network, asset, defaultAsset)
+	if err != nil {
+		return PaymentPayloadContext{}, err
+	}
+	payloadCtx.MaxAmountPerPayment = cap
+	return payloadCtx, nil
+}
+
 // applySpendControls filters by spend controls (default-asset allowlist → opt-in assets → caps).
 // Keeps any accept that fits so a mixed offer can still pay the affordable option.
 func (c *x402Client) applySpendControls(x402Version int, requirements []PaymentRequirementsView) ([]PaymentRequirementsView, error) {
@@ -393,13 +475,6 @@ func (c *x402Client) applySpendControls(x402Version int, requirements []PaymentR
 
 	rawAmountOf := func(requirement PaymentRequirementsView) string {
 		return requirement.GetAmount()
-	}
-	amountOf := func(requirement PaymentRequirementsView) *big.Int {
-		n, ok := new(big.Int).SetString(rawAmountOf(requirement), 10)
-		if !ok {
-			return big.NewInt(0)
-		}
-		return n
 	}
 	schemeFor := func(requirement PaymentRequirementsView) any {
 		network := Network(requirement.GetNetwork())
@@ -416,27 +491,13 @@ func (c *x402Client) applySpendControls(x402Version int, requirements []PaymentR
 		}
 		return finder.FindDefaultAsset(requirement.GetAsset(), Network(requirement.GetNetwork()))
 	}
-	matchesAssetEntry := func(entry SpendControlAsset, requirement PaymentRequirementsView) bool {
-		if !MatchesNetwork(entry.Network, Network(requirement.GetNetwork())) {
-			return false
-		}
-		if strings.EqualFold(entry.Asset, requirement.GetAsset()) {
-			return true
-		}
-		defaultAsset := defaultAssetFor(requirement)
-		return defaultAsset != nil && strings.EqualFold(defaultAsset.Symbol, entry.Asset)
-	}
-	var assetEntries []SpendControlAsset
-	if !controls.AllowAnyAsset {
-		assetEntries = controls.AllowedAssets
-	}
 	findAssetEntry := func(requirement PaymentRequirementsView) *SpendControlAsset {
-		for i := range assetEntries {
-			if matchesAssetEntry(assetEntries[i], requirement) {
-				return &assetEntries[i]
-			}
-		}
-		return nil
+		return findSpendControlAssetEntry(
+			controls,
+			Network(requirement.GetNetwork()),
+			requirement.GetAsset(),
+			defaultAssetFor(requirement),
+		)
 	}
 
 	filtered := requirements
@@ -468,40 +529,32 @@ func (c *x402Client) applySpendControls(x402Version int, requirements []PaymentR
 
 	capped := beforeAmountCaps[:0]
 	for _, requirement := range beforeAmountCaps {
-		assetEntry := findAssetEntry(requirement)
-		if assetEntry != nil && assetEntry.MaxAmountPerPayment != "" {
-			if !atomicAmountPattern.MatchString(assetEntry.MaxAmountPerPayment) {
-				return nil, fmt.Errorf(
-					"spendControls.allowedAssets[].maxAmountPerPayment must be an integer atomic amount, not a dollar value; got %q",
-					assetEntry.MaxAmountPerPayment,
-				)
-			}
-			if !atomicAmountPattern.MatchString(rawAmountOf(requirement)) {
-				rejectedByAssetCap = true
-				continue
-			}
-			capN, _ := new(big.Int).SetString(assetEntry.MaxAmountPerPayment, 10)
-			if amountOf(requirement).Cmp(capN) <= 0 {
-				capped = append(capped, requirement)
-			} else {
-				rejectedByAssetCap = true
-			}
-			continue
-		}
-
 		defaultAsset := defaultAssetFor(requirement)
-		if defaultAsset == nil {
-			capped = append(capped, requirement)
-			continue
+		assetEntry := findAssetEntry(requirement)
+		cap, err := resolveAtomicSpendCap(
+			controls,
+			Network(requirement.GetNetwork()),
+			requirement.GetAsset(),
+			defaultAsset,
+		)
+		if err != nil {
+			return nil, err
 		}
-
-		if usdLimitDisabled {
+		if cap == "" {
 			capped = append(capped, requirement)
 			continue
 		}
 
 		rawAmount := rawAmountOf(requirement)
-		if !atomicAmountPattern.MatchString(rawAmount) {
+		if !isAtomicAmount(rawAmount) {
+			if assetEntry != nil && assetEntry.MaxAmountPerPayment != "" {
+				rejectedByAssetCap = true
+				continue
+			}
+			if usdLimitDisabled {
+				capped = append(capped, requirement)
+				continue
+			}
 			valueScaled, err := ConvertToTokenAmount(rawAmount, 18)
 			if err != nil {
 				return nil, err
@@ -518,24 +571,21 @@ func (c *x402Client) applySpendControls(x402Version int, requirements []PaymentR
 			capN, _ := new(big.Int).SetString(capScaled, 10)
 			if valueN.Cmp(capN) <= 0 {
 				capped = append(capped, requirement)
-			} else {
+			} else if defaultAsset != nil {
 				rejectedUsdSymbol = defaultAsset.Symbol
 			}
 			continue
 		}
 
-		parsed, err := ParseMoneyString(usdLimit)
-		if err != nil {
-			return nil, err
-		}
-		maxAtomic, err := ConvertToTokenAmount(parsed, defaultAsset.Decimals)
-		if err != nil {
-			return nil, err
-		}
-		maxN, _ := new(big.Int).SetString(maxAtomic, 10)
-		if amountOf(requirement).Cmp(maxN) <= 0 {
+		amountN, _ := new(big.Int).SetString(rawAmount, 10)
+		capN, _ := new(big.Int).SetString(cap, 10)
+		if amountN.Cmp(capN) <= 0 {
 			capped = append(capped, requirement)
-		} else {
+			continue
+		}
+		if assetEntry != nil && assetEntry.MaxAmountPerPayment != "" {
+			rejectedByAssetCap = true
+		} else if defaultAsset != nil {
 			rejectedUsdSymbol = defaultAsset.Symbol
 		}
 	}
@@ -623,7 +673,11 @@ func (c *x402Client) CreatePaymentPayloadV1(
 		}
 	}
 
-	payload, err := client.CreatePaymentPayload(ctx, requirements)
+	payloadCtx, err := c.resolvePaymentPayloadContext(client, network, requirements.Asset, nil)
+	var payload types.PaymentPayloadV1
+	if err == nil {
+		payload, err = client.CreatePaymentPayload(ctx, requirements, payloadCtx)
+	}
 	if err != nil {
 		for _, hook := range c.onPaymentCreationFailureHooks {
 			result, hookErr := hook(PaymentCreationFailureContext{
@@ -700,14 +754,10 @@ func (c *x402Client) CreatePaymentPayload(
 		}
 	}
 
-	// Get partial payload from mechanism.
-	// If the scheme supports extensions (e.g., EIP-2612), pass them for enrichment.
+	payloadCtx, err := c.resolvePaymentPayloadContext(client, network, requirements.Asset, extensions)
 	var partial types.PaymentPayload
-	var err error
-	if extAware, ok := client.(ExtensionAwareClient); ok && extensions != nil {
-		partial, err = extAware.CreatePaymentPayloadWithExtensions(ctx, requirements, extensions)
-	} else {
-		partial, err = client.CreatePaymentPayload(ctx, requirements)
+	if err == nil {
+		partial, err = client.CreatePaymentPayload(ctx, requirements, payloadCtx)
 	}
 	if err != nil {
 		for _, hook := range c.onPaymentCreationFailureHooks {

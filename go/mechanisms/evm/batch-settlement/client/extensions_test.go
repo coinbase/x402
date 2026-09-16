@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	x402 "github.com/x402-foundation/x402/go/v2"
 	"github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
 	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
@@ -113,20 +114,24 @@ func bothExtensionsDeclared() map[string]interface{} {
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_NoExtensionsDeclared confirms that
+func extCtx(extensions map[string]interface{}) x402.PaymentPayloadContext {
+	return x402.PaymentPayloadContext{Extensions: extensions}
+}
+
+// TestCreatePaymentPayload_NoExtensionsDeclared confirms that
 // when the server's 402 has no extensions, the path is identical to plain
 // CreatePaymentPayload — no enrichment, no extra RPC.
-func TestCreatePaymentPayloadWithExtensions_NoExtensionsDeclared(t *testing.T) {
+func TestCreatePaymentPayload_NoExtensionsDeclared(t *testing.T) {
 	signer := &extReadSigner{
 		mockSigner: &mockSigner{address: extTestSigner, sig: []byte{0xab}},
 		allowance:  big.NewInt(0),
 	}
 	scheme := batchedExtSchemeWith(signer)
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		extRequirementsPermit2(),
-		nil,
+		extCtx(nil),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -136,10 +141,10 @@ func TestCreatePaymentPayloadWithExtensions_NoExtensionsDeclared(t *testing.T) {
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_AllowanceShortCircuit confirms the
+// TestCreatePaymentPayload_AllowanceShortCircuit confirms the
 // EIP-2612 path is skipped when the user has already approved Permit2 for at
 // least the deposit amount.
-func TestCreatePaymentPayloadWithExtensions_AllowanceShortCircuit(t *testing.T) {
+func TestCreatePaymentPayload_AllowanceShortCircuit(t *testing.T) {
 	// Deposit defaults to amount * DefaultDepositMultiplier (5) = 500.
 	// Allowance of 1e18 is way more than enough → no permit signed.
 	signer := &extReadSigner{
@@ -149,10 +154,10 @@ func TestCreatePaymentPayloadWithExtensions_AllowanceShortCircuit(t *testing.T) 
 	}
 	scheme := batchedExtSchemeWith(signer)
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		extRequirementsPermit2(),
-		eip2612OnlyDeclared(),
+		extCtx(eip2612OnlyDeclared()),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -162,11 +167,11 @@ func TestCreatePaymentPayloadWithExtensions_AllowanceShortCircuit(t *testing.T) 
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_Eip2612SignedWhenAllowanceZero
+// TestCreatePaymentPayload_Eip2612SignedWhenAllowanceZero
 // exercises the happy path: server advertises EIP-2612, user has zero
 // allowance, signer can sign typed data → extension is attached with the
 // expected DEPOSIT amount (not the per-request requirements.Amount).
-func TestCreatePaymentPayloadWithExtensions_Eip2612SignedWhenAllowanceZero(t *testing.T) {
+func TestCreatePaymentPayload_Eip2612SignedWhenAllowanceZero(t *testing.T) {
 	signer := &extReadSigner{
 		mockSigner:   &mockSigner{address: extTestSigner, sig: make([]byte, 65)},
 		allowance:    big.NewInt(0),
@@ -174,10 +179,10 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612SignedWhenAllowanceZero(t *te
 	}
 	scheme := batchedExtSchemeWith(signer)
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		extRequirementsPermit2(),
-		eip2612OnlyDeclared(),
+		extCtx(eip2612OnlyDeclared()),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -206,10 +211,10 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612SignedWhenAllowanceZero(t *te
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_Eip2612TakesPriorityOverErc20 pins
+// TestCreatePaymentPayload_Eip2612TakesPriorityOverErc20 pins
 // priority: when both extensions are advertised, EIP-2612 is tried first; if it
 // succeeds, the ERC-20 approval branch is NOT exercised.
-func TestCreatePaymentPayloadWithExtensions_Eip2612TakesPriorityOverErc20(t *testing.T) {
+func TestCreatePaymentPayload_Eip2612TakesPriorityOverErc20(t *testing.T) {
 	signer := &extReadSigner{
 		mockSigner:   &mockSigner{address: extTestSigner, sig: make([]byte, 65)},
 		allowance:    big.NewInt(0),
@@ -217,10 +222,10 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612TakesPriorityOverErc20(t *tes
 	}
 	scheme := batchedExtSchemeWith(signer)
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		extRequirementsPermit2(),
-		bothExtensionsDeclared(),
+		extCtx(bothExtensionsDeclared()),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -233,12 +238,12 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612TakesPriorityOverErc20(t *tes
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_Eip2612SkippedWithoutNameVersion
+// TestCreatePaymentPayload_Eip2612SkippedWithoutNameVersion
 // confirms that without name/version on requirements.Extra, the token's EIP-712
 // domain is unknown and the client silently skips signing instead of erroring.
 // The downstream request will then 402 with permit2_allowance_required (the
 // standard Permit2 path's diagnosis).
-func TestCreatePaymentPayloadWithExtensions_Eip2612SkippedWithoutNameVersion(t *testing.T) {
+func TestCreatePaymentPayload_Eip2612SkippedWithoutNameVersion(t *testing.T) {
 	signer := &extReadSigner{
 		mockSigner: &mockSigner{address: extTestSigner, sig: []byte{0xab}},
 		allowance:  big.NewInt(0),
@@ -249,10 +254,10 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612SkippedWithoutNameVersion(t *
 	delete(reqs.Extra, "name")
 	delete(reqs.Extra, "version")
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		reqs,
-		eip2612OnlyDeclared(),
+		extCtx(eip2612OnlyDeclared()),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -262,12 +267,12 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612SkippedWithoutNameVersion(t *
 	}
 }
 
-// TestCreatePaymentPayloadWithExtensions_Eip2612DeadlineFromPermit2
+// TestCreatePaymentPayload_Eip2612DeadlineFromPermit2
 // verifies the EIP-2612 deadline is taken from the just-signed Permit2
 // authorization (not the fallback `now + maxTimeoutSeconds`). This keeps
 // both signatures on the same expiry window. The mockSigner records the
 // signed message, so we read the deadline from there.
-func TestCreatePaymentPayloadWithExtensions_Eip2612DeadlineFromPermit2(t *testing.T) {
+func TestCreatePaymentPayload_Eip2612DeadlineFromPermit2(t *testing.T) {
 	signer := &extReadSigner{
 		mockSigner:   &mockSigner{address: extTestSigner, sig: make([]byte, 65)},
 		allowance:    big.NewInt(0),
@@ -275,10 +280,10 @@ func TestCreatePaymentPayloadWithExtensions_Eip2612DeadlineFromPermit2(t *testin
 	}
 	scheme := batchedExtSchemeWith(signer)
 
-	out, err := scheme.CreatePaymentPayloadWithExtensions(
+	out, err := scheme.CreatePaymentPayload(
 		context.Background(),
 		extRequirementsPermit2(),
-		eip2612OnlyDeclared(),
+		extCtx(eip2612OnlyDeclared()),
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)

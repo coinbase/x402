@@ -205,7 +205,7 @@ func (m *mockSchemeNetworkClient) FindDefaultAsset(asset string, network x402.Ne
 	return &x402.DefaultAsset{Asset: asset, Decimals: 6, Symbol: "MOCK"}
 }
 
-func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements, _ x402.PaymentPayloadContext) (types.PaymentPayload, error) {
 	return types.PaymentPayload{
 		X402Version: 2,
 		Accepted:    requirements,
@@ -1104,7 +1104,7 @@ func (m *mockSchemeNetworkClientV1) FindDefaultAsset(asset string, network x402.
 	return &x402.DefaultAsset{Asset: asset, Decimals: 6, Symbol: "USDC"}
 }
 
-func (m *mockSchemeNetworkClientV1) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error) {
+func (m *mockSchemeNetworkClientV1) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1, _ x402.PaymentPayloadContext) (types.PaymentPayloadV1, error) {
 	return types.PaymentPayloadV1{X402Version: 1, Scheme: m.scheme, Network: requirements.Network, Payload: map[string]interface{}{"signature": "0xmock"}}, nil
 }
 

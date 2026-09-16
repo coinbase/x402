@@ -11,6 +11,7 @@ import (
 	solana "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 
+	x402 "github.com/x402-foundation/x402/go/v2"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/paymentchannels"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/svm/upto"
@@ -55,6 +56,7 @@ func (c *UptoSvmScheme) Scheme() string {
 func (c *UptoSvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
+	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
 	networkStr := string(requirements.Network)
 	if !svm.IsValidNetwork(networkStr) {
