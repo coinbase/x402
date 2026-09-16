@@ -87,8 +87,8 @@ await client.connect(transport);
 const result = await client.callTool("financial_analysis", { ticker: "AAPL" });
 console.log(result.content);
 
-if (result.paymentMade) {
-  console.log("Payment settled:", result.paymentResponse?.transaction);
+if (result.paymentMade && result.paymentResponse) {
+  console.log("Payment settled:", result.paymentResponse.transaction);
 }
 ```
 
