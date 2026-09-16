@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from x402 import x402ResourceServer
 from x402.mcp.constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
-from x402.mcp.server import _create_settlement_failed_result
+from x402.mcp.server import (
+    _create_settlement_failed_result,
+    _payment_required_error_from_verify,
+)
+from x402.mcp.server import (
+    create_payment_wrapper as create_fastmcp_payment_wrapper,
+)
 from x402.mcp.server_async import (
     PaymentWrapperConfig,
     _create_settlement_failed_result_async,
@@ -24,7 +32,12 @@ from x402.schemas import (
     PaymentRequirements,
     ResourceInfo,
     SettleResponse,
+    SupportedKind,
+    SupportedResponse,
+    VerifyError,
+    VerifyResponse,
 )
+from x402.schemas.hooks import AbortResult
 from x402.server_base import _payment_requirements_match_accepted
 
 
@@ -354,3 +367,167 @@ async def test_async_payment_wrapper_payment_required_does_not_mutate_config_acc
     second = await wrapped({}, extra)
     assert second.is_error is False
     assert server.verify_calls == 1
+
+
+class MockFastMCPContext:
+    """Minimal FastMCP context shape used by the wrapper."""
+
+    def __init__(self, meta: dict):
+        self.request_context = SimpleNamespace(
+            meta=SimpleNamespace(model_extra=meta),
+        )
+
+
+class _MockFacilitatorClient:
+    def __init__(self, verify=None):
+        self._verify = verify
+
+    def get_supported(self) -> SupportedResponse:
+        return SupportedResponse(
+            kinds=[SupportedKind(x402_version=2, scheme="cash", network="x402:cash")],
+            extensions=[],
+            signers={},
+        )
+
+    async def verify(self, payload, requirements) -> VerifyResponse:
+        if self._verify is not None:
+            return await self._verify(payload, requirements)
+        return VerifyResponse(is_valid=True, payer="test-payer")
+
+    async def settle(self, payload, requirements) -> SettleResponse:
+        return SettleResponse(
+            success=True,
+            transaction="tx123",
+            network="x402:cash",
+            payer="test-payer",
+        )
+
+
+class _MockSchemeNetworkServer:
+    default_asset_transfer_method = "default"
+    payment_flows = {
+        "default": {"supported": ("authorization",), "default": "authorization"},
+        "eip3009": {"supported": ("authorization",), "default": "authorization"},
+        "permit2": {"supported": ("authorization",), "default": "authorization"},
+    }
+
+    def __init__(self, scheme: str = "cash"):
+        self.scheme = scheme
+
+    def parse_price(self, price, network):
+        return Mock(asset="USD", amount="1000", extra={})
+
+    def enhance_payment_requirements(self, requirements, supported_kind, extensions):
+        return requirements
+
+
+def test_payment_required_error_from_verify_prefers_invalid_reason() -> None:
+    ve = VerifyError(
+        "invalid_batch_settlement_evm_cumulative_amount_mismatch",
+        "Client voucher base does not match server state",
+    )
+    assert _payment_required_error_from_verify(ve, None) == ve.invalid_reason
+
+    resp = VerifyResponse(is_valid=False, invalid_reason="insufficient_balance")
+    assert _payment_required_error_from_verify(None, resp) == "insufficient_balance"
+
+    assert _payment_required_error_from_verify(RuntimeError("network down"), None) == "network down"
+
+
+@pytest.mark.asyncio
+async def test_fastmcp_verify_failure_uses_bare_invalid_reason() -> None:
+    reason = "invalid_batch_settlement_evm_cumulative_amount_mismatch"
+    requirements = _cash_requirements()
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted=requirements.model_dump(by_alias=True),
+        payload={"signature": "~test-payer"},
+    )
+    resource_server = Mock()
+    resource_server.find_matching_requirements = Mock(return_value=requirements)
+    resource_server.verify_payment = AsyncMock(
+        return_value=Mock(is_valid=False, invalid_reason=reason)
+    )
+
+    wrapper = create_fastmcp_payment_wrapper(resource_server, accepts=[requirements])
+
+    @wrapper
+    async def paid_tool() -> str:
+        return "ok"
+
+    result = await paid_tool(
+        ctx=MockFastMCPContext({MCP_PAYMENT_META_KEY: payload.model_dump(by_alias=True)})
+    )
+
+    assert result.isError is True
+    assert result.structuredContent["error"] == reason
+
+
+@pytest.mark.asyncio
+async def test_payment_wrapper_verify_abort_uses_invalid_reason() -> None:
+    reason = "invalid_batch_settlement_evm_cumulative_amount_mismatch"
+
+    async def verify(_payload, _requirements):
+        pytest.fail("facilitator should not run after BeforeVerify abort")
+
+    mock_facilitator = _MockFacilitatorClient(verify=verify)
+    server = x402ResourceServer(mock_facilitator)
+    server.register("x402:cash", _MockSchemeNetworkServer(scheme="cash"))
+    server.initialize()
+    server.on_before_verify(
+        lambda _ctx: AbortResult(
+            reason=reason,
+            message="Client voucher base does not match server state",
+        )
+    )
+
+    requirements = _cash_requirements()
+    wrapper = create_fastmcp_payment_wrapper(server, accepts=[requirements])
+
+    @wrapper
+    async def paid_tool() -> str:
+        return "ok"
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted=requirements.model_dump(by_alias=True),
+        payload={"signature": "~test-payer"},
+    )
+    result = await paid_tool(
+        ctx=MockFastMCPContext({MCP_PAYMENT_META_KEY: payload.model_dump(by_alias=True)})
+    )
+
+    assert result.isError is True
+    assert result.structuredContent["error"] == reason
+
+
+@pytest.mark.asyncio
+async def test_payment_wrapper_facilitator_verify_error_uses_invalid_reason() -> None:
+    reason = "custom_failure_reason"
+
+    async def verify(_payload, _requirements):
+        raise VerifyError(reason, "human-readable detail", "0xpayer")
+
+    mock_facilitator = _MockFacilitatorClient(verify=verify)
+    server = x402ResourceServer(mock_facilitator)
+    server.register("x402:cash", _MockSchemeNetworkServer(scheme="cash"))
+    server.initialize()
+
+    requirements = _cash_requirements()
+    wrapper = create_fastmcp_payment_wrapper(server, accepts=[requirements])
+
+    @wrapper
+    async def paid_tool() -> str:
+        return "ok"
+
+    payload = PaymentPayload(
+        x402_version=2,
+        accepted=requirements.model_dump(by_alias=True),
+        payload={"signature": "~test-payer"},
+    )
+    result = await paid_tool(
+        ctx=MockFastMCPContext({MCP_PAYMENT_META_KEY: payload.model_dump(by_alias=True)})
+    )
+
+    assert result.isError is True
+    assert result.structuredContent["error"] == reason
