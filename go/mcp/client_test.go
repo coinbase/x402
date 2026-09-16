@@ -1353,7 +1353,7 @@ type hookSchemeMCPClient struct {
 
 func (m *hookSchemeMCPClient) Scheme() string { return m.scheme }
 
-func (m *hookSchemeMCPClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+func (m *hookSchemeMCPClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements, _ x402.PaymentPayloadContext) (types.PaymentPayload, error) {
 	m.createPayloadCnt++
 	return types.PaymentPayload{
 		X402Version: 2,
