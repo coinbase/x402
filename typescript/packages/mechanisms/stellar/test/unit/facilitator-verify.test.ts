@@ -329,6 +329,26 @@ describe("ExactStellarScheme#Verify (randomly using 1-2 facilitator signers)", (
       );
     });
 
+    it("should count the configured inclusion fee against the maximum", async () => {
+      const highInclusionFacilitator = new ExactStellarScheme(facilitatorSigners, {
+        areFeesSponsored: true,
+        maxTransactionFeeStroops: 1_000,
+        inclusionFeeStroops: 950,
+      });
+
+      vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockServer as rpc.Server);
+      vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
+
+      const result = await highInclusionFacilitator.verify(validPayload, validRequirements);
+      expect(result).toEqual(
+        invalidVerifyResponse(
+          "invalid_exact_stellar_payload_fee_exceeds_maximum",
+          CLIENT_PUBLIC,
+          "simulation-derived fee 1050 stroops exceeds ceiling 1000 stroops",
+        ),
+      );
+    });
+
     describe("mismatching networks", () => {
       it("should reject mismatching requirement<>payload networks", async () => {
         const requirements: PaymentRequirements = {

@@ -90,6 +90,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
   public readonly areFeesSponsored: boolean;
   public readonly rpcConfig?: RpcConfig;
   public readonly maxTransactionFeeStroops: number;
+  public readonly inclusionFeeStroops: number;
   public readonly feeBumpSigner?: FacilitatorStellarSigner;
   private readonly signerMap: Map<string, FacilitatorStellarSigner>;
   private readonly selectSigner: (addresses: readonly string[]) => string;
@@ -110,6 +111,8 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    * @param options.rpcConfig - Optional RPC configuration with custom RPC URL
    * @param options.areFeesSponsored - Indicates if fees are sponsored (default: true)
    * @param options.maxTransactionFeeStroops - Safety ceiling in stroops; verify rejects if the simulation-derived fee exceeds this (default: 50_000)
+   * @param options.inclusionFeeStroops - Inclusion fee bid in stroops for the settlement transaction and the fee bump, on top of the resource fee (default: 100).
+   *   Mainnet often needs more than the minimum for Soroban transactions to be included.
    * @param options.selectSigner - Callback to select which signer to use (default: round-robin)
    * @param options.feeBumpSigner - Optional signer used as fee source in a fee bump transaction wrapper.
    *   When provided, settle() wraps the inner transaction (signed by the selected signer) in a
@@ -122,6 +125,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       rpcConfig,
       areFeesSponsored = true,
       maxTransactionFeeStroops = DEFAULT_MAX_TRANSACTION_FEE_STROOPS,
+      inclusionFeeStroops = Number(BASE_FEE),
       selectSigner = roundRobinSelectSigner(),
       feeBumpSigner,
     }: {
@@ -131,6 +135,8 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       areFeesSponsored?: boolean;
       /** Safety ceiling in stroops; verify rejects if the simulation-derived fee exceeds this (default: 50_000) */
       maxTransactionFeeStroops?: number;
+      /** Inclusion fee bid in stroops for the settlement transaction and the fee bump (default: 100) */
+      inclusionFeeStroops?: number;
       /** Optional callback to select which signer to use. Receives addresses array, returns selected address. Defaults to round-robin. */
       selectSigner?: (addresses: readonly string[]) => string;
       /** Optional signer used as fee source in a fee bump transaction wrapper. Decouples fee payment from sequence number management. */
@@ -148,6 +154,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
     this.rpcConfig = rpcConfig;
     this.areFeesSponsored = areFeesSponsored ?? true;
     this.maxTransactionFeeStroops = maxTransactionFeeStroops ?? DEFAULT_MAX_TRANSACTION_FEE_STROOPS;
+    this.inclusionFeeStroops = inclusionFeeStroops ?? Number(BASE_FEE);
     this.selectSigner = selectSigner ?? roundRobinSelectSigner();
     this.feeBumpSigner = feeBumpSigner;
     this.facilitatorSafetyAddresses = this.feeBumpSigner
@@ -262,9 +269,9 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
       const facilitatorAccount = await server.getAccount(signer.address);
 
       // SDK v16: `fee` is the inclusion buffer only; build() adds sorobanData.resourceFee()
-      // from the settle-time simulation, so tx.fee = BASE_FEE + minResourceFee.
+      // from the settle-time simulation, so tx.fee = inclusionFeeStroops + minResourceFee.
       const rebuiltTx = new TransactionBuilder(facilitatorAccount, {
-        fee: BASE_FEE,
+        fee: String(this.inclusionFeeStroops),
         networkPassphrase,
         ledgerbounds: transaction.ledgerBounds,
         memo: transaction.memo,
@@ -307,7 +314,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
           this.feeBumpSigner.address,
           // Same inclusion-only base fee; SDK adds the inner tx resource fee.
-          BASE_FEE,
+          String(this.inclusionFeeStroops),
           signedInnerTx,
           networkPassphrase,
         );
@@ -516,7 +523,7 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
       // Step 8: Validate the simulation-derived settlement fee against the safety ceiling
       const minResourceFee = parseInt(simResponse.minResourceFee, 10);
-      const settlementFeeStroops = minResourceFee + parseInt(BASE_FEE, 10);
+      const settlementFeeStroops = minResourceFee + this.inclusionFeeStroops;
       if (settlementFeeStroops > this.maxTransactionFeeStroops) {
         return {
           response: invalidVerifyResponse(

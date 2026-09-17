@@ -347,6 +347,23 @@ describe("ExactStellarScheme - Settle (randomly using 1-2 facilitator signers)",
       const rebuiltTx = new Transaction(rebuiltTxXdr, StellarNetworks.TESTNET);
       expect(rebuiltTx.fee).toBe(String(parseInt(minResourceFee, 10) + parseInt(BASE_FEE, 10)));
     });
+
+    it("should bid the configured inclusion fee on the rebuilt transaction", async () => {
+      const minResourceFee = "100";
+      const highFeeFacilitator = new ExactStellarScheme([facilitatorSigner1], {
+        inclusionFeeStroops: 5_000,
+      });
+      vi.spyOn(
+        highFeeFacilitator as unknown as { _verify: typeof highFeeFacilitator.verify },
+        "_verify",
+      ).mockImplementation(async () => mockVerifySuccess(minResourceFee));
+
+      await highFeeFacilitator.settle(validPayload, validRequirements);
+
+      const rebuiltTxXdr = vi.mocked(facilitatorSigner1.signTransaction).mock.calls[0][0];
+      const rebuiltTx = new Transaction(rebuiltTxXdr, StellarNetworks.TESTNET);
+      expect(rebuiltTx.fee).toBe("5100");
+    });
   });
 
   describe("multi-signer tests", () => {
@@ -527,6 +544,29 @@ describe("ExactStellarScheme - Settle with feeBumpSigner", () => {
     // The submitted transaction should be a FeeBumpTransaction
     const submitCall = vi.mocked(mockServer.sendTransaction).mock.calls[0][0];
     expect(submitCall).toBeInstanceOf(FeeBumpTransaction);
+  });
+
+  it("should bid the configured inclusion fee on the fee bump", async () => {
+    vi.spyOn(feeBumpSigner, "signTransaction").mockImplementation(async txXdr => ({
+      signedTxXdr: txXdr,
+      error: undefined,
+    }));
+    const buildFeeBump = vi.spyOn(TransactionBuilder, "buildFeeBumpTransaction");
+
+    const facilitator = new ExactStellarScheme([facilitatorSigner1], {
+      feeBumpSigner,
+      inclusionFeeStroops: 5_000,
+    });
+    vi.spyOn(
+      facilitator as unknown as { _verify: typeof facilitator.verify },
+      "_verify",
+    ).mockImplementation(async () => mockVerifySuccess());
+
+    const result = await facilitator.settle(validPayload, validRequirements);
+
+    expect(result.success).toBe(true);
+    expect(buildFeeBump.mock.calls[0][1]).toBe("5000");
+    buildFeeBump.mockRestore();
   });
 
   it("should return error when fee bump signing fails", async () => {
