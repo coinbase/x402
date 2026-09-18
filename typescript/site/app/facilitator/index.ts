@@ -33,6 +33,7 @@ import { ExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
+import { UptoSvmScheme } from "@x402/svm/upto/facilitator";
 import { toFacilitatorAvmSigner } from "@x402/avm";
 import { ExactAvmScheme } from "@x402/avm/exact/facilitator";
 import { XRPL_TESTNET } from "@x402/xrpl";
@@ -139,7 +140,8 @@ async function createFacilitator(): Promise<x402Facilitator> {
       "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
       new ExactSvmScheme(svmSigner, undefined, { enableSmartWalletVerification: true }),
     )
-    .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
+    .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner))
+    .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new UptoSvmScheme(svmSigner));
 
   // Optionally register Algorand if configured
   if (avmPrivateKey) {
