@@ -5,6 +5,7 @@ import {
   buildExactPermit2Accept,
   EIP2612_EXTENSION,
   evmResourceServer,
+  withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
 /**
@@ -21,17 +22,22 @@ const handler = async (_: NextRequest): Promise<NextResponse> => {
   });
 };
 
-export const GET = withX402(
-  handler,
-  {
-    "GET /protected/evm/exact": {
-      accepts: [buildExactErc3009Accept(), buildExactPermit2Accept()],
-      description: "EVM exact testnet endpoint (erc3009 or permit2)",
-      mimeType: "application/json",
-      extensions: {
-        ...EIP2612_EXTENSION,
+export const GET = withJsonPaymentRequired(
+  withX402(
+    handler,
+    {
+      "GET /protected/evm/exact": {
+        accepts: [buildExactErc3009Accept(), buildExactPermit2Accept()],
+        description: "EVM exact testnet endpoint (erc3009 or permit2)",
+        mimeType: "application/json",
+        extensions: {
+          ...EIP2612_EXTENSION,
+        },
       },
     },
-  },
-  evmResourceServer,
+    evmResourceServer,
+  ),
+  "To access this, register support for the EVM mechanism and use a client that " +
+    "supports EIP-3009 or Permit2 (optionally with EIP-2612), such as the canonical " +
+    "x402 SDKs (@x402/evm), which support both by default.",
 );

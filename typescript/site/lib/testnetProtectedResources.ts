@@ -1,12 +1,17 @@
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
-import { PaymentOption } from "@x402/core/http";
+import {
+  decodePaymentRequiredHeader,
+  decodePaymentResponseHeader,
+  PaymentOption,
+} from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { UptoSvmScheme } from "@x402/svm/upto/server";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Shared configuration and resource servers for the `/protected/{evm,svm}/{exact,upto}...`
@@ -169,5 +174,75 @@ export function buildSvmUptoAccept(): PaymentOption {
     network: SVM_NETWORK,
     payTo: svmPayeeAddress,
     price: UPTO_PRICE,
+  };
+}
+
+/**
+ * Builds the JSON body returned instead of the SDK's default paywall HTML / empty JSON
+ * for an unpaid or failed request: short, human-readable advice on what's required to
+ * pay, plus whatever failure detail the SDK already produced. Deliberately does not
+ * repeat `accepts`/`extensions` — that's already in the `PAYMENT-REQUIRED` header real
+ * x402 clients read, and duplicating it here would just drift out of sync over time.
+ *
+ * @param response - The withX402-produced response being replaced
+ * @param advice - Route-specific advice on what mechanism/capability is required
+ * @returns A JSON-serializable body combining the advice with the available error detail
+ */
+function buildFailureBody(response: NextResponse, advice: string): Record<string, unknown> {
+  // A settlement failure (payment was submitted but didn't settle) carries a
+  // PAYMENT-RESPONSE header with errorReason/errorMessage instead of PAYMENT-REQUIRED.
+  const settleHeader = response.headers.get("PAYMENT-RESPONSE");
+  if (settleHeader) {
+    const settleResponse = decodePaymentResponseHeader(settleHeader);
+    return {
+      advice,
+      error: settleResponse.errorReason ?? "settlement_failed",
+      ...(settleResponse.errorMessage && { errorMessage: settleResponse.errorMessage }),
+    };
+  }
+
+  const requiredHeader = response.headers.get("PAYMENT-REQUIRED");
+  if (requiredHeader) {
+    const paymentRequired = decodePaymentRequiredHeader(requiredHeader);
+    return {
+      advice,
+      ...(paymentRequired.error && { error: paymentRequired.error }),
+    };
+  }
+
+  return { advice };
+}
+
+/**
+ * Wraps a `withX402`-produced handler so that unpaid (402) and Permit2-allowance (412)
+ * responses always return the {@link buildFailureBody} JSON advice instead of the SDK's
+ * default browser paywall HTML or empty JSON body — these testnet endpoints are meant
+ * for programmatic/API clients, not the in-browser paywall UI. The real
+ * `PAYMENT-REQUIRED` / `PAYMENT-RESPONSE` headers (and all other headers) are preserved
+ * unchanged, so x402 client SDKs that read the header rather than the body are
+ * unaffected. Successful (settled) responses pass through untouched.
+ *
+ * @param wrapped - The `withX402`-wrapped GET handler to hijack the unpaid response of
+ * @param advice - Route-specific advice on what mechanism/capability is required
+ * @returns A GET handler that returns JSON advice instead of a paywall on 402/412
+ */
+export function withJsonPaymentRequired(
+  wrapped: (request: NextRequest) => Promise<NextResponse>,
+  advice: string,
+): (request: NextRequest) => Promise<NextResponse> {
+  return async (request: NextRequest): Promise<NextResponse> => {
+    const response = await wrapped(request);
+    if (response.status !== 402 && response.status !== 412) {
+      return response;
+    }
+
+    const explained = NextResponse.json(buildFailureBody(response, advice), {
+      status: response.status,
+    });
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "content-type") return;
+      explained.headers.set(key, value);
+    });
+    return explained;
   };
 }

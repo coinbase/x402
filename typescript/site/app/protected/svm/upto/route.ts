@@ -5,6 +5,7 @@ import {
   ensureSvmUptoRegistered,
   svmResourceServer,
   UPTO_SETTLEMENT_OVERRIDE,
+  withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
 /**
@@ -46,7 +47,13 @@ let wrappedGetPromise: Promise<(request: NextRequest) => Promise<NextResponse>> 
 function getWrappedHandler(): Promise<(request: NextRequest) => Promise<NextResponse>> {
   if (!wrappedGetPromise) {
     wrappedGetPromise = ensureSvmUptoRegistered().then(() =>
-      withX402(handler, routes, svmResourceServer),
+      withJsonPaymentRequired(
+        withX402(handler, routes, svmResourceServer),
+        "To access this, register support for the SVM mechanism and the upto scheme " +
+          "(payment-channels escrow flow), such as the canonical x402 SDKs " +
+          "(@x402/svm), which do by default. This route authorizes 2x the advertised " +
+          "price but settles only 50% of it.",
+      ),
     );
   }
   return wrappedGetPromise;

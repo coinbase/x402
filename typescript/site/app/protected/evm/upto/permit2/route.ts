@@ -4,6 +4,7 @@ import {
   buildUptoAccept,
   evmResourceServer,
   UPTO_SETTLEMENT_OVERRIDE,
+  withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
 /**
@@ -25,14 +26,21 @@ const handler = async (_: NextRequest): Promise<NextResponse> => {
   return response;
 };
 
-export const GET = withX402(
-  handler,
-  {
-    "GET /protected/evm/upto/permit2": {
-      accepts: buildUptoAccept(),
-      description: "EVM upto testnet endpoint (permit2, no gas-sponsoring extension)",
-      mimeType: "application/json",
+export const GET = withJsonPaymentRequired(
+  withX402(
+    handler,
+    {
+      "GET /protected/evm/upto/permit2": {
+        accepts: buildUptoAccept(),
+        description: "EVM upto testnet endpoint (permit2, no gas-sponsoring extension)",
+        mimeType: "application/json",
+      },
     },
-  },
-  evmResourceServer,
+    evmResourceServer,
+  ),
+  "To access this, register support for the EVM mechanism and the upto scheme, and " +
+    "use a client that supports Permit2 and partial settlement, such as the " +
+    "canonical x402 SDKs (@x402/evm). This route does not offer gasless approval, so " +
+    "the paying account must already have approved the canonical Permit2 contract. " +
+    "This route authorizes 2x the advertised price but settles only 50% of it.",
 );
