@@ -4,6 +4,7 @@ import {
   buildUptoAccept,
   EIP2612_EXTENSION,
   evmResourceServer,
+  SYNC_FACILITATOR_ON_START,
   UPTO_SETTLEMENT_OVERRIDE,
   withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
@@ -40,6 +41,9 @@ export const GET = withJsonPaymentRequired(
       },
     },
     evmResourceServer,
+    undefined,
+    undefined,
+    SYNC_FACILITATOR_ON_START,
   ),
   "To access this, register support for the EVM mechanism and the upto scheme, and " +
     "use a client that supports Permit2 with EIP-2612 gasless approval and partial " +

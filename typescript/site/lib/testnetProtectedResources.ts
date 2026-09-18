@@ -43,6 +43,22 @@ export const UPTO_SETTLEMENT_OVERRIDE = "50%";
 export const EIP2612_EXTENSION = declareEip2612GasSponsoringExtension();
 
 /**
+ * `withX402`/`paymentProxyFromConfig` default to eagerly (backgrounded,
+ * fire-and-forget) calling the facilitator's `/supported` on construction, so a real
+ * first request doesn't pay that latency. That construction — and thus the eager call
+ * — also happens when Next.js evaluates each route module during `next build` to
+ * bundle/trace it, not just at real runtime. Locally that's harmless (an unreachable
+ * dev facilitator URL fails instantly), but against a deploy target where
+ * `FACILITATOR_URL` is slow or doesn't fail fast, every resource-server-bearing route
+ * module independently starting this call at build time is a plausible source of a
+ * hung/timed-out build with no code change involved. `NEXT_PHASE` is set to
+ * `"phase-production-build"` by Next.js only during that build step, never at real
+ * runtime, so gating on it disables the eager sync during the build only —
+ * `withX402`/`paymentProxyFromConfig` still default to `true` at real runtime.
+ */
+export const SYNC_FACILITATOR_ON_START = process.env.NEXT_PHASE !== "phase-production-build";
+
+/**
  * Shared EVM resource server for the new testnet endpoints. Registers both the `exact`
  * and `upto` schemes for Base Sepolia — safe to share since scheme registration is keyed
  * by (network, scheme name), the same way app/facilitator/index.ts already registers both

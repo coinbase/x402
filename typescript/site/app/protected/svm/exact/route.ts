@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildSvmExactAccept,
   svmResourceServer,
+  SYNC_FACILITATOR_ON_START,
   withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
@@ -31,6 +32,9 @@ export const GET = withJsonPaymentRequired(
       },
     },
     svmResourceServer,
+    undefined,
+    undefined,
+    SYNC_FACILITATOR_ON_START,
   ),
   "To access this, register support for the SVM mechanism, such as the canonical " +
     "x402 SDKs (@x402/svm), which do by default.",

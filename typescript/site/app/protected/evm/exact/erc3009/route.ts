@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildExactErc3009Accept,
   evmResourceServer,
+  SYNC_FACILITATOR_ON_START,
   withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
@@ -32,6 +33,9 @@ export const GET = withJsonPaymentRequired(
       },
     },
     evmResourceServer,
+    undefined,
+    undefined,
+    SYNC_FACILITATOR_ON_START,
   ),
   "To access this, register support for the EVM mechanism and use a client that " +
     "supports EIP-3009 (transferWithAuthorization), such as the canonical x402 SDKs " +

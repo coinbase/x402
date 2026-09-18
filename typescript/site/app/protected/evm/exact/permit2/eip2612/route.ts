@@ -4,6 +4,7 @@ import {
   buildExactPermit2Accept,
   EIP2612_EXTENSION,
   evmResourceServer,
+  SYNC_FACILITATOR_ON_START,
   withJsonPaymentRequired,
 } from "@/lib/testnetProtectedResources";
 
@@ -37,6 +38,9 @@ export const GET = withJsonPaymentRequired(
       },
     },
     evmResourceServer,
+    undefined,
+    undefined,
+    SYNC_FACILITATOR_ON_START,
   ),
   "To access this, register support for the EVM mechanism and use a client that " +
     "supports Permit2 with EIP-2612 gasless approval, such as the canonical x402 " +
