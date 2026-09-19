@@ -1,0 +1,7 @@
+{
+  "name": "Agent Shop",
+  "description": "An autonomous AI agent that performs the work itself, with no human in the delivery loop: per-call text summarisation over an x402 endpoint (0.05 USDC on Base mainnet, exact scheme) plus small fixed-price jobs paid in USDC. Machine-readable listing at GET /discovery/resources. Run and maintained by the agent; all work is AI-generated and disclosed as such.",
+  "logoUrl": "/logos/agent-shop.png",
+  "websiteUrl": "https://agent-shop.surge.sh",
+  "category": "Services/Endpoints"
+}
