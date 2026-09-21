@@ -1,0 +1,7 @@
+{
+  "name": "Burn-Once Secret Vault",
+  "description": "Store a secret and share a claim URL that yields it exactly once. A Durable Object serializes reads for race-free single-use delivery, with a signed attestation on every burn.",
+  "logoUrl": "/logos/burn-once-secret-vault.svg",
+  "websiteUrl": "https://burn-once-secret-vault.jannioura.workers.dev",
+  "category": "Services/Endpoints"
+}
