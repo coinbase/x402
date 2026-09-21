@@ -1,5 +1,3 @@
-import { base58 } from "@scure/base";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import {
   decodePaymentRequiredHeader,
@@ -10,7 +8,6 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
 import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
-import { UptoSvmScheme } from "@x402/svm/upto/server";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -69,52 +66,16 @@ export const evmResourceServer = new x402ResourceServer(facilitatorClient)
   .register(EVM_NETWORK, new UptoEvmScheme());
 
 /**
- * Shared SVM resource server for the new testnet endpoints. `exact` is registered
- * immediately; `upto` requires an async receiver-authorizer signer (see
- * {@link ensureSvmUptoRegistered}) so it is registered lazily on first use.
+ * Shared SVM resource server for the new testnet endpoints. Only `exact` is registered
+ * — SVM `upto` is not offered yet: it needs persistent channel storage and a cron-driven
+ * rent cleanup worker (the in-memory, single-process approach used for EVM `upto` isn't
+ * viable for SVM's payment-channel rent model), so it's out of scope for this demo site
+ * until that infrastructure exists.
  */
 export const svmResourceServer = new x402ResourceServer(facilitatorClient).register(
   SVM_NETWORK,
   new ExactSvmScheme(),
 );
-
-let svmUptoReadyPromise: Promise<void> | null = null;
-
-/**
- * Lazily registers the `upto` scheme on {@link svmResourceServer}.
- *
- * `UptoSvmScheme` (resource-server side) requires a `receiverAuthorizerSigner` — a hot
- * key that signs settlement-channel claim vouchers — unless the facilitator advertises
- * its own delegated `receiverAuthorizer`. The testnet facilitator (app/facilitator/index.ts)
- * registers `UptoSvmScheme` without an `authorizerSigner`, so it advertises none; this
- * reuses the same `FACILITATOR_SVM_PRIVATE_KEY` already required for the facilitator's own
- * SVM signer as the resource server's receiver-authorizer key. This demo site operates both
- * the facilitator and the resource server, so reusing that key for a lesser-privileged role
- * here is acceptable. Deriving the signer from a base58 private key is async
- * (`createKeyPairSignerFromBytes`), so registration is deferred until first use instead of
- * at module load.
- *
- * @returns A promise that resolves once the `upto` scheme is registered (or the missing
- *   env var has been logged)
- */
-export function ensureSvmUptoRegistered(): Promise<void> {
-  if (!svmUptoReadyPromise) {
-    svmUptoReadyPromise = (async () => {
-      const privateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
-      if (!privateKey) {
-        console.error(
-          "❌ FACILITATOR_SVM_PRIVATE_KEY environment variable is required for /protected/svm/upto",
-        );
-        return;
-      }
-      const receiverAuthorizerSigner = await createKeyPairSignerFromBytes(
-        base58.decode(privateKey),
-      );
-      svmResourceServer.register(SVM_NETWORK, new UptoSvmScheme({ receiverAuthorizerSigner }));
-    })();
-  }
-  return svmUptoReadyPromise;
-}
 
 /**
  * Builds the EIP-3009 `exact` accept option — `ExactEvmScheme`'s default asset transfer
@@ -176,20 +137,6 @@ export function buildSvmExactAccept(): PaymentOption {
     network: SVM_NETWORK,
     payTo: svmPayeeAddress,
     price: EXACT_PRICE,
-  };
-}
-
-/**
- * Builds the SVM `upto` accept option, priced at 2x {@link EXACT_PRICE}.
- *
- * @returns The SVM upto payment option
- */
-export function buildSvmUptoAccept(): PaymentOption {
-  return {
-    scheme: "upto",
-    network: SVM_NETWORK,
-    payTo: svmPayeeAddress,
-    price: UPTO_PRICE,
   };
 }
 
