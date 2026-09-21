@@ -1,0 +1,7 @@
+{
+  "name": "SPA Render & Extract",
+  "description": "Renders JavaScript-heavy SPA pages in real headless Chromium, waits for the page to be ready, and serializes the fully-rendered DOM into clean, LLM-ready Markdown.",
+  "logoUrl": "/logos/spa-dom-to-md.svg",
+  "websiteUrl": "https://spa-dom-to-md.jannioura.workers.dev",
+  "category": "Services/Endpoints"
+}

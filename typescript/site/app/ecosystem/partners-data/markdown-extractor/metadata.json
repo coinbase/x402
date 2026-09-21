@@ -1,0 +1,7 @@
+{
+  "name": "Markdown Extractor",
+  "description": "Fetches a public URL and returns clean, LLM-ready Markdown. Pay-per-call via x402, no API key or signup required.",
+  "logoUrl": "/logos/markdown-extractor.svg",
+  "websiteUrl": "https://markdown-extractor.jannioura.workers.dev",
+  "category": "Services/Endpoints"
+}

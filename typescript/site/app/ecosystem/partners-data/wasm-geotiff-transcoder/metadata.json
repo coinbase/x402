@@ -1,0 +1,7 @@
+{
+  "name": "GeoTIFF → PNG/WebP Tile Transcoder",
+  "description": "Decodes a GeoTIFF/COG raster (by URL or inline base64), tone-maps the selected RGB bands, and returns a render-ready PNG or WebP plus georeference metadata.",
+  "logoUrl": "/logos/wasm-geotiff-transcoder.svg",
+  "websiteUrl": "https://wasm-geotiff-transcoder.jannioura.workers.dev",
+  "category": "Services/Endpoints"
+}
