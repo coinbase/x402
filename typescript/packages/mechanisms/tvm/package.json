@@ -9,7 +9,7 @@
   "author": "x402 Foundation",
   "repository": "https://github.com/x402-foundation/x402",
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node ../../../scripts/mirror-cjs-dts.mjs",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
