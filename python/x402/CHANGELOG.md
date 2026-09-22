@@ -2,6 +2,15 @@
 
 <!-- towncrier release notes start -->
 
+## [2.24.0] - 2026-09-22
+
+### Fixed
+
+- FastAPI and Flask payment middleware now also match routes against each framework's decoded request path (Starlette's `request.url.path`, Werkzeug's `PATH_INFO`) in addition to the escaped path, requiring payment if either matches. A literal protected route (e.g. `GET /api/premium`) could previously be reached unpaid by encoding its path separator (`/api%2Fpremium`), since the escaped-path check alone did not match while the framework still decoded and dispatched to the paid handler. The FastAPI decoded-path check now also strips the ASGI `root_path` mount prefix (as Starlette's own router does internally) so apps mounted under a non-empty `root_path` remain protected instead of always fail-opening. ([#3502](https://github.com/x402-foundation/x402/pull/3502)) - Thanks [@CarsonRoscoe](https://github.com/CarsonRoscoe) and [@cursoragent](https://github.com/cursoragent), [@claude](https://github.com/claude)!
+- FastMCP paid-tool 402s now expose the protocol InvalidReason instead of a prefixed verify error string. ([#3494](https://github.com/x402-foundation/x402/pull/3494)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+- MCP 402 responses snapshot payment accepts before scheme enrichers so batch-settlement recovery retries still match. ([#3495](https://github.com/x402-foundation/x402/pull/3495)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+
+
 ## [2.23.0] - 2026-09-15
 
 ### Fixed
