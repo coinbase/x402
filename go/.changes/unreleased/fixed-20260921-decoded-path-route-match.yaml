@@ -1,3 +1,0 @@
-kind: fixed
-body: HTTP resource servers now match protected routes against both the escaped request path and the framework's decoded routing view (net/url URL.Path), requiring payment if either matches. A literal route such as GET /api/premium could previously be reached unpaid by encoding its path separator (/api%2Fpremium) when the adapter only consulted EscapedPath() while Gin, Echo, and net/http dispatched on the decoded path.
-time: 2026-09-21T08:00:00Z
