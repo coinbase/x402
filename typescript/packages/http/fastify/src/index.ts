@@ -230,6 +230,20 @@ function sendInternalError(reply: FastifyReply, error: unknown): void {
 }
 
 /**
+ * Decode percent-escapes in a request path.
+ *
+ * @param path - Request path
+ * @returns Decoded path, or the original if decoding fails
+ */
+function decodedRoutePath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
  * Configuration for registering a payment scheme with a specific network.
  */
 export interface SchemeRegistration {
@@ -336,6 +350,7 @@ export function paymentMiddlewareFromHTTPServer(
     const context: HTTPRequestContext = {
       adapter,
       path,
+      decodedPath: decodedRoutePath(path),
       method: request.method,
       paymentHeader:
         (request.headers["payment-signature"] as string | undefined) ||

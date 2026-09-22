@@ -55,6 +55,20 @@ export function createInternalErrorResponse(error: unknown): NextResponse {
 }
 
 /**
+ * Decode percent-escapes in a request path.
+ *
+ * @param path - Request path
+ * @returns Decoded path, or the original if decoding fails
+ */
+function decodedRoutePath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
  * Prepares an existing x402HTTPResourceServer with initialization logic
  *
  * @param httpServer - Pre-configured x402HTTPResourceServer instance
@@ -137,9 +151,11 @@ export function createHttpServer(
 export function createRequestContext(request: NextRequest): HTTPRequestContext {
   // Create adapter and context
   const adapter = new NextAdapter(request);
+  const path = request.nextUrl.pathname;
   return {
     adapter,
-    path: request.nextUrl.pathname,
+    path,
+    decodedPath: decodedRoutePath(path),
     method: request.method,
     paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
   };

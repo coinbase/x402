@@ -66,6 +66,20 @@ function sendInternalError(res: Response, error: unknown): void {
 }
 
 /**
+ * Decode percent-escapes in a request path.
+ *
+ * @param path - Request path
+ * @returns Decoded path, or the original if decoding fails
+ */
+function decodedRoutePath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
  * Express payment middleware for x402 protocol (direct HTTP server instance).
  *
  * Use this when you need to configure HTTP-level hooks.
@@ -153,9 +167,11 @@ export function paymentMiddlewareFromHTTPServer(
   return async (req: Request, res: Response, next: NextFunction) => {
     // Create adapter and context
     const adapter = new ExpressAdapter(req);
+    const path = req.path;
     const context: HTTPRequestContext = {
       adapter,
-      path: req.path,
+      path,
+      decodedPath: decodedRoutePath(path),
       method: req.method,
       paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
     };

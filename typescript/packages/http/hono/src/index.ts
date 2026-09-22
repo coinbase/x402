@@ -16,6 +16,7 @@ import {
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { Context, MiddlewareHandler } from "hono";
+import { basePath } from "hono/route";
 import { HonoAdapter } from "./adapter";
 
 /**
@@ -65,6 +66,37 @@ function facilitatorErrorResponse(c: Context, error: FacilitatorResponseError): 
 function internalErrorResponse(c: Context, error: unknown): Response {
   console.error(error);
   return c.json({ error: "Internal Server Error" }, 500);
+}
+
+/**
+ * Decode `c.req.path` and strip the Hono `basePath` mount prefix.
+ *
+ * @param c - Hono context
+ * @returns Decoded path relative to the app mount
+ */
+function decodedRoutePath(c: Context): string {
+  let path: string;
+  try {
+    path = decodeURIComponent(c.req.path);
+  } catch {
+    path = c.req.path;
+  }
+  let rootPath = "";
+  try {
+    rootPath = basePath(c);
+  } catch {
+    return path;
+  }
+  if (!rootPath || rootPath === "/" || !path.startsWith(rootPath)) {
+    return path;
+  }
+  if (path === rootPath) {
+    return "";
+  }
+  if (path[rootPath.length] === "/") {
+    return path.slice(rootPath.length);
+  }
+  return path;
 }
 
 /**
@@ -155,9 +187,11 @@ export function paymentMiddlewareFromHTTPServer(
   return async (c: Context, next: () => Promise<void>) => {
     // Create adapter and context
     const adapter = new HonoAdapter(c);
+    const path = c.req.path;
     const context: HTTPRequestContext = {
       adapter,
-      path: c.req.path,
+      path,
+      decodedPath: decodedRoutePath(c),
       method: c.req.method,
       paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
     };
