@@ -1,5 +1,18 @@
 # @x402/express Changelog
 
+## 2.27.0
+
+### Minor Changes
+
+- Updated dependencies [5d3a2b2](https://github.com/x402-foundation/x402/commit/5d3a2b2)
+  - @x402/core@2.27.0
+  - @x402/extensions@2.27.0
+  - @x402/paywall@2.27.0
+
+### Patch Changes
+
+- [5d3a2b2](https://github.com/x402-foundation/x402/commit/5d3a2b2): HTTP resource servers now match protected routes against both the escaped request path and the framework's decoded routing view, requiring payment if either matches. A literal route such as `GET /api/premium` could previously be reached unpaid by encoding its path separator (`/api%2Fpremium`) when the adapter only consulted the escaped path while the framework dispatched on the decoded one. ([#3542](https://github.com/x402-foundation/x402/pull/3542)) - Thanks [@PhilBot402](https://github.com/PhilBot402) and [@phdargen](https://github.com/phdargen)!
+
 ## 2.26.0
 
 ### Minor Changes

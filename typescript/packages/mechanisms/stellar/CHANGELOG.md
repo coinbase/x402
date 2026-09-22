@@ -1,5 +1,13 @@
 # @x402/stellar Changelog
 
+## 2.27.0
+
+### Minor Changes
+
+- [c8c71f2](https://github.com/x402-foundation/x402/commit/c8c71f2): The Stellar exact facilitator accepts an `inclusionFeeStroops` option for the settlement transaction and the fee bump. It used to always bid the 100-stroop minimum, which mainnet often does not include for Soroban transactions, so settlements could time out after a successful verify. The default stays at 100, and verify counts the configured bid against `maxTransactionFeeStroops`. ([#3503](https://github.com/x402-foundation/x402/pull/3503)) - Thanks [@DiegoPoveda01](https://github.com/DiegoPoveda01) and [@claude](https://github.com/claude)!
+- Updated dependencies [5d3a2b2](https://github.com/x402-foundation/x402/commit/5d3a2b2)
+  - @x402/core@2.27.0
+
 ## 2.26.0
 
 ### Minor Changes

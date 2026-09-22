@@ -1,5 +1,16 @@
 # @x402/evm Changelog
 
+## 2.27.0
+
+### Minor Changes
+
+- Updated dependencies [5d3a2b2](https://github.com/x402-foundation/x402/commit/5d3a2b2)
+  - @x402/core@2.27.0
+
+### Patch Changes
+
+- [59f1347](https://github.com/x402-foundation/x402/commit/59f1347): `getEvmChainId` now requires a bare decimal CAIP-2 reference (`eip155:<digits>`). It used to call `parseInt`, which stops at the first non-digit, so `eip155:0x2105` resolved to chain ID `0` and `eip155:8453abc` to `8453` instead of being rejected — and that chain ID is signed into the EIP-712 domain for Permit2, EIP-3009 and batch-settlement. Chain IDs beyond `Number.MAX_SAFE_INTEGER` are now rejected instead of silently rounded. The Go and Python SDKs already reject all of these. ([#3521](https://github.com/x402-foundation/x402/pull/3521)) - Thanks [@HereForTheTechNFT](https://github.com/HereForTheTechNFT)!
+
 ## 2.26.0
 
 ### Minor Changes
