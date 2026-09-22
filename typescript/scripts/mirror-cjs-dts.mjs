@@ -28,11 +28,12 @@
  * convention's files instead, that indicates a stale or failed ESM build, and this
  * script exits 1 rather than silently mirroring zero (or wrong) files.
  *
- * Before writing, every existing `dist/cjs` file matching the target suffix is
- * deleted, since tsup's CJS config uses `clean: false` (ESM's `clean: true` already
- * removes stale dist/esm output). Without this, a renamed entry or a chunk whose
- * content-hash changed would leave its old declaration file behind, silently masking
- * a type that no longer has a live source.
+ * Before writing, every existing `dist/cjs` file matching the target suffix (and
+ * companion `*.d.*.map` declaration sourcemaps when present) is deleted, since tsup's
+ * CJS config uses `clean: false` (ESM's `clean: true` already removes stale dist/esm
+ * output). Without this, a renamed entry or a chunk whose content-hash changed would
+ * leave its old declaration file behind, silently masking a type that no longer has
+ * a live source.
  *
  * Mirrored files' internal relative import/export specifiers are rewritten only to the
  * extension matching the target format; the referenced chunk hash names themselves are
@@ -62,6 +63,15 @@ const ESM_DIR = 'dist/esm'
 const CJS_DIR = 'dist/cjs'
 
 /**
+ * @param message - Error detail
+ * @returns Nothing; prints and exits 1
+ */
+function fail(message) {
+  console.error(`[mirror-cjs-dts] ${message}`)
+  process.exit(1)
+}
+
+/**
  * Recursively collects every file under a directory whose name ends with `suffix`.
  * Returns an empty array (rather than throwing) when `dir` does not exist, so callers
  * can use it for the CJS side before any CJS output has ever been written.
@@ -75,7 +85,13 @@ function findFiles(dir, suffix, files = []) {
   if (!existsSync(dir)) return files
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
-    if (statSync(full).isDirectory()) {
+    let isDirectory
+    try {
+      isDirectory = statSync(full).isDirectory()
+    } catch (err) {
+      fail(`Cannot stat "${full}": ${err.message}`)
+    }
+    if (isDirectory) {
       findFiles(full, suffix, files)
     } else if (entry.endsWith(suffix)) {
       files.push(full)
@@ -92,8 +108,39 @@ function findFiles(dir, suffix, files = []) {
  * @returns True when `package.json` declares `"type": "module"`
  */
 function isTypeModulePackage() {
-  const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  let raw
+  try {
+    raw = readFileSync('package.json', 'utf8')
+  } catch (err) {
+    fail(`Cannot read package.json: ${err.message}`)
+  }
+  let pkg
+  try {
+    pkg = JSON.parse(raw)
+  } catch (err) {
+    fail(`Invalid JSON in package.json: ${err.message}`)
+  }
   return pkg.type === 'module'
+}
+
+/**
+ * Rewrites ESM declaration text for the mirrored CJS declaration file.
+ *
+ * @param content - ESM declaration file contents
+ * @param options - Suffix and runtime extension mapping for this package convention
+ * @returns Content suitable for the CJS-side declaration file
+ */
+function rewriteDeclarationContent(content, { sourceSuffix, targetSuffix, sourceJsExt, targetJsExt }) {
+  // Assumes tsup DTS output only uses quoted relative import/export specifiers whose
+  // paths end in `.mjs` (non-"type":"module" packages) or `.js` ("type":"module").
+  // Does not rewrite `/// <reference path="...">`, query/hash imports, or specifiers
+  // inside comments — extend this if a tsup upgrade changes declaration shape.
+  const specifierPattern = new RegExp(`(['"]\\.[^'"]*?)\\${sourceJsExt}(['"])`, 'g')
+  const sourceMapSuffix = `${sourceSuffix}.map`
+  const targetMapSuffix = `${targetSuffix}.map`
+  return content
+    .replace(specifierPattern, `$1${targetJsExt}$2`)
+    .replaceAll(sourceMapSuffix, targetMapSuffix)
 }
 
 /**
@@ -103,11 +150,10 @@ function isTypeModulePackage() {
  */
 function main() {
   if (!existsSync(ESM_DIR)) {
-    console.error(
-      `[mirror-cjs-dts] ${ESM_DIR} does not exist. Run this script from a package root, ` +
+    fail(
+      `${ESM_DIR} does not exist. Run this script from a package root, ` +
         'as a build step after tsup (e.g. `tsup && node .../mirror-cjs-dts.mjs`).',
     )
-    process.exit(1)
   }
 
   const typeModule = isTypeModulePackage()
@@ -116,6 +162,10 @@ function main() {
   const targetSuffix = typeModule ? '.d.cts' : '.d.ts'
   const sourceJsExt = typeModule ? '.js' : '.mjs'
   const targetJsExt = typeModule ? '.cjs' : '.js'
+  const sourceMapSuffix = `${sourceSuffix}.map`
+  const targetMapSuffix = `${targetSuffix}.map`
+
+  const rewriteOptions = { sourceSuffix, targetSuffix, sourceJsExt, targetJsExt }
 
   const sourceFiles = findFiles(ESM_DIR, sourceSuffix)
 
@@ -131,10 +181,7 @@ function main() {
       ? ` Found ${foundOther} "${otherSuffix}" file(s) instead — package.json's "type" ` +
         `field may not match what the ESM build actually produced; rebuild with \`tsup\` first.`
       : ''
-    console.error(
-      `[mirror-cjs-dts] No "${sourceSuffix}" declaration files found under ${ESM_DIR}.${hint}`,
-    )
-    process.exit(1)
+    fail(`No "${sourceSuffix}" declaration files found under ${ESM_DIR}.${hint}`)
   }
 
   // Prune stale mirrors before writing fresh ones. tsup's CJS config uses
@@ -144,18 +191,33 @@ function main() {
   for (const staleFile of findFiles(CJS_DIR, targetSuffix)) {
     unlinkSync(staleFile)
   }
+  for (const staleMap of findFiles(CJS_DIR, targetMapSuffix)) {
+    unlinkSync(staleMap)
+  }
 
-  const specifierPattern = new RegExp(`(['"]\\.[^'"]*?)\\${sourceJsExt}(['"])`, 'g')
+  let mirroredMaps = 0
 
   for (const esmFile of sourceFiles) {
     const relative = esmFile.slice(ESM_DIR.length + 1)
     const cjsFile = join(CJS_DIR, relative.slice(0, -sourceSuffix.length) + targetSuffix)
     mkdirSync(dirname(cjsFile), { recursive: true })
-    const content = readFileSync(esmFile, 'utf8').replace(specifierPattern, `$1${targetJsExt}$2`)
+    const content = rewriteDeclarationContent(readFileSync(esmFile, 'utf8'), rewriteOptions)
     writeFileSync(cjsFile, content)
+
+    const esmMapFile = esmFile.slice(0, -sourceSuffix.length) + sourceMapSuffix
+    if (existsSync(esmMapFile)) {
+      const cjsMapFile = join(CJS_DIR, relative.slice(0, -sourceSuffix.length) + targetMapSuffix)
+      mkdirSync(dirname(cjsMapFile), { recursive: true })
+      writeFileSync(cjsMapFile, readFileSync(esmMapFile))
+      mirroredMaps += 1
+    }
   }
 
-  console.log(`[mirror-cjs-dts] Mirrored ${sourceFiles.length} declaration file(s) into ${CJS_DIR}`)
+  const mapSummary =
+    mirroredMaps > 0 ? ` and ${mirroredMaps} declaration sourcemap(s)` : ''
+  console.log(
+    `[mirror-cjs-dts] Mirrored ${sourceFiles.length} declaration file(s)${mapSummary} into ${CJS_DIR}`,
+  )
 }
 
 main()

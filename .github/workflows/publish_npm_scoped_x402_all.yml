@@ -38,6 +38,10 @@ jobs:
         working-directory: ./typescript
         run: pnpm turbo run build --filter='@x402/*'
 
+      - name: Verify package exports
+        working-directory: ./typescript
+        run: pnpm verify:exports
+
       - name: Publish all packages in release order
         working-directory: ./typescript
         run: |

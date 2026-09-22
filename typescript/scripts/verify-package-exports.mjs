@@ -7,12 +7,15 @@
  * (typescript/scripts/mirror-cjs-dts.mjs): a script or tsup config mistake there could
  * leave a declared `.d.ts`/`.d.cts` target missing while the build itself still exits 0,
  * silently shipping a package that resolves at runtime but has no types for some
- * subpath. Run this after building the workspace (e.g. `pnpm build && node
- * typescript/scripts/verify-package-exports.mjs` from `typescript/`).
+ * subpath. Run this after building the workspace (e.g. `pnpm build && pnpm verify:exports`
+ * from `typescript/`, or rely on CI/publish workflows that run `pnpm verify:exports`).
  *
  * Scans every package under the directories in {@link PACKAGE_GLOBS}, including
  * `packages/legacy/*` (this only reads already-published-shape config; it does not
  * modify anything, so it's safe to run there too).
+ *
+ * Packages with no `dist/` directory are skipped (expected for scoped builds). Exits
+ * non-zero when no package was checked unless `VERIFY_EXPORTS_ALLOW_EMPTY=1`.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -30,6 +33,15 @@ const PACKAGE_GLOBS = [
 ]
 
 /**
+ * @param message - Error detail
+ * @returns Nothing; prints and exits 1
+ */
+function fail(message) {
+  console.error(`[verify-package-exports] ${message}`)
+  process.exit(1)
+}
+
+/**
  * Lists directories directly under `dir` that contain a `package.json`.
  *
  * @param dir - Absolute directory to scan
@@ -39,7 +51,34 @@ function listPackageDirs(dir) {
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .map((entry) => join(dir, entry))
-    .filter((full) => statSync(full).isDirectory() && existsSync(join(full, 'package.json')))
+    .filter((full) => {
+      let isDirectory
+      try {
+        isDirectory = statSync(full).isDirectory()
+      } catch (err) {
+        fail(`Cannot stat "${full}": ${err.message}`)
+      }
+      return isDirectory && existsSync(join(full, 'package.json'))
+    })
+}
+
+/**
+ * @param packageDir - Absolute path to the package directory
+ * @returns Parsed package.json object
+ */
+function readPackageJson(packageDir) {
+  const manifestPath = join(packageDir, 'package.json')
+  let raw
+  try {
+    raw = readFileSync(manifestPath, 'utf8')
+  } catch (err) {
+    fail(`Cannot read "${manifestPath}": ${err.message}`)
+  }
+  try {
+    return JSON.parse(raw)
+  } catch (err) {
+    fail(`Invalid JSON in "${manifestPath}": ${err.message}`)
+  }
 }
 
 /**
@@ -81,7 +120,7 @@ function collectTypesTargets(node, inTypesKey = false, found = []) {
  *   this package was skipped (not built in this run)
  */
 function verifyPackage(packageDir) {
-  const pkg = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'))
+  const pkg = readPackageJson(packageDir)
   if (!pkg.exports) return []
   if (!existsSync(join(packageDir, 'dist'))) return null
 
@@ -97,6 +136,10 @@ function verifyPackage(packageDir) {
 function main() {
   const packageDirs = PACKAGE_GLOBS.flatMap((glob) => listPackageDirs(join(TYPESCRIPT_ROOT, glob)))
 
+  if (packageDirs.length === 0) {
+    fail('No workspace packages found (check PACKAGE_GLOBS).')
+  }
+
   let checkedCount = 0
   let skippedCount = 0
   let missingCount = 0
@@ -110,7 +153,7 @@ function main() {
     checkedCount += 1
     if (missing.length > 0) {
       missingCount += missing.length
-      const name = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8')).name
+      const name = readPackageJson(packageDir).name
       for (const target of missing) {
         console.error(`[verify-package-exports] ${name}: missing "${target}" (declared in exports)`)
       }
@@ -122,6 +165,15 @@ function main() {
       `[verify-package-exports] ${missingCount} missing types target(s) across ${checkedCount} built package(s) (${skippedCount} unbuilt package(s) skipped).`,
     )
     process.exit(1)
+  }
+
+  const allowEmpty = process.env.VERIFY_EXPORTS_ALLOW_EMPTY === '1'
+  if (checkedCount === 0 && !allowEmpty) {
+    fail(
+      `No built packages to check (${skippedCount} package(s) have no dist/). ` +
+        'Run a workspace build first (e.g. `pnpm build` from typescript/). ' +
+        'Set VERIFY_EXPORTS_ALLOW_EMPTY=1 to allow exit 0 with zero checks.',
+    )
   }
 
   console.log(
