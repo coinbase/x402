@@ -172,7 +172,10 @@ type HTTPRequestContext struct {
 	Method        string
 	PaymentHeader string
 	RoutePattern  string
-	Requirements  []types.PaymentRequirements
+	// DecodedPath is the framework's own decoded routing view of the path
+	// (e.g. net/url's URL.Path), if distinct from Path.
+	DecodedPath  string
+	Requirements []types.PaymentRequirements
 }
 
 // HTTPTransportContext carries request and response data through settlement processing.
@@ -564,7 +567,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Find matching route
-	routeConfig, routePattern := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
+	routeConfig, routePattern := s.getRouteConfig(reqCtx.Path, reqCtx.Method, reqCtx.DecodedPath)
 	if routeConfig == nil {
 		return HTTPProcessResult{Type: ResultNoPaymentRequired}
 	}
@@ -884,7 +887,7 @@ func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool
 	if method == "" {
 		method = reqCtx.Adapter.GetMethod()
 	}
-	routeConfig, _ := s.getRouteConfig(reqCtx.Path, method)
+	routeConfig, _ := s.getRouteConfig(reqCtx.Path, method, reqCtx.DecodedPath)
 	return routeConfig != nil
 }
 
@@ -1192,17 +1195,30 @@ func (s *x402HTTPResourceServer) buildSettlementFailureResult(errorReason string
 // Helper Methods
 // ============================================================================
 
-// getRouteConfig finds matching route configuration and returns the route pattern
-func (s *x402HTTPResourceServer) getRouteConfig(path, method string) (*RouteConfig, string) {
-	normalizedPath := normalizePath(path)
+// getRouteConfig finds matching route configuration and returns the route pattern.
+//
+// Checks the escaped path first, then the framework's decodedPath (if distinct),
+// so a route can't be bypassed via either representation.
+func (s *x402HTTPResourceServer) getRouteConfig(path, method, decodedPath string) (*RouteConfig, string) {
 	upperMethod := strings.ToUpper(method)
 
-	for _, route := range s.compiledRoutes {
-		if route.Regex.MatchString(normalizedPath) &&
-			(route.Verb == "*" || route.Verb == upperMethod) {
-			config := route.Config // Make a copy
-			return &config, route.Pattern
+	findMatch := func(candidate string) (*RouteConfig, string) {
+		for _, route := range s.compiledRoutes {
+			if route.Regex.MatchString(candidate) &&
+				(route.Verb == "*" || route.Verb == upperMethod) {
+				config := route.Config // Make a copy
+				return &config, route.Pattern
+			}
 		}
+		return nil, ""
+	}
+
+	if config, pattern := findMatch(normalizePath(path)); config != nil {
+		return config, pattern
+	}
+
+	if decodedPath != "" && decodedPath != path {
+		return findMatch(normalizeDecodedPath(decodedPath))
 	}
 
 	return nil, ""
@@ -1602,6 +1618,24 @@ func normalizePath(path string) string {
 	// Replace multiple slashes with single slash
 	path = multiSlashRegex.ReplaceAllString(path, `/`)
 	// Remove trailing slash
+	path = strings.TrimSuffix(path, `/`)
+
+	if path == "" {
+		path = "/"
+	}
+
+	return path
+}
+
+// normalizeDecodedPath normalizes an already framework-decoded path. It does
+// not decode percent-escapes, unlike normalizePath, since this input was
+// already decoded once by the router.
+func normalizeDecodedPath(path string) string {
+	if idx := strings.IndexAny(path, "?#"); idx >= 0 {
+		path = path[:idx]
+	}
+
+	path = multiSlashRegex.ReplaceAllString(path, `/`)
 	path = strings.TrimSuffix(path, `/`)
 
 	if path == "" {

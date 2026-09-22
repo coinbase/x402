@@ -228,11 +228,11 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 			adapter := NewNetHTTPAdapter(r)
 			reqCtx := x402http.HTTPRequestContext{
 				Adapter: adapter,
-				// EscapedPath, not Path: routers dispatch on the escaped path, so
-				// matching on the decoded one lets "%2F" split a segment here but
-				// not in the router, bypassing the payment gate.
-				Path:   r.URL.EscapedPath(),
-				Method: r.Method,
+				// Match both EscapedPath and URL.Path (the decoded routing view)
+				// so a route can't be bypassed via either representation.
+				Path:        r.URL.EscapedPath(),
+				DecodedPath: r.URL.Path,
+				Method:      r.Method,
 			}
 
 			// Check if route requires payment

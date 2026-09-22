@@ -1250,6 +1250,84 @@ func TestRouteMatching_PathNormalizationBypass(t *testing.T) {
 	}
 }
 
+func TestNormalizeDecodedPath(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"/api", "/api"},
+		{"/api/", "/api"},
+		{"/api//users", "/api/users"},
+		{"/api?query=1", "/api"},
+		{"/api#fragment", "/api"},
+		{"", "/"},
+		// Already-decoded input is passed through, not re-decoded.
+		{"/api/x%41", "/api/x%41"},
+		{"/api/premium", "/api/premium"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeDecodedPath(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDecodedPathDivergenceBypass(t *testing.T) {
+	serverFor := func(pattern string) *x402HTTPResourceServer {
+		return Newx402HTTPResourceServer(RoutesConfig{
+			pattern: {Accepts: PaymentOptions{}},
+		})
+	}
+
+	t.Run("literal route requires payment when decoded path matches", func(t *testing.T) {
+		escapedPaths := []string{"/api%2Fpremium", "/api%2fpremium", "/%61pi%2Fpremium"}
+		for _, escapedPath := range escapedPaths {
+			reqCtx := HTTPRequestContext{
+				Path:        escapedPath,
+				Method:      "GET",
+				DecodedPath: "/api/premium",
+			}
+			if !serverFor("GET /api/premium").RequiresPayment(reqCtx) {
+				t.Errorf("expected payment required for escaped path %s", escapedPath)
+			}
+		}
+	})
+
+	t.Run("literal route misses without decoded path", func(t *testing.T) {
+		// Pre-fix behavior: only the escaped path is checked.
+		reqCtx := HTTPRequestContext{Path: "/api%2Fpremium", Method: "GET"}
+		if serverFor("GET /api/premium").RequiresPayment(reqCtx) {
+			t.Error("expected no payment required when decoded path is absent")
+		}
+	})
+
+	t.Run("real extra segment still not matched", func(t *testing.T) {
+		reqCtx := HTTPRequestContext{
+			Path:        "/api/users/x/y",
+			Method:      "GET",
+			DecodedPath: "/api/users/x/y",
+		}
+		if serverFor("GET /api/users/:id").RequiresPayment(reqCtx) {
+			t.Error("expected extra segment not to match :id route")
+		}
+	})
+
+	t.Run("unrelated decoded path does not require payment", func(t *testing.T) {
+		reqCtx := HTTPRequestContext{
+			Path:        "/public/report",
+			Method:      "GET",
+			DecodedPath: "/public/report",
+		}
+		if serverFor("GET /api/premium").RequiresPayment(reqCtx) {
+			t.Error("expected unrelated path not to require payment")
+		}
+	})
+}
+
 func TestGetDisplayAmount(t *testing.T) {
 	server := Newx402HTTPResourceServer(RoutesConfig{})
 
