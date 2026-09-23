@@ -1,14 +1,20 @@
 {
   "name": "XDC AI Facilitator",
-  "description": "Free x402 facilitator for XDC mainnet. Verifies and settles EIP-3009 USDC payments, gasless for the buyer, with no API key and no account. Publishes its settlement signer set at /supported so indexers stay current.",
-  "logoUrl": "/logos/xdcai.svg",
+  "description": "x402 facilitator for XDC mainnet, run for XDC AI's own internal use: it verifies and settles the XDC AI marketplace's traffic. EIP-3009 USDC, gasless for the buyer, synchronous settlement returning the transaction hash. Publishes its settlement signer set at /supported so indexers can attribute on-chain volume correctly.",
+  "logoUrl": "/logos/xdcai.png",
   "websiteUrl": "https://xdcai.tech/x402",
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://facilitator.xdcai.tech/api/facilitator",
-    "networks": ["xdc"],
-    "schemes": ["exact"],
-    "assets": ["EIP-3009"],
+    "networks": [
+      "xdc"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "EIP-3009"
+    ],
     "addresses": {
       "xdc": [
         "0x421855219fb0bab55fc6d0e4ea03f0698f13f442",
