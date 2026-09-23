@@ -59,13 +59,13 @@ const x402PaymentProxy = paymentProxyFromConfig(
         {
           payTo: evmPayeeAddress,
           scheme: "exact",
-          price: "$0.01",
+          price: "$0.001",
           network: EVM_NETWORK,
         },
         {
           payTo: svmPayeeAddress,
           scheme: "exact",
-          price: "$0.01",
+          price: "$0.001",
           network: SVM_NETWORK,
         },
         ...(avmPayeeAddress
@@ -73,7 +73,7 @@ const x402PaymentProxy = paymentProxyFromConfig(
               {
                 payTo: avmPayeeAddress,
                 scheme: "exact" as const,
-                price: "$0.01",
+                price: "$0.001",
                 network: AVM_NETWORK,
               },
             ]
