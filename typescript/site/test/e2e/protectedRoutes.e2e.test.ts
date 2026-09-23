@@ -1,5 +1,7 @@
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { decodePaymentRequiredHeader } from "@x402/core/http";
+import { convertToTokenAmount } from "@x402/core/utils";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { UptoEvmScheme } from "@x402/evm/upto/client";
 import { wrapFetchWithPayment, x402Client, x402HTTPClient } from "@x402/fetch";
@@ -7,6 +9,17 @@ import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startTestServer, stopTestServer } from "./server";
+
+/** USDC on Base Sepolia and Solana devnet. */
+const USDC_DECIMALS = 6;
+/** Exact routes advertise and settle this amount ($0.001 USDC). */
+const EXACT_AMOUNT = convertToTokenAmount("0.001", USDC_DECIMALS);
+/** Upto routes authorize this amount ($0.002 USDC) and settle half of it. */
+const UPTO_AUTHORIZED_AMOUNT = convertToTokenAmount("0.002", USDC_DECIMALS);
+
+if (BigInt(UPTO_AUTHORIZED_AMOUNT) !== BigInt(EXACT_AMOUNT) * 2n) {
+  throw new Error("upto authorization must be exactly twice the exact settlement amount");
+}
 
 /**
  * End-to-end tests for the testnet `/protected/{evm,svm}/{exact,upto}...` endpoints
@@ -85,13 +98,33 @@ async function payAndFetch(path: string) {
 
 /**
  * Asserts a settled response's actual on-chain settlement amount — relevant for the
- * `upto` scheme, where it can differ from the authorized maximum.
+ * `upto` scheme, where it can differ from the authorized maximum. Exact settlements
+ * omit `amount` and transfer the full advertised figure instead.
  *
  * @param header - The decoded payment header from `x402HTTPClient.processResponse`
  * @param expectedAmount - Expected settled amount, in atomic token units
  */
 function expectSettledAmount(header: unknown, expectedAmount: string): void {
   expect(header).toMatchObject({ success: true, amount: expectedAmount });
+}
+
+/**
+ * Asserts an unpaid request advertises `expectedAmount` on every accept option.
+ * Exact routes settle this figure in full; `upto` routes authorize it and may settle less.
+ *
+ * @param path - Route path (e.g. `/protected/evm/exact`)
+ * @param expectedAmount - Expected advertised amount, in atomic token units
+ */
+async function expectAdvertisedAmount(path: string, expectedAmount: string): Promise<void> {
+  const response = await fetch(`${baseUrl}${path}`);
+  expect(response.status, `${path} unpaid status`).toBe(402);
+  const encoded = response.headers.get("PAYMENT-REQUIRED");
+  expect(encoded, `${path} missing PAYMENT-REQUIRED`).toBeTruthy();
+  const required = decodePaymentRequiredHeader(encoded!);
+  expect(required.accepts.length, `${path} has no accept options`).toBeGreaterThan(0);
+  for (const accept of required.accepts) {
+    expect(accept.amount, `${path} ${accept.scheme} on ${accept.network}`).toBe(expectedAmount);
+  }
 }
 
 describe("unpaid request", () => {
@@ -106,12 +139,14 @@ describe("unpaid request", () => {
 });
 
 describe("EVM exact", () => {
-  it("GET /protected/evm/exact (default: erc3009 or permit2)", async () => {
+  it("GET /protected/evm/exact settles $0.001 (erc3009 or permit2)", async () => {
+    await expectAdvertisedAmount("/protected/evm/exact", EXACT_AMOUNT);
     const { body } = await payAndFetch("/protected/evm/exact");
     expect(body).toMatchObject({ ok: true, caip2Family: "evm", scheme: "exact" });
   });
 
-  it("GET /protected/evm/exact/erc3009", async () => {
+  it("GET /protected/evm/exact/erc3009 settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/evm/exact/erc3009", EXACT_AMOUNT);
     const { body } = await payAndFetch("/protected/evm/exact/erc3009");
     expect(body).toMatchObject({
       ok: true,
@@ -121,7 +156,8 @@ describe("EVM exact", () => {
     });
   });
 
-  it("GET /protected/evm/exact/permit2 (requires pre-approved Permit2 allowance)", async () => {
+  it("GET /protected/evm/exact/permit2 settles $0.001 (requires pre-approved Permit2 allowance)", async () => {
+    await expectAdvertisedAmount("/protected/evm/exact/permit2", EXACT_AMOUNT);
     const { body } = await payAndFetch("/protected/evm/exact/permit2");
     expect(body).toMatchObject({
       ok: true,
@@ -131,7 +167,8 @@ describe("EVM exact", () => {
     });
   });
 
-  it("GET /protected/evm/exact/permit2/eip2612", async () => {
+  it("GET /protected/evm/exact/permit2/eip2612 settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/evm/exact/permit2/eip2612", EXACT_AMOUNT);
     const { body } = await payAndFetch("/protected/evm/exact/permit2/eip2612");
     expect(body).toMatchObject({
       ok: true,
@@ -144,27 +181,46 @@ describe("EVM exact", () => {
 });
 
 describe("EVM upto", () => {
-  it("GET /protected/evm/upto settles 50% of the 2x-authorized amount", async () => {
+  it("GET /protected/evm/upto authorizes $0.002 and settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/evm/upto", UPTO_AUTHORIZED_AMOUNT);
     const { body, header } = await payAndFetch("/protected/evm/upto");
-    expect(body).toMatchObject({ ok: true, caip2Family: "evm", scheme: "upto" });
-    expectSettledAmount(header, "10000");
+    expect(body).toMatchObject({
+      ok: true,
+      caip2Family: "evm",
+      scheme: "upto",
+      settledPercentOfAuthorized: "50%",
+    });
+    expectSettledAmount(header, EXACT_AMOUNT);
   });
 
-  it("GET /protected/evm/upto/permit2 settles 50% of the 2x-authorized amount", async () => {
+  it("GET /protected/evm/upto/permit2 authorizes $0.002 and settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/evm/upto/permit2", UPTO_AUTHORIZED_AMOUNT);
     const { body, header } = await payAndFetch("/protected/evm/upto/permit2");
-    expect(body).toMatchObject({ ok: true, caip2Family: "evm", scheme: "upto" });
-    expectSettledAmount(header, "10000");
+    expect(body).toMatchObject({
+      ok: true,
+      caip2Family: "evm",
+      scheme: "upto",
+      settledPercentOfAuthorized: "50%",
+    });
+    expectSettledAmount(header, EXACT_AMOUNT);
   });
 
-  it("GET /protected/evm/upto/permit2/eip2612 settles 50% of the 2x-authorized amount", async () => {
+  it("GET /protected/evm/upto/permit2/eip2612 authorizes $0.002 and settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/evm/upto/permit2/eip2612", UPTO_AUTHORIZED_AMOUNT);
     const { body, header } = await payAndFetch("/protected/evm/upto/permit2/eip2612");
-    expect(body).toMatchObject({ ok: true, caip2Family: "evm", scheme: "upto" });
-    expectSettledAmount(header, "10000");
+    expect(body).toMatchObject({
+      ok: true,
+      caip2Family: "evm",
+      scheme: "upto",
+      settledPercentOfAuthorized: "50%",
+    });
+    expectSettledAmount(header, EXACT_AMOUNT);
   });
 });
 
 describe("SVM exact", () => {
-  it("GET /protected/svm/exact", async () => {
+  it("GET /protected/svm/exact settles $0.001", async () => {
+    await expectAdvertisedAmount("/protected/svm/exact", EXACT_AMOUNT);
     const { body } = await payAndFetch("/protected/svm/exact");
     expect(body).toMatchObject({ ok: true, caip2Family: "svm", scheme: "exact" });
   });
