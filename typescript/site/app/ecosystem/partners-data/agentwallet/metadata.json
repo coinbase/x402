@@ -1,0 +1,7 @@
+{
+  "name": "AgentWallet",
+  "description": "Self-custody wallet MCP server that pays x402 endpoints from Claude, Claude Code and any MCP client: exact via EIP-3009 authorizations, upto via Permit2, v1 and v2 headers, on EVM chains and Solana. Hard spend caps, human approval by email above the cap, token risk checks, and every settlement published with its hash.",
+  "logoUrl": "/logos/agentwallet.png",
+  "websiteUrl": "https://github.com/hifriendbot/agentwallet-mcp",
+  "category": "Client-Side Integrations"
+}
