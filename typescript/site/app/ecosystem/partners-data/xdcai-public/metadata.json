@@ -1,6 +1,6 @@
 {
   "name": "XDC AI Public Facilitator",
-  "description": "Metered x402 facilitator for XDC mainnet, for APIs you host yourself. Speaks x402 v2 with CAIP-2 network ids, settles EIP-3009 USDC asynchronously, and meters usage against seller API keys and prepaid credits.",
+  "description": "Metered x402 facilitator for XDC mainnet, for APIs you host yourself. Speaks x402 v2 with CAIP-2 network ids, settles EIP-3009 USDC asynchronously, and meters usage against seller API keys and prepaid credits. The first 1,000 settlements are free.",
   "logoUrl": "/logos/xdcai.png",
   "websiteUrl": "https://docs.xdcai.tech/facilitator/overview",
   "category": "Facilitators",
