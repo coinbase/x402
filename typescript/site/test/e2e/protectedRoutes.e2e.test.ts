@@ -12,10 +12,12 @@ import { startTestServer, stopTestServer } from "./server";
 
 /** USDC on Base Sepolia and Solana devnet. */
 const USDC_DECIMALS = 6;
-/** Exact routes advertise and settle this amount ($0.001 USDC). */
+/** Exact subroutes advertise and settle this amount ($0.001 USDC). */
 const EXACT_AMOUNT = convertToTokenAmount("0.001", USDC_DECIMALS);
-/** Upto routes authorize this amount ($0.002 USDC) and settle half of it. */
+/** Upto subroutes authorize this amount ($0.002 USDC) and settle half of it. */
 const UPTO_AUTHORIZED_AMOUNT = convertToTokenAmount("0.002", USDC_DECIMALS);
+/** `GET /protected` keeps its original price. Subroutes under `/protected/*` do not. */
+const PROTECTED_AMOUNT = convertToTokenAmount("0.01", USDC_DECIMALS);
 
 if (BigInt(UPTO_AUTHORIZED_AMOUNT) !== BigInt(EXACT_AMOUNT) * 2n) {
   throw new Error("upto authorization must be exactly twice the exact settlement amount");
@@ -128,6 +130,10 @@ async function expectAdvertisedAmount(path: string, expectedAmount: string): Pro
 }
 
 describe("unpaid request", () => {
+  it("GET /protected still advertises $0.01", async () => {
+    await expectAdvertisedAmount("/protected", PROTECTED_AMOUNT);
+  });
+
   it("returns the advice JSON body, not the paywall, on 402", async () => {
     const response = await fetch(`${baseUrl}/protected/evm/exact`);
     expect(response.status).toBe(402);
