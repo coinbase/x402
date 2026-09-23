@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Automaton-Alfa">
+  <rect width="64" height="64" rx="14" fill="#0B1020"/>
+  <circle cx="32" cy="26" r="11" fill="none" stroke="#5BE9B9" stroke-width="3"/>
+  <circle cx="27" cy="25" r="2.4" fill="#5BE9B9"/>
+  <circle cx="37" cy="25" r="2.4" fill="#5BE9B9"/>
+  <path d="M22 44h20M26 50h12" stroke="#5BE9B9" stroke-width="3" stroke-linecap="round"/>
+  <path d="M32 15V9" stroke="#5BE9B9" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="7" r="2.5" fill="#5BE9B9"/>
+</svg>
