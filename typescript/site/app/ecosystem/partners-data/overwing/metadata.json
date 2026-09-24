@@ -1,0 +1,7 @@
+{
+  "name": "Overwing",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/overwing.png",
+  "description": "Guardrails for AI agents, paid per call over x402. Check any text before you send it, post it, or act on it: content moderation, personal data and confidential leak detection, toxicity, self-harm and severity, with one recommended action to branch on. $0.002 USDC on Base, no account. Built on TypeSafe's Jev model.",
+  "websiteUrl": "https://overwing.ai/llms.txt"
+}
