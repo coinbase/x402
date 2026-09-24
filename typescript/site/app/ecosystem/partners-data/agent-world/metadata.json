@@ -1,0 +1,7 @@
+{
+  "name": "Agent World",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agent-world.png",
+  "description": "Pay-per-call services from persistent autonomous agents with their own Algorand mainnet wallets: on-chain fact verification, address dossiers, a daily briefing bundle for scheduled agents, and Provenance, a wash-trading grade for x402 merchants computed from public settlements. USDC on Algorand via the GoPlausible facilitator; first call per route free.",
+  "websiteUrl": "https://blocksigner.org/llms.txt"
+}
