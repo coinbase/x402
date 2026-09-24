@@ -89,4 +89,12 @@ While implementation details vary by network, facilitators MUST enforce security
 - Replay protection: the SNIP-9 nonce MUST be unused at verification; it is consumed onchain at execution.
 - Simulation verification: MUST simulate the settlement and fail closed unless it shows exactly one asset `Transfer` sent by the payer, to `payTo`, for the exact amount.
 
-Network-specific rules are in per-network documents: `scheme_exact_svm.md` (Solana), `scheme_exact_stellar.md` (Stellar), `scheme_exact_evm.md` (EVM), `scheme_exact_sui.md` (SUI), `scheme_exact_ton.md` (TON), `scheme_exact_starknet.md` (Starknet), `scheme_exact_lnbtc.md` (Bitcoin Lightning).
+### Hedera
+
+- Fee payer safety: the fee payer MUST NOT be debited beyond the network fee. Under `cryptoTransfer` it MUST NOT appear as a negative entry in any transfer list; under `transferExecutor` its net HBAR debit MUST equal the transaction fee, or the fee plus `requirements.amount` when it is also the payer.
+- Transfer correctness: the net credit to `payTo` in `asset` MUST equal `requirements.amount` exactly, and no other account may be credited in `asset` beyond the network's fee collection accounts.
+- Payer signature validity (`cryptoTransfer`): the facilitator MUST confirm the payload carries a signature satisfying the payer's on-chain account key before sponsoring.
+- Executor admission (`transferExecutor`): the executor is client-chosen contract code, so admission MUST be default deny, the call MUST be built by the facilitator rather than from client calldata, and the gas limit MUST be the facilitator's own.
+- Outcome from the record (`transferExecutor`): settlement success MUST be established from the merged parent and child consensus records, never from the receipt status.
+
+Network-specific rules are in per-network documents: `scheme_exact_svm.md` (Solana), `scheme_exact_stellar.md` (Stellar), `scheme_exact_evm.md` (EVM), `scheme_exact_sui.md` (SUI), `scheme_exact_ton.md` (TON), `scheme_exact_starknet.md` (Starknet), `scheme_exact_lnbtc.md` (Bitcoin Lightning), `scheme_exact_hedera.md` (Hedera).
