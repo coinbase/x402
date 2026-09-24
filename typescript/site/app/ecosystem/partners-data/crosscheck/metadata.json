@@ -1,6 +1,6 @@
 {
   "name": "crosscheck",
-  "description": "Independent review of an AI agent's draft before its human sees it. Catches wrong arithmetic, contradictions, leaked secrets, and prompt injection. $0.02 USDC per check on Base, with a signed receipt.",
+  "description": "Independent checks for AI agents, paid per call. accept verifies work another agent hands back against its task before payment ($0.03); check reviews a draft before its human sees it ($0.02). Signed receipts.",
   "logoUrl": "/logos/crosscheck.png",
   "websiteUrl": "https://github.com/maxugc/crosscheck",
   "category": "Services/Endpoints"
