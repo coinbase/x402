@@ -30,9 +30,9 @@ if (!facilitatorUrl) {
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 /** Base price for the `exact` testnet endpoints. */
-export const EXACT_PRICE = "$0.01";
+export const EXACT_PRICE = "$0.001";
 /** `upto` testnet endpoints authorize 2x the exact price. */
-export const UPTO_PRICE = "$0.02";
+export const UPTO_PRICE = "$0.002";
 /** `upto` testnet endpoints settle 50% of the authorized amount (i.e. the exact price). */
 export const UPTO_SETTLEMENT_OVERRIDE = "50%";
 
