@@ -1,0 +1,7 @@
+{
+  "name": "x402.eleeth.com",
+  "description": "34 pay-per-call x402 v2 endpoints on Base mainnet (USDC): web search, page reader, AI chat, AI image/video generation, text-to-speech, podcast generation, crypto/weather/stock/fx/news/dns/wayback/rss/whois/certs/seo/github/arxiv/wiki/sec/feargreed/holidays APIs, plus hosted tools (website screenshot, JS-rendered page reader, image OCR, file metadata, PDF text extraction). No account, no API key — the payment is the credential. Docs: https://x402.eleeth.com/llms-full.txt",
+  "logoUrl": "/logos/x402-eleeth-com.svg",
+  "websiteUrl": "https://x402.eleeth.com",
+  "category": "Services/Endpoints"
+}
