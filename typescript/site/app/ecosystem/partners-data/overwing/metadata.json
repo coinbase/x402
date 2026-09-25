@@ -1,0 +1,7 @@
+{
+  "name": "Overwing",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/overwing.png",
+  "description": "Guardrails and agent data for AI agents, paid per call over x402 on Base. Evaluate: check any text before you send it (moderation, personal data and leak detection, toxicity, severity) and get one recommended action, $0.002 USDC. Atlas: identify any User-Agent string against a registry of 241 AI crawlers and browser agents, $0.001 USDC. No account. Built on TypeSafe's Jev model.",
+  "websiteUrl": "https://overwing.ai/llms.txt"
+}
