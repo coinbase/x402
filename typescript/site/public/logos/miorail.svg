@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <!-- M letterform with rounded strokes, royal blue #3D46F2 -->
+  <path d="M 10 50 L 10 14" stroke="#3D46F2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 10 14 L 32 36" stroke="#3D46F2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 32 36 L 54 14" stroke="#3D46F2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 54 14 L 54 50" stroke="#3D46F2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Left whiskers: 3 pink short strokes fanning left from left leg -->
+  <line x1="10" y1="22" x2="2"  y2="18" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="10" y1="30" x2="1"  y2="30" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="10" y1="38" x2="2"  y2="42" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Right whiskers: 3 pink short strokes fanning right from right leg -->
+  <line x1="54" y1="22" x2="62" y2="18" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="54" y1="30" x2="63" y2="30" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="54" y1="38" x2="62" y2="42" stroke="#F27EE0" stroke-width="3" stroke-linecap="round"/>
+</svg>
