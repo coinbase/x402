@@ -1,0 +1,7 @@
+{
+  "name": "ByKaranteli",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/bykaranteli.png",
+  "description": "Crypto derivatives data for agents: liquidation maps, funding, open interest, options, ETF flows and CFTC positioning across 34 exchanges, sold per call over x402 (USDC on Base and Solana, listed in the CDP Bazaar) next to a free JSON API and an MCP server. Every 5 minutes the records are sealed on Solana, so a buyer can verify what it paid for.",
+  "websiteUrl": "https://bykaranteli.com/developers"
+}
