@@ -2,6 +2,6 @@
   "name": "Overwing",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/overwing.png",
-  "description": "Guardrails for AI agents, paid per call over x402. Check any text before you send it, post it, or act on it: content moderation, personal data and confidential leak detection, toxicity, self-harm and severity, with one recommended action to branch on. $0.002 USDC on Base, no account. Built on TypeSafe's Jev model.",
+  "description": "Guardrails and agent data for AI agents, paid per call over x402 on Base. Evaluate: check any text before you send it (moderation, personal data and leak detection, toxicity, severity) and get one recommended action, $0.002 USDC. Atlas: identify any User-Agent string against a registry of 241 AI crawlers and browser agents, $0.001 USDC. No account. Built on TypeSafe's Jev model.",
   "websiteUrl": "https://overwing.ai/llms.txt"
 }
