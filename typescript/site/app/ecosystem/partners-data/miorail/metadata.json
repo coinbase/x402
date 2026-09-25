@@ -1,0 +1,7 @@
+{
+  "name": "Miorail",
+  "description": "Paid answers about Base tokens that an agent cannot compute for itself: exit coverage and liquidity evidence for B20 tokens, which token is the stock, whether an address is the official one, and verified trade proofs. x402 v2, 0.002 USDC per request on Base.",
+  "logoUrl": "/logos/miorail.svg",
+  "websiteUrl": "https://miorail.xyz/x402",
+  "category": "Services/Endpoints"
+}
