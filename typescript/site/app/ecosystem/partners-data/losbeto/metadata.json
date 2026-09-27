@@ -1,0 +1,7 @@
+{
+  "name": "Losbeto",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/losbeto.png",
+  "description": "Pay-per-call machine API for AI agents: LLM inference (OpenAI-compatible) plus 90+ cross-asset market data endpoints, including the only Brazilian market data on x402 (Pix tools, du/252 rates math, B3 equities). No accounts, no API keys. USDC on Base and Solana via x402.",
+  "websiteUrl": "https://api.losbeto.xyz"
+}
