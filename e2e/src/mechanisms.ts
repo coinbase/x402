@@ -17,7 +17,6 @@ import { readFileSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import type { PaymentFlowName } from '@x402/core/types';
-import { masumiEscrowAddress } from '@x402/cardano';
 
 /** always-succeeds Plutus V3 fixture (same bytes as cardano test stubs). */
 const CARDANO_ALWAYS_SUCCEEDS_SCRIPT = '4d01000033222220051200120011';
@@ -898,6 +897,7 @@ function resolvePayTo(
   caip2: string,
   serverPayTo: string | undefined,
   env: EnvLookup,
+  masumiEscrowAddress: (network: string) => string,
 ): string | undefined {
   if (route.network !== 'cardano') {
     return serverPayTo;
@@ -992,7 +992,8 @@ function resolvePrice(
 export function resolvePaymentRoutes(
   sdk: string,
   env: EnvLookup,
-  filter?: RouteFilter,
+  filter: RouteFilter | undefined,
+  masumiEscrowAddress: (network: string) => string,
 ): ResolvedRoute[] {
   const resolved: ResolvedRoute[] = [];
 
@@ -1002,7 +1003,7 @@ export function resolvePaymentRoutes(
     if (!serverPayTo) continue;
 
     const caip2 = env(derivedNetworkKey(route.network)) ?? def.networks.testnet.caip2;
-    const payTo = resolvePayTo(route, caip2, serverPayTo, env);
+    const payTo = resolvePayTo(route, caip2, serverPayTo, env, masumiEscrowAddress);
     if (!payTo) continue;
 
     const { price, extra: priceExtra } = resolvePrice(route, caip2, env);
