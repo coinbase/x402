@@ -1,6 +1,6 @@
 # Builder Code extension (ERC-8021)
 
-Part of [`@x402/extensions`](../README.md). Import from `@x402/extensions/builder-code`.
+Part of [`@x402/extensions`](../../README.md). Import from `@x402/extensions/builder-code`.
 
 The Builder Code extension enables **on-chain attribution tracking** for x402 payments. At settlement time, the facilitator appends an [ERC-8021](https://eip.tools/eip/8021) Schema 2 CBOR suffix to the transaction calldata that records which application exposed the paid endpoint (`a`), which client/intermediary participated (`s`), and which facilitator settled the payment (`w`).
 
@@ -125,4 +125,4 @@ See [`index.ts`](./index.ts) for the full list of exports.
 
 - [Builder Code protocol spec](../../../../../specs/extensions/builder_code.md)
 - [ERC-8021](https://eip.tools/eip/8021)
-- [`@x402/extensions` overview](../README.md)
+- [`@x402/extensions` overview](../../README.md)

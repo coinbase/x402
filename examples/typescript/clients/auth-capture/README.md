@@ -1,6 +1,6 @@
 # auth-capture Client Example
 
-Fetch-based client that pays for a single request to an [auth-capture](../../../specs/schemes/auth-capture/scheme_auth-capture_evm.md)-protected endpoint. Signs an ERC-3009 `ReceiveWithAuthorization` whose `nonce` is the payer-agnostic PaymentInfo hash (per the [scheme spec](../../../specs/schemes/auth-capture/scheme_auth-capture_evm.md#nonce-derivation-both-methods)).
+Fetch-based client that pays for a single request to an [auth-capture](../../../../specs/schemes/auth-capture/scheme_auth_capture_evm.md)-protected endpoint. Signs an ERC-3009 `ReceiveWithAuthorization` whose `nonce` is the payer-agnostic PaymentInfo hash (per the [scheme spec](../../../../specs/schemes/auth-capture/scheme_auth_capture_evm.md#payment-identity)).
 
 ## Prerequisites
 

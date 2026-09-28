@@ -216,4 +216,4 @@ if is_object(value):
 
 ## Examples
 
-See the [examples directory](../../examples) for complete examples.
+See the [examples directory](../../../examples/python/) for complete examples.
