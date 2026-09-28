@@ -1,0 +1,7 @@
+{
+  "name": "TrapCheck",
+  "description": "Is this token a trap? Pay-per-call token security for AI agents: honeypot, tax, hidden-owner, creator rug-history, whale and liquidity checks with a clear verdict across 8 chains (EVM + Solana), plus a public accuracy track record. $0.01–$0.03 USDC per call on Base via x402.",
+  "logoUrl": "/logos/trapcheck.png",
+  "websiteUrl": "https://trapcheck.dev",
+  "category": "Services/Endpoints"
+}
