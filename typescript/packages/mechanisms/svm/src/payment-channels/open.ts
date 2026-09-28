@@ -295,6 +295,16 @@ export async function buildTopUpPaymentChannelTransaction(
   };
 }
 
+/** Maximum channel PDAs kept by {@link findPaymentChannelPda} (~1.5 MiB when full). */
+const MAX_CHANNEL_PDA_CACHE_ENTRIES = 4096;
+/**
+ * Recently derived channel PDAs, least recently used first. The PDA is a pure
+ * function of the bytes hashed, so entries never go stale; a hit skips the
+ * SHA-256 + off-curve bump search that otherwise runs on every batch-settlement
+ * request.
+ */
+const channelPdaCache = new Map<string, string>();
+
 /**
  * Derive the channel PDA for the given open parameters.
  *
@@ -317,18 +327,41 @@ export async function findPaymentChannelPda(args: {
   openSlot: bigint;
   programId?: string | undefined;
 }): Promise<string> {
-  const [pda] = await getProgramDerivedAddress({
-    programAddress: address(args.programId ?? PAYMENT_CHANNELS_PROGRAM_ID),
-    seeds: [
-      getUtf8Encoder().encode("channel"),
-      getAddressEncoder().encode(address(args.payer)),
-      getAddressEncoder().encode(address(args.payee)),
-      getAddressEncoder().encode(address(args.mint)),
-      getAddressEncoder().encode(address(args.authorizedSigner)),
-      getU64Encoder().encode(args.salt),
-      getU64Encoder().encode(args.openSlot),
-    ],
-  });
+  const programAddress = address(args.programId ?? PAYMENT_CHANNELS_PROGRAM_ID);
+  const seeds = [
+    getUtf8Encoder().encode("channel"),
+    getAddressEncoder().encode(address(args.payer)),
+    getAddressEncoder().encode(address(args.payee)),
+    getAddressEncoder().encode(address(args.mint)),
+    getAddressEncoder().encode(address(args.authorizedSigner)),
+    getU64Encoder().encode(args.salt),
+    getU64Encoder().encode(args.openSlot),
+  ];
+  // Keyed on exactly what the derivation hashes: the base58 program address and
+  // the base64 of each seed, none of which can contain ":". Inputs are validated
+  // and encoded as before on every call; only the hash is skipped. The seeds are
+  // fresh bytes, but the program address is hashed as given, so only a primitive
+  // one (which hashes exactly as it stringifies) is cached.
+  const base64 = getBase64Codec();
+  const key =
+    typeof programAddress === "string"
+      ? [programAddress, ...seeds.map(seed => base64.decode(seed))].join(":")
+      : undefined;
+  const cached = key === undefined ? undefined : channelPdaCache.get(key);
+  if (key !== undefined && cached !== undefined) {
+    channelPdaCache.delete(key);
+    channelPdaCache.set(key, cached);
+    return cached;
+  }
+
+  const [pda] = await getProgramDerivedAddress({ programAddress, seeds });
+  if (key !== undefined) {
+    channelPdaCache.set(key, pda);
+    if (channelPdaCache.size > MAX_CHANNEL_PDA_CACHE_ENTRIES) {
+      const oldest = channelPdaCache.keys().next().value;
+      if (oldest !== undefined) channelPdaCache.delete(oldest);
+    }
+  }
   return pda;
 }
 
