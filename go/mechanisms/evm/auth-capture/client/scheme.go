@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -46,7 +45,7 @@ func (c *AuthCaptureEvmScheme) CreatePaymentPayload(
 	requirements types.PaymentRequirements,
 	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
-	extra, deployment, err := parseAuthCaptureExtra(requirements)
+	extra, deployment, err := authcapture.ParseAuthCaptureExtra(requirements)
 	if err != nil {
 		return types.PaymentPayload{}, err
 	}
@@ -220,121 +219,3 @@ func (c *AuthCaptureEvmScheme) createPermit2Payload(
 	}, nil
 }
 
-func parseAuthCaptureExtra(requirements types.PaymentRequirements) (authcapture.AuthCaptureExtra, authcapture.AuthCaptureDeployment, error) {
-	if requirements.Extra == nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'captureAuthorizer' is required in payment requirements extra")
-	}
-	ex := requirements.Extra
-
-	name, _ := ex["name"].(string)
-	if name == "" {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'name' is required in payment requirements for asset %s", requirements.Asset)
-	}
-	version, _ := ex["version"].(string)
-	if version == "" {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'version' is required in payment requirements for asset %s", requirements.Asset)
-	}
-
-	captureAuthorizer, _ := ex["captureAuthorizer"].(string)
-	if captureAuthorizer == "" {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'captureAuthorizer' is required in payment requirements extra")
-	}
-	feeRecipient, _ := ex["feeRecipient"].(string)
-	if feeRecipient == "" {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'feeRecipient' is required in payment requirements extra")
-	}
-
-	captureDeadline, err := extraUint64(ex, "captureDeadline")
-	if err != nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'captureDeadline' is required in payment requirements extra")
-	}
-	refundDeadline, err := extraUint64(ex, "refundDeadline")
-	if err != nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'refundDeadline' is required in payment requirements extra")
-	}
-	minFeeBps, err := extraUint16(ex, "minFeeBps")
-	if err != nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'minFeeBps' is required in payment requirements extra")
-	}
-	maxFeeBps, err := extraUint16(ex, "maxFeeBps")
-	if err != nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("'maxFeeBps' is required in payment requirements extra")
-	}
-
-	authCaptureEscrow := stringFromExtra(ex, "authCaptureEscrow")
-	deployment := authcapture.ResolveAuthCaptureDeployment(authCaptureEscrow)
-	if deployment == nil {
-		return authcapture.AuthCaptureExtra{}, authcapture.AuthCaptureDeployment{}, fmt.Errorf("invalid authCaptureEscrow in payment requirements extra")
-	}
-
-	extraOut := authcapture.AuthCaptureExtra{
-		CaptureAuthorizer:   captureAuthorizer,
-		CaptureDeadline:     captureDeadline,
-		RefundDeadline:      refundDeadline,
-		FeeRecipient:        feeRecipient,
-		MinFeeBps:           minFeeBps,
-		MaxFeeBps:           maxFeeBps,
-		Name:                name,
-		Version:             version,
-		ReceiverAuthorizer:  stringFromExtra(ex, "receiverAuthorizer"),
-		Policy:              stringFromExtra(ex, "policy"),
-		PaymentFlow:         stringFromExtra(ex, "paymentFlow"),
-		CaptureMode:         stringFromExtra(ex, "captureMode"),
-		OperatorType:        stringFromExtra(ex, "operatorType"),
-		AssetTransferMethod: stringFromExtra(ex, "assetTransferMethod"),
-		AuthCaptureEscrow:   deployment.Escrow,
-	}
-	return extraOut, *deployment, nil
-}
-
-func stringFromExtra(ex map[string]interface{}, key string) string {
-	if v, ok := ex[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func extraUint64(ex map[string]interface{}, key string) (uint64, error) {
-	value, ok := ex[key]
-	if !ok {
-		return 0, fmt.Errorf("missing %s", key)
-	}
-	switch v := value.(type) {
-	case float64:
-		if v < 0 || v != float64(uint64(v)) {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case int:
-		if v < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case int64:
-		if v < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case uint64:
-		return v, nil
-	case json.Number:
-		n, err := v.Int64()
-		if err != nil || n < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(n), nil
-	default:
-		return 0, fmt.Errorf("invalid %s", key)
-	}
-}
-
-func extraUint16(ex map[string]interface{}, key string) (uint16, error) {
-	n, err := extraUint64(ex, key)
-	if err != nil {
-		return 0, err
-	}
-	if n > 65535 {
-		return 0, fmt.Errorf("invalid %s", key)
-	}
-	return uint16(n), nil
-}
