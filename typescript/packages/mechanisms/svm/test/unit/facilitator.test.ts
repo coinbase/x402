@@ -414,7 +414,10 @@ describe("ExactSvmScheme", () => {
       expect(result.invalidReason).toBe(Errors.ErrFeePayerTransferringFunds);
     });
 
-    it("should reject when instruction 2 is not a token transfer", async () => {
+    it("should reject when Memo appears before TransferChecked", async () => {
+      // Identity-based classification enforces a fixed relative order among
+      // protocol instructions: a Memo before the transfer it is meant to
+      // annotate is out of order, not merely "not a transfer".
       const feePayer = await generateKeyPairSigner();
       const payer = await generateKeyPairSigner();
       const payTo = await generateKeyPairSigner();
@@ -446,7 +449,7 @@ describe("ExactSvmScheme", () => {
         v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
       );
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe(Errors.ErrNoTransferInstruction);
+      expect(result.invalidReason).toBe(Errors.ErrProtocolInstructionOrder);
     });
 
     it("should reject a TransferChecked whose accounts cannot be parsed", async () => {
@@ -467,14 +470,11 @@ describe("ExactSvmScheme", () => {
           if (!transfer?.accountIndices || transfer.accountIndices.length < 4) {
             throw new Error("expected TransferChecked with 4 accounts");
           }
-          // Keep a well-formed TransferChecked elsewhere so getTokenPayer
-          // still finds an owner, but shrink instruction[2] so the kit
-          // parser throws (disc 12 + length ≥ 10, too few accounts).
-          compiled.instructions.push({
-            accountIndices: [...transfer.accountIndices],
-            data: transfer.data ? new Uint8Array(transfer.data) : undefined,
-            programAddressIndex: transfer.programAddressIndex,
-          });
+          // Shrink instruction[2]'s accounts so the kit parser throws (disc
+          // 12 + length >= 10, too few accounts). Classification is by
+          // program ID + discriminator only, so this is still identified as
+          // the (sole) transfer instruction — the parse failure surfaces as
+          // ErrNoTransferInstruction, not a duplicate/order error.
           transfer.accountIndices = transfer.accountIndices.slice(0, 2);
         },
       );
@@ -625,7 +625,135 @@ describe("ExactSvmScheme", () => {
         v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
       );
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe(Errors.ErrUnknownFourthInstruction);
+      expect(result.invalidReason).toBe(Errors.ErrUnknownInstruction);
+    });
+
+    it("should accept a Lighthouse guard instruction before the compute budget/transfer sequence", async () => {
+      // Reproduces the real-world Phantom bug: Lighthouse assertion
+      // instructions injected BEFORE the ComputeBudget/TransferChecked
+      // sequence, not just after it. See x402#828 / x402#2097.
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [
+          {
+            programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
+            accounts: [] as const,
+            data: new Uint8Array([0x01]),
+          },
+        ],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const facilitator = new ExactSvmScheme(mockSigner);
+      const result = await facilitator.verify(
+        v2Payment(transaction, {
+          extra: { feePayer: feePayer.address },
+          payTo: payTo.address,
+        }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should accept Lighthouse guard instructions both before and after the transfer", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const lighthouseIx = {
+        programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
+        accounts: [] as const,
+        data: new Uint8Array([0x01]),
+      };
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [lighthouseIx, lighthouseIx],
+        extraInstructions: [lighthouseIx],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const facilitator = new ExactSvmScheme(mockSigner);
+      const result = await facilitator.verify(
+        v2Payment(transaction, {
+          extra: { feePayer: feePayer.address },
+          payTo: payTo.address,
+        }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should accept many Lighthouse guard instructions with no hard cap", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const lighthouseIx = {
+        programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
+        accounts: [] as const,
+        data: new Uint8Array([0x01]),
+      };
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [lighthouseIx, lighthouseIx, lighthouseIx],
+        extraInstructions: [lighthouseIx, lighthouseIx, lighthouseIx],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const facilitator = new ExactSvmScheme(mockSigner);
+      const result = await facilitator.verify(
+        v2Payment(transaction, {
+          extra: { feePayer: feePayer.address },
+          payTo: payTo.address,
+        }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should reject a duplicated TransferChecked instruction", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      const mutated = await resignMutatedTransaction(payer, transaction, compiled => {
+        const transferIx = compiled.instructions[2];
+        compiled.instructions.push({ ...transferIx });
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const facilitator = new ExactSvmScheme(mockSigner);
+      const result = await facilitator.verify(
+        v2Payment(mutated, {
+          extra: { feePayer: feePayer.address },
+          payTo: payTo.address,
+        }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrProtocolInstructionOrder);
     });
 
     it("should reject when simulation fails after a structurally valid transfer", async () => {

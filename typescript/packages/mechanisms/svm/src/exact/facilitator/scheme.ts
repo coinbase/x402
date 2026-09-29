@@ -106,15 +106,114 @@ type VerifyResult = {
  * mask the real reason behind a misleading smart_wallet_* error code.
  */
 const LAYOUT_RECOVERABLE_REASONS = new Set<string>([
-  Errors.ErrTransactionInstructionsLength,
   Errors.ErrNoTransferInstruction,
-  Errors.ErrUnknownFourthInstruction,
-  Errors.ErrUnknownFifthInstruction,
-  Errors.ErrUnknownSixthInstruction,
-  Errors.ErrUnknownOptionalInstruction,
+  Errors.ErrUnknownInstruction,
+  Errors.ErrProtocolInstructionOrder,
   Errors.ErrComputeLimitInstruction,
   Errors.ErrComputePriceInstruction,
 ]);
+
+type DecompiledIx = {
+  programAddress: { toString(): string };
+  data?: Readonly<Uint8Array>;
+};
+
+/**
+ * Identifies which protocol/guard role an instruction plays, by program ID
+ * and instruction discriminator rather than position. `guard` covers
+ * wallet-injected assertion instructions (currently only Lighthouse) that
+ * may appear anywhere in the instruction list.
+ *
+ * @param ix - Decompiled instruction to classify
+ * @returns The instruction's role
+ */
+function classifyProtocolInstruction(
+  ix: DecompiledIx,
+): "computeLimit" | "computePrice" | "transfer" | "memo" | "guard" | "unknown" {
+  const programAddress = ix.programAddress.toString();
+  if (programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS.toString()) {
+    if (ix.data && ix.data[0] === 2) return "computeLimit";
+    if (ix.data && ix.data[0] === 3) return "computePrice";
+    return "unknown";
+  }
+  if (
+    programAddress === TOKEN_PROGRAM_ADDRESS.toString() ||
+    programAddress === TOKEN_2022_PROGRAM_ADDRESS.toString()
+  ) {
+    const data = ix.data;
+    if (data && data.length >= 10 && data[0] === IX_TOKEN_TRANSFER_CHECKED) return "transfer";
+    return "unknown";
+  }
+  if (programAddress === MEMO_PROGRAM_ADDRESS) return "memo";
+  if (programAddress === LIGHTHOUSE_PROGRAM_ADDRESS) return "guard";
+  return "unknown";
+}
+
+type PartitionedInstructions = {
+  computeLimitIx?: DecompiledIx;
+  computePriceIx?: DecompiledIx;
+  transferIx?: DecompiledIx;
+  memoIx?: DecompiledIx;
+};
+
+/**
+ * Partitions a decoded instruction list into the fixed-relative-order
+ * protocol instructions (ComputeLimit, then ComputePrice, then
+ * TransferChecked, then optional Memo) found by identity rather than
+ * position. Guard instructions (Lighthouse) may appear anywhere — before,
+ * after, or interspersed among the protocol instructions — since they only
+ * assert/abort and never mutate payment-relevant state. Any other program,
+ * a duplicate protocol instruction, or a protocol instruction out of its
+ * required relative order fails the partition.
+ *
+ * @param instructions - Decompiled top-level instructions to partition
+ * @returns The found protocol instructions, or the first error reason encountered
+ */
+function partitionProtocolInstructions(
+  instructions: readonly DecompiledIx[],
+): PartitionedInstructions | { errorReason: string } {
+  const result: PartitionedInstructions = {};
+  for (const ix of instructions) {
+    const kind = classifyProtocolInstruction(ix);
+    switch (kind) {
+      case "guard":
+        break;
+      case "computeLimit":
+        if (result.computeLimitIx || result.computePriceIx || result.transferIx || result.memoIx) {
+          return { errorReason: Errors.ErrProtocolInstructionOrder };
+        }
+        result.computeLimitIx = ix;
+        break;
+      case "computePrice":
+        if (!result.computeLimitIx || result.computePriceIx || result.transferIx || result.memoIx) {
+          return { errorReason: Errors.ErrProtocolInstructionOrder };
+        }
+        result.computePriceIx = ix;
+        break;
+      case "transfer":
+        if (!result.computeLimitIx || !result.computePriceIx || result.memoIx) {
+          return { errorReason: Errors.ErrProtocolInstructionOrder };
+        }
+        if (result.transferIx) {
+          return { errorReason: Errors.ErrProtocolInstructionOrder };
+        }
+        result.transferIx = ix;
+        break;
+      case "memo":
+        if (!result.transferIx) {
+          return { errorReason: Errors.ErrProtocolInstructionOrder };
+        }
+        if (result.memoIx) {
+          return { errorReason: Errors.ErrMemoCount };
+        }
+        result.memoIx = ix;
+        break;
+      default:
+        return { errorReason: Errors.ErrUnknownInstruction };
+    }
+  }
+  return result;
+}
 
 /**
  * Configuration options for ExactSvmScheme.
@@ -666,19 +765,8 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
   private hasStaticTransferLayout(transaction: Transaction): boolean {
     const compiled = compiledMessageDecoder.decode(transaction.messageBytes);
     const instructions = decompileTransactionMessage(compiled).instructions ?? [];
-    if (instructions.length < 3 || instructions.length > 7) {
-      return false;
-    }
-    const transferIx = instructions[2];
-    const programAddress = transferIx.programAddress.toString();
-    if (
-      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
-      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
-    ) {
-      return false;
-    }
-    const ixData = transferIx.data;
-    return !!ixData && ixData.length >= 10 && ixData[0] === IX_TOKEN_TRANSFER_CHECKED;
+    const partitioned = partitionProtocolInstructions(instructions as unknown as DecompiledIx[]);
+    return !("errorReason" in partitioned) && !!partitioned.transferIx;
   }
 
   /**
@@ -953,8 +1041,10 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Path 1: Static instruction-layout verification for standard wallets.
-   * Validates positional instruction structure, program allowlist, and
-   * transfer details. Unchanged from the original implementation.
+   * Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, Memo)
+   * are found by program-ID/discriminator identity and must appear in that
+   * fixed relative order; guard instructions (Lighthouse) may appear
+   * anywhere in the instruction list.
    *
    * @param transaction - Decoded transaction to verify
    * @param decompiled - Pre-decompiled message (lookups already resolved)
@@ -972,26 +1062,36 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
   ): Promise<VerifyResponse> {
     const instructions = decompiled.instructions ?? [];
 
-    // Allow 3-7 instructions:
-    // - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    // - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
-    // - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
-    // - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
-    // - 7 instructions: + a third wallet-injected Lighthouse (Phantom, see #2097)
-    // See: https://github.com/x402-foundation/x402/issues/828
+    // Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
+    // an optional Memo) are identified by program ID + instruction
+    // discriminator and MUST appear in that fixed relative order. Guard
+    // instructions (currently only Lighthouse — Phantom/Solflare's
+    // wallet-protection assertions) may appear anywhere in the instruction
+    // list, since they only assert/abort and never mutate payment-relevant
+    // state. See: https://github.com/x402-foundation/x402/issues/828
     //  and: https://github.com/x402-foundation/x402/issues/2097
-    if (instructions.length < 3 || instructions.length > 7) {
+    const partitioned = partitionProtocolInstructions(instructions as unknown as DecompiledIx[]);
+    if ("errorReason" in partitioned) {
       return {
         isValid: false,
-        invalidReason: Errors.ErrTransactionInstructionsLength,
+        invalidReason: partitioned.errorReason,
+        payer: "",
+      };
+    }
+
+    const { computeLimitIx, computePriceIx, transferIx, memoIx } = partitioned;
+    if (!computeLimitIx || !computePriceIx || !transferIx) {
+      return {
+        isValid: false,
+        invalidReason: Errors.ErrNoTransferInstruction,
         payer: "",
       };
     }
 
     // Step 3: Verify Compute Budget Instructions
     try {
-      this.verifyComputeLimitInstruction(instructions[0] as never);
-      this.verifyComputePriceInstruction(instructions[1] as never);
+      this.verifyComputeLimitInstruction(computeLimitIx as never);
+      this.verifyComputePriceInstruction(computePriceIx as never);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
@@ -1011,29 +1111,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     }
 
     // Step 4: Verify Transfer Instruction
-    const transferIx = instructions[2];
     const programAddress = transferIx.programAddress.toString();
-
-    if (
-      programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
-      programAddress !== TOKEN_2022_PROGRAM_ADDRESS.toString()
-    ) {
-      return {
-        isValid: false,
-        invalidReason: Errors.ErrNoTransferInstruction,
-        payer,
-      };
-    }
-
-    // parseTransferCheckedInstruction does not assert discriminator 12.
-    const ixData = transferIx.data;
-    if (!ixData || ixData.length < 10 || ixData[0] !== IX_TOKEN_TRANSFER_CHECKED) {
-      return {
-        isValid: false,
-        invalidReason: Errors.ErrNoTransferInstruction,
-        payer,
-      };
-    }
 
     // Parse the transfer instruction using the appropriate library helper
     let parsedTransfer;
@@ -1109,46 +1187,19 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 5: Verify optional instructions (if present)
-    // Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
-    const optionalInstructions = instructions.slice(3);
-    const invalidReasonByIndex = [
-      Errors.ErrUnknownFourthInstruction,
-      Errors.ErrUnknownFifthInstruction,
-      Errors.ErrUnknownSixthInstruction,
-      Errors.ErrUnknownSeventhInstruction,
-    ];
-
-    for (let i = 0; i < optionalInstructions.length; i += 1) {
-      const programAddress = optionalInstructions[i].programAddress.toString();
-      if (
-        programAddress === LIGHTHOUSE_PROGRAM_ADDRESS ||
-        programAddress === MEMO_PROGRAM_ADDRESS
-      ) {
-        continue;
-      }
-
-      return {
-        isValid: false,
-        invalidReason: invalidReasonByIndex[i] ?? Errors.ErrUnknownOptionalInstruction,
-        payer,
-      };
-    }
-
-    // Step 5b: Verify memo content matches extra.memo when present
+    // Step 5: Verify memo content matches extra.memo when present. Guard
+    // (Lighthouse) instructions and unknown programs were already rejected
+    // by partitionProtocolInstructions above.
     const expectedMemo = requirements.extra?.memo as string | undefined;
     if (expectedMemo) {
-      const memoInstructions = optionalInstructions.filter(
-        ix => ix.programAddress.toString() === MEMO_PROGRAM_ADDRESS,
-      );
-      if (memoInstructions.length !== 1) {
+      if (!memoIx) {
         return {
           isValid: false,
           invalidReason: Errors.ErrMemoCount,
           payer,
         };
       }
-      const memoData = memoInstructions[0].data;
+      const memoData = memoIx.data;
       const actualMemo = memoData ? new TextDecoder().decode(new Uint8Array(memoData)) : "";
       if (actualMemo !== expectedMemo) {
         return {
