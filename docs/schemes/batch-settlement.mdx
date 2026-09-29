@@ -578,71 +578,144 @@ In server mode the channel's onchain `authorized_signer` is the operator, who co
 
 Every channel is bound at open to a `receiverAuthorizer` key that signs cooperative close authorizations. Pass `receiverAuthorizer` to self-manage closes (recommended), or omit it to delegate to the facilitator's advertised key.
 
-```typescript
-import { BatchSvmScheme, MemoryChannelStore } from "@x402/svm/batch-settlement/server";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
-import { base58 } from "@scure/base";
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { BatchSvmScheme, MemoryChannelStore } from "@x402/svm/batch-settlement/server";
+    import { createKeyPairSignerFromBytes } from "@solana/kit";
+    import { base58 } from "@scure/base";
 
-const receiverAuthorizer = await createKeyPairSignerFromBytes(
-  base58.decode(process.env.SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY!),
-);
+    const receiverAuthorizer = await createKeyPairSignerFromBytes(
+      base58.decode(process.env.SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY!),
+    );
 
-const batchSvmScheme = new BatchSvmScheme({
-  receiverAuthorizer,
-  withdrawDelay: 86_400,
-  store: new MemoryChannelStore(),
-});
+    const batchSvmScheme = new BatchSvmScheme({
+      receiverAuthorizer,
+      withdrawDelay: 86_400,
+      store: new MemoryChannelStore(),
+    });
 
-const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", batchSvmScheme);
+    const resourceServer = new x402ResourceServer(facilitatorClient)
+      .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", batchSvmScheme);
 
-app.use(paymentMiddleware({
-  "GET /api/data": {
-    accepts: {
-      scheme: "batch-settlement",
-      price: "$0.01",
-      network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-      payTo: "YourSolanaAddress",
-    },
-    description: "Data API",
-  },
-}, resourceServer));
-```
+    app.use(paymentMiddleware({
+      "GET /api/data": {
+        accepts: {
+          scheme: "batch-settlement",
+          price: "$0.01",
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+          payTo: "YourSolanaAddress",
+        },
+        description: "Data API",
+      },
+    }, resourceServer));
+    ```
 
-For server-signed (metered) routes, configure an `operator` signer and use `setSettlementOverrides` to charge actual usage:
+    For server-signed (metered) routes, configure an `operator` signer and use `setSettlementOverrides` to charge actual usage:
 
-```typescript
-const operator = await createKeyPairSignerFromBytes(
-  base58.decode(process.env.SVM_OPERATOR_PRIVATE_KEY!),
-);
+    ```typescript
+    const operator = await createKeyPairSignerFromBytes(
+      base58.decode(process.env.SVM_OPERATOR_PRIVATE_KEY!),
+    );
 
-const batchSvmScheme = new BatchSvmScheme({
-  receiverAuthorizer,
-  operator,
-  store: new MemoryChannelStore(),
-});
+    const batchSvmScheme = new BatchSvmScheme({
+      receiverAuthorizer,
+      operator,
+      store: new MemoryChannelStore(),
+    });
 
-// In your handler:
-app.get("/api/generate", (req, res) => {
-  setSettlementOverrides(res, { amount: "50%" }); // or raw atomic units / dollar price
-  res.json({ result: "..." });
-});
-```
+    // In your handler:
+    app.get("/api/generate", (req, res) => {
+      setSettlementOverrides(res, { amount: "50%" }); // or raw atomic units / dollar price
+      res.json({ result: "..." });
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402 "github.com/x402-foundation/x402/go/v2"
+        svmmech "github.com/x402-foundation/x402/go/v2/mechanisms/svm"
+        batchserver "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/server"
+        svmsigners "github.com/x402-foundation/x402/go/v2/signers/svm"
+    )
+
+    authorizer, err := svmsigners.NewReceiverAuthorizerSignerFromPrivateKey(
+        os.Getenv("SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY"),
+    )
+
+    delay := 86400
+    scheme := batchserver.NewBatchSvmScheme(&batchserver.Config{
+        ReceiverAuthorizer: authorizer,
+        WithdrawDelay:      &delay,
+        Store:              batchserver.NewMemoryChannelStore(),
+    })
+
+    resource.Register(svmmech.SolanaDevnetCAIP2, scheme)
+
+    routes := x402http.RoutesConfig{
+        "GET /api/data": {
+            Accepts: x402http.PaymentOptions{
+                {
+                    Scheme:  "batch-settlement",
+                    Price:   "$0.01",
+                    Network: x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"),
+                    PayTo:   "YourSolanaAddress",
+                },
+            },
+            Description: "Data API",
+        },
+    }
+    ```
+
+    For server-signed (metered) routes, configure an `Operator` signer and use `SetSettlementOverrides`:
+
+    ```go
+    operator, err := svmsigners.NewOperatorSignerFromPrivateKey(
+        os.Getenv("SVM_OPERATOR_PRIVATE_KEY"),
+    )
+
+    scheme := batchserver.NewBatchSvmScheme(&batchserver.Config{
+        ReceiverAuthorizer: authorizer,
+        Operator:           operator,
+        Store:              batchserver.NewMemoryChannelStore(),
+    })
+
+    // In your handler:
+    mux.HandleFunc("GET /api/generate", func(w http.ResponseWriter, r *http.Request) {
+        nethttpmw.SetSettlementOverrides(w, &x402.SettlementOverrides{Amount: "50%"})
+        _ = json.NewEncoder(w).Encode(map[string]any{"result": "..."})
+    })
+    ```
+  </Tab>
+</Tabs>
 
 #### Redemption Worker (SVM)
 
 Start `BatchChannelManager` outside the request path to claim batches and distribute payouts:
 
-```typescript
-const manager = batchSvmScheme.createChannelManager(facilitatorClient, requirements, {
-  rpcUrl: process.env.SVM_RPC_URL,
-  onClaim: r => console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
-  onSettle: r => console.log(`Distributed to payTo (tx: ${r.transaction})`),
-  onSeal: r => console.log(`Sealed channel ${r.channel} (tx: ${r.transaction})`),
-  onError: e => console.error(e),
-});
-manager.start(60); // seconds between passes
-```
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    const manager = batchSvmScheme.createChannelManager(facilitatorClient, requirements, {
+      rpcUrl: process.env.SVM_RPC_URL,
+      onClaim: r => console.log(`Claimed ${r.vouchers} vouchers (tx: ${r.transaction})`),
+      onSettle: r => console.log(`Distributed to payTo (tx: ${r.transaction})`),
+      onSeal: r => console.log(`Sealed channel ${r.channel} (tx: ${r.transaction})`),
+      onError: e => console.error(e),
+    });
+    manager.start(60); // seconds between passes
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    manager, err := scheme.CreateChannelManager(facilitatorClient, requirements, batchserver.BatchChannelManagerConfig{
+        RPCURL: os.Getenv("SVM_RPC_URL"),
+    })
+    // requirements must include extra.feePayer from the facilitator's supported kind
+    ```
+  </Tab>
+</Tabs>
 
 Claim promptly: if the facilitator or payer forces a close before your latest voucher is claimed, unclaimed value returns to the payer. Set `withdrawDelay` comfortably above your claim cadence.
 
@@ -650,69 +723,137 @@ Claim promptly: if the facilitator or payer forces a close before your latest vo
 
 Register `BatchSvmScheme` for `solana:*`. The SDK opens or tops up the channel on first use and attaches the correct payload per mode:
 
-```typescript
-import { x402Client } from "@x402/core/client";
-import { ExactSvmScheme } from "@x402/svm/exact/client";
-import { BatchSvmScheme } from "@x402/svm/batch-settlement/client";
-import { createKeyPairSignerFromBytes } from "@solana/kit";
-import { base58 } from "@scure/base";
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402Client } from "@x402/core/client";
+    import { ExactSvmScheme } from "@x402/svm/exact/client";
+    import { BatchSvmScheme } from "@x402/svm/batch-settlement/client";
+    import { createKeyPairSignerFromBytes } from "@solana/kit";
+    import { base58 } from "@scure/base";
 
-const signer = await createKeyPairSignerFromBytes(
-  base58.decode(process.env.SVM_PRIVATE_KEY!),
-);
+    const signer = await createKeyPairSignerFromBytes(
+      base58.decode(process.env.SVM_PRIVATE_KEY!),
+    );
 
-const client = new x402Client();
-client.register("solana:*", new ExactSvmScheme(signer));
-client.register("solana:*", new BatchSvmScheme(signer, {
-  depositPolicy: { depositMultiplier: 5 },
-  rpcUrl: process.env.SVM_RPC_URL,
-}));
-```
+    const client = new x402Client();
+    client.register("solana:*", new ExactSvmScheme(signer));
+    client.register("solana:*", new BatchSvmScheme(signer, {
+      depositPolicy: { depositMultiplier: 5 },
+      rpcUrl: process.env.SVM_RPC_URL,
+    }));
+    ```
 
-To opt into server-signed channels for a trusted operator:
+    To opt into server-signed channels for a trusted operator:
 
-```typescript
-const batch = new BatchSvmScheme(signer, {
-  serverSignedChannelsPolicy: {
-    allowedOperators: ["OperatorBase58Pubkey"],
-    maxDeposit: "$1", // USD cap for default assets
-  },
-});
-client.register("solana:*", batch);
-```
+    ```typescript
+    const batch = new BatchSvmScheme(signer, {
+      serverSignedChannelsPolicy: {
+        allowedOperators: ["OperatorBase58Pubkey"],
+        maxDeposit: "$1", // USD cap for default assets
+      },
+    });
+    client.register("solana:*", batch);
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402 "github.com/x402-foundation/x402/go/v2"
+        exactsvm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/client"
+        batchclient "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/client"
+        svmsigners "github.com/x402-foundation/x402/go/v2/signers/svm"
+    )
+
+    svmSigner, err := svmsigners.NewClientSignerFromPrivateKey(os.Getenv("SVM_PRIVATE_KEY"))
+
+    multiplier := 5
+    batch, err := batchclient.NewBatchSvmScheme(svmSigner, &batchclient.BatchSvmClientConfig{
+        DepositPolicy: &batchclient.DepositPolicy{DepositMultiplier: &multiplier},
+        RPCURL:        os.Getenv("SVM_RPC_URL"),
+    })
+
+    x402Client := x402.Newx402Client().
+        Register("solana:*", exactsvm.NewExactSvmScheme(svmSigner)).
+        Register("solana:*", batch)
+    ```
+
+    To opt into server-signed channels for a trusted operator:
+
+    ```go
+    batch, err := batchclient.NewBatchSvmScheme(svmSigner, &batchclient.BatchSvmClientConfig{
+        ServerSignedChannelsPolicy: &batchclient.BatchServerSignedChannelsPolicy{
+            AllowedOperators: []string{"OperatorBase58Pubkey"},
+            MaxDeposit:       "$1", // USD cap for default assets
+        },
+    })
+    x402Client.Register("solana:*", batch)
+    x402Client.RegisterPolicy(batch.PaymentPolicy())
+    ```
+  </Tab>
+</Tabs>
 
 #### Facilitator Setup (SVM)
 
-```typescript
-import { toFacilitatorSvmSigner } from "@x402/svm";
-import {
-  BatchSvmScheme,
-  InMemoryBatchChannelStorage,
-  InMemoryBatchReceiverAuthorizerStore,
-} from "@x402/svm/batch-settlement/facilitator";
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { toFacilitatorSvmSigner } from "@x402/svm";
+    import {
+      BatchSvmScheme,
+      InMemoryBatchChannelStorage,
+    } from "@x402/svm/batch-settlement/facilitator";
 
-const svmSigner = toFacilitatorSvmSigner(
-  keypair,
-  process.env.SVM_RPC_URL ? { defaultRpcUrl: process.env.SVM_RPC_URL } : undefined,
-);
+    const svmSigner = toFacilitatorSvmSigner(
+      keypair,
+      process.env.SVM_RPC_URL ? { defaultRpcUrl: process.env.SVM_RPC_URL } : undefined,
+    );
 
-const scheme = new BatchSvmScheme(svmSigner, {
-  channelStorage: new InMemoryBatchChannelStorage(),
-  receiverAuthorizerStore: new InMemoryBatchReceiverAuthorizerStore(),
-});
+    const scheme = new BatchSvmScheme(svmSigner, {
+      channelStorage: new InMemoryBatchChannelStorage(),
+    });
 
-facilitator.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", scheme);
+    facilitator.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", scheme);
 
-// Reclaim PDA rent from abandoned channels
-const rentCleanup = scheme.createRentCleanupManager("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
-rentCleanup.start({ intervalSecs: 60, abandonGraceSecs: 120 });
-```
+    // Reclaim PDA rent from abandoned channels
+    const rentCleanup = scheme.createRentCleanupManager("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+    rentCleanup.start({ intervalSecs: 60, abandonGraceSecs: 120 });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402 "github.com/x402-foundation/x402/go/v2"
+        svmmech "github.com/x402-foundation/x402/go/v2/mechanisms/svm"
+        batchfacilitator "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/facilitator"
+        svmsigners "github.com/x402-foundation/x402/go/v2/signers/svm"
+    )
+
+    svmSigner, err := svmsigners.NewFacilitatorSignerFromPrivateKey(
+        os.Getenv("SVM_PRIVATE_KEY"),
+        os.Getenv("SVM_RPC_URL"),
+    )
+
+    scheme := batchfacilitator.NewBatchSvmScheme(context.Background(), svmSigner, &batchfacilitator.Config{
+        // ChannelStorage defaults to in-memory; inject a durable store for production
+    })
+
+    facilitator.Register([]x402.Network{svmmech.SolanaDevnetCAIP2}, scheme)
+
+    // Reclaim PDA rent from abandoned channels
+    cleanup := scheme.CreateRentCleanupManager(svmmech.SolanaDevnetCAIP2)
+    ```
+  </Tab>
+</Tabs>
 
 #### SVM Examples
 
 * [TypeScript batch-settlement server (EVM + SVM)](https://github.com/x402-foundation/x402/tree/main/examples/typescript/servers/batch-settlement)
 * [TypeScript batch-settlement client](https://github.com/x402-foundation/x402/tree/main/examples/typescript/clients/batch-settlement)
 * [TypeScript batch-settlement facilitator](https://github.com/x402-foundation/x402/tree/main/examples/typescript/facilitator/batch-settlement)
+* [Go batch-settlement client (SVM)](https://github.com/x402-foundation/x402/tree/main/examples/go/clients/batch-settlement)
+* [Go batch-settlement server (SVM)](https://github.com/x402-foundation/x402/tree/main/examples/go/servers/batch-settlement)
+* [Go batch-settlement facilitator (SVM)](https://github.com/x402-foundation/x402/tree/main/examples/go/facilitator/batch-settlement)
 
 ### Specs
 
