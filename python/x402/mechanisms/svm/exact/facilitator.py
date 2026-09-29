@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from dataclasses import dataclass
 from typing import Any
 
 try:
@@ -34,6 +35,7 @@ from ..constants import (
     ERR_MINT_MISMATCH,
     ERR_NETWORK_MISMATCH,
     ERR_NO_TRANSFER_INSTRUCTION,
+    ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED,
     ERR_PROTOCOL_INSTRUCTION_ORDER,
     ERR_RECIPIENT_MISMATCH,
     ERR_SETTLEMENT_PENDING,
@@ -105,6 +107,107 @@ def _classify_protocol_instruction(static_accounts: list, ix: Any) -> str:
         return "guard"
 
     return "unknown"
+
+
+@dataclass
+class InstructionIdentity:
+    """Identifies a single instruction by program address and instruction
+    discriminator. discriminator is matched as a byte-for-byte prefix of the
+    instruction's data, so it supports both short (e.g. single-byte) and long
+    (e.g. 8-byte Anchor sighash) discriminators.
+    """
+
+    program_address: Pubkey
+    discriminator: bytes
+
+
+# An InstructionTuple is an ordered sequence of InstructionIdentity that may
+# appear together as a contiguous (guard instructions aside) block
+# immediately before or after the required protocol instructions.
+InstructionTuple = list[InstructionIdentity]
+
+
+def _matches_identity(static_accounts: list, ix: Any, identity: InstructionIdentity) -> bool:
+    """Report whether ix was issued against identity.program_address with
+    instruction data beginning with identity.discriminator.
+    """
+    program_address = static_accounts[ix.program_id_index]
+    if program_address != identity.program_address:
+        return False
+    data = bytes(ix.data)
+    return data[: len(identity.discriminator)] == identity.discriminator
+
+
+def _match_leading_tuple(
+    static_accounts: list, instructions: list, allowlist: list[InstructionTuple]
+) -> tuple[list, list] | None:
+    """Scan forward from the start of instructions, skipping any guard
+    instructions encountered, and check whether the non-guard instructions
+    match one of the allowlisted tuples exactly, in order. Returns
+    (matched, rest) on the first full match (matched includes any
+    interspersed guards), or None if no tuple fully matches.
+    """
+    for tuple_ in allowlist:
+        matched: list = []
+        identity_index = 0
+        cursor = 0
+        while identity_index < len(tuple_) and cursor < len(instructions):
+            ix = instructions[cursor]
+            if _classify_protocol_instruction(static_accounts, ix) == "guard":
+                matched.append(ix)
+                cursor += 1
+                continue
+            if not _matches_identity(static_accounts, ix, tuple_[identity_index]):
+                break
+            matched.append(ix)
+            cursor += 1
+            identity_index += 1
+        if identity_index == len(tuple_):
+            return matched, instructions[cursor:]
+    return None
+
+
+def _match_trailing_tuple(
+    static_accounts: list, instructions: list, allowlist: list[InstructionTuple]
+) -> tuple[list, list] | None:
+    """Scan backward from the end of instructions. See _match_leading_tuple."""
+    for tuple_ in allowlist:
+        matched: list = []
+        identity_index = len(tuple_) - 1
+        cursor = len(instructions) - 1
+        while identity_index >= 0 and cursor >= 0:
+            ix = instructions[cursor]
+            if _classify_protocol_instruction(static_accounts, ix) == "guard":
+                matched.insert(0, ix)
+                cursor -= 1
+                continue
+            if not _matches_identity(static_accounts, ix, tuple_[identity_index]):
+                break
+            matched.insert(0, ix)
+            cursor -= 1
+            identity_index -= 1
+        if identity_index < 0:
+            return matched, instructions[: cursor + 1]
+    return None
+
+
+def _assert_fee_payer_isolated_from_tuple(
+    static_accounts: list, matched: list, fee_payer: Pubkey
+) -> str | None:
+    """Isolation-check a matched preflight/postflight instruction block.
+    Unlike the fixed protocol/guard instruction set, an allowlisted tuple is
+    operator-configured arbitrary code and is not otherwise known to be safe.
+
+    Returns an error reason string on failure, or None on success.
+    """
+    for ix in matched:
+        program_address = static_accounts[ix.program_id_index]
+        if program_address == fee_payer:
+            return ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
+        for account_index in ix.accounts:
+            if static_accounts[account_index] == fee_payer:
+                return ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
+    return None
 
 
 def _partition_protocol_instructions(
@@ -185,6 +288,8 @@ class ExactSvmScheme:
         signer: FacilitatorSvmSigner,
         settlement_cache: SettlementCache | None = None,
         pending_store: PendingSettlementStore | None = None,
+        preflight_instruction_allowlist: list[InstructionTuple] | None = None,
+        postflight_instruction_allowlist: list[InstructionTuple] | None = None,
     ):
         """Create ExactSvmScheme facilitator.
 
@@ -195,11 +300,25 @@ class ExactSvmScheme:
                 transaction reconcile against an already-broadcast signature instead of
                 re-verifying and re-sending (see settlement_pending). Defaults to a fresh
                 in-memory store when omitted.
+            preflight_instruction_allowlist: Instruction tuples that may appear as a
+                contiguous block (guard instructions aside) immediately BEFORE the
+                required protocol instructions. Extension point for prefixing the
+                payment with out-of-band setup. A matched block is fee-payer-isolation
+                checked. Defaults to no allowlisted tuples (current behavior).
+            postflight_instruction_allowlist: Instruction tuples that may appear as a
+                contiguous block (guard instructions aside) immediately AFTER the
+                required protocol instructions. See preflight_instruction_allowlist.
         """
         self._signer = signer
         self._settlement_cache = settlement_cache or SettlementCache()
         self._pending_store: PendingSettlementStore = (
             pending_store or InMemoryPendingSettlementStore()
+        )
+        self._preflight_instruction_allowlist: list[InstructionTuple] = (
+            preflight_instruction_allowlist or []
+        )
+        self._postflight_instruction_allowlist: list[InstructionTuple] = (
+            postflight_instruction_allowlist or []
         )
 
     def get_extra(self, network: Network) -> dict[str, Any] | None:
@@ -296,6 +415,36 @@ class ExactSvmScheme:
         message = tx.message
         instructions = message.instructions
         static_accounts = list(message.account_keys)
+
+        # Preflight/postflight allowlist: a configured instruction tuple may
+        # appear as a contiguous block (guard instructions aside) immediately
+        # before/after the required protocol instructions. Empty allowlists
+        # (the default) never match, so this is a no-op unless explicitly
+        # configured.
+        if self._preflight_instruction_allowlist:
+            leading_match = _match_leading_tuple(
+                static_accounts, instructions, self._preflight_instruction_allowlist
+            )
+            if leading_match is not None:
+                matched, instructions = leading_match
+                fee_payer_pubkey = Pubkey.from_string(fee_payer_str)
+                isolation_error = _assert_fee_payer_isolated_from_tuple(
+                    static_accounts, matched, fee_payer_pubkey
+                )
+                if isolation_error is not None:
+                    return VerifyResponse(is_valid=False, invalid_reason=isolation_error, payer="")
+        if self._postflight_instruction_allowlist:
+            trailing_match = _match_trailing_tuple(
+                static_accounts, instructions, self._postflight_instruction_allowlist
+            )
+            if trailing_match is not None:
+                matched, instructions = trailing_match
+                fee_payer_pubkey = Pubkey.from_string(fee_payer_str)
+                isolation_error = _assert_fee_payer_isolated_from_tuple(
+                    static_accounts, matched, fee_payer_pubkey
+                )
+                if isolation_error is not None:
+                    return VerifyResponse(is_valid=False, invalid_reason=isolation_error, payer="")
 
         # Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and an
         # optional Memo) are identified by program ID + instruction discriminator and

@@ -17,6 +17,21 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
+// InstructionIdentity identifies a single instruction by program ID and
+// instruction discriminator. Discriminator is matched as a byte-for-byte
+// prefix of the instruction's data, so it supports both short (e.g.
+// single-byte) and long (e.g. 8-byte Anchor sighash) discriminators.
+type InstructionIdentity struct {
+	ProgramID     solana.PublicKey
+	Discriminator []byte
+}
+
+// InstructionTuple is an ordered sequence of instruction identities that may
+// appear together as a contiguous (guard instructions aside) block
+// immediately before or after the required protocol instructions. See
+// Config.PreflightInstructionAllowlist.
+type InstructionTuple []InstructionIdentity
+
 // Config is the optional configuration of the SVM exact facilitator.
 type Config struct {
 	SettlementCache                        *svm.SettlementCache
@@ -27,6 +42,24 @@ type Config struct {
 	MaxPriorityFeeMicroLamports            *uint64
 	MaxComputeUnits                        *uint32
 	MaxRequiredSignatures                  *uint8
+
+	// PreflightInstructionAllowlist lists instruction tuples that may appear
+	// as a contiguous block (guard/Lighthouse instructions aside)
+	// immediately BEFORE the required protocol instructions on Path 1.
+	// Extension point for prefixing the payment with out-of-band setup
+	// (e.g. atomically channeling funds into the transfer). A matched block
+	// is fee-payer-isolation-checked like Path 2 instructions.
+	//
+	// Default: nil (no preflight instructions are accepted; current behavior)
+	PreflightInstructionAllowlist []InstructionTuple
+
+	// PostflightInstructionAllowlist lists instruction tuples that may
+	// appear as a contiguous block (guard/Lighthouse instructions aside)
+	// immediately AFTER the required protocol instructions on Path 1. See
+	// PreflightInstructionAllowlist.
+	//
+	// Default: nil (no postflight instructions are accepted; current behavior)
+	PostflightInstructionAllowlist []InstructionTuple
 }
 
 // ExactSvmScheme implements the SchemeNetworkFacilitator interface for SVM (Solana) exact payments (V2)
@@ -351,11 +384,12 @@ type partitionedInstructions struct {
 // instructions — since they only assert/abort and never mutate
 // payment-relevant state. Any other program, a duplicate protocol
 // instruction, or a protocol instruction out of its required relative order
-// returns an error.
-func partitionProtocolInstructions(tx *solana.Transaction) (*partitionedInstructions, error) {
+// returns an error. instructions is an explicit sub-range so a caller can
+// strip a matched preflight/postflight allowlist block before partitioning.
+func partitionProtocolInstructions(tx *solana.Transaction, instructions []solana.CompiledInstruction) (*partitionedInstructions, error) {
 	result := &partitionedInstructions{}
-	for i := range tx.Message.Instructions {
-		inst := tx.Message.Instructions[i]
+	for i := range instructions {
+		inst := instructions[i]
 		switch classifyProtocolInstruction(tx, inst) {
 		case kindGuard:
 			// Allowed anywhere.
@@ -451,6 +485,34 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	requirements types.PaymentRequirements,
 	signerAddressStrs []string,
 ) error {
+	instructions := tx.Message.Instructions
+
+	// Preflight/postflight allowlist: a configured instruction tuple may
+	// appear as a contiguous block (guard instructions aside) immediately
+	// before/after the required protocol instructions. Empty/unset
+	// allowlists (the default) never match, so this is a no-op unless
+	// explicitly configured. See Config.PreflightInstructionAllowlist.
+	if len(f.config.PreflightInstructionAllowlist) > 0 {
+		if matched, rest := matchLeadingTuple(tx, instructions, f.config.PreflightInstructionAllowlist); matched != nil {
+			if feePayer, err := solana.PublicKeyFromBase58(requirements.Extra["feePayer"].(string)); err == nil {
+				if err := assertFeePayerIsolatedFromTuple(tx, matched, feePayer); err != nil {
+					return x402.NewVerifyError(err.Error(), "", err.Error())
+				}
+			}
+			instructions = rest
+		}
+	}
+	if len(f.config.PostflightInstructionAllowlist) > 0 {
+		if matched, rest := matchTrailingTuple(tx, instructions, f.config.PostflightInstructionAllowlist); matched != nil {
+			if feePayer, err := solana.PublicKeyFromBase58(requirements.Extra["feePayer"].(string)); err == nil {
+				if err := assertFeePayerIsolatedFromTuple(tx, matched, feePayer); err != nil {
+					return x402.NewVerifyError(err.Error(), "", err.Error())
+				}
+			}
+			instructions = rest
+		}
+	}
+
 	// Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
 	// an optional Memo) are identified by program ID + instruction
 	// discriminator and MUST appear in that fixed relative order. Guard
@@ -459,7 +521,7 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	// list, since they only assert/abort and never mutate payment-relevant
 	// state. See: https://github.com/x402-foundation/x402/issues/828
 	//  and: https://github.com/x402-foundation/x402/issues/2097
-	partitioned, err := partitionProtocolInstructions(tx)
+	partitioned, err := partitionProtocolInstructions(tx, instructions)
 	if err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
@@ -701,11 +763,104 @@ func (f *ExactSvmScheme) postSettlementVerified(
 }
 
 func hasStaticTransferLayout(tx *solana.Transaction) bool {
-	partitioned, err := partitionProtocolInstructions(tx)
+	partitioned, err := partitionProtocolInstructions(tx, tx.Message.Instructions)
 	if err != nil {
 		return false
 	}
 	return partitioned.transferIx != nil
+}
+
+// matchesIdentity reports whether inst was issued against identity.ProgramID
+// with instruction data beginning with identity.Discriminator.
+func matchesIdentity(tx *solana.Transaction, inst solana.CompiledInstruction, identity InstructionIdentity) bool {
+	progID, err := tx.Message.Program(inst.ProgramIDIndex)
+	if err != nil || !progID.Equals(identity.ProgramID) {
+		return false
+	}
+	if len(inst.Data) < len(identity.Discriminator) {
+		return false
+	}
+	for i, b := range identity.Discriminator {
+		if inst.Data[i] != b {
+			return false
+		}
+	}
+	return true
+}
+
+// matchLeadingTuple scans forward from the start of instructions, skipping
+// any guard instructions encountered, and checks whether the non-guard
+// instructions match one of the allowlisted tuples exactly, in order. On the
+// first full match it returns the matched instructions (including any
+// interspersed guards) and the remaining instructions after the match. It
+// returns nil if no tuple fully matches.
+func matchLeadingTuple(
+	tx *solana.Transaction, instructions []solana.CompiledInstruction, allowlist []InstructionTuple,
+) (matched []solana.CompiledInstruction, rest []solana.CompiledInstruction) {
+	for _, tuple := range allowlist {
+		var m []solana.CompiledInstruction
+		identityIndex := 0
+		cursor := 0
+		for identityIndex < len(tuple) && cursor < len(instructions) {
+			inst := instructions[cursor]
+			if classifyProtocolInstruction(tx, inst) == kindGuard {
+				m = append(m, inst)
+				cursor++
+				continue
+			}
+			if !matchesIdentity(tx, inst, tuple[identityIndex]) {
+				break
+			}
+			m = append(m, inst)
+			cursor++
+			identityIndex++
+		}
+		if identityIndex == len(tuple) {
+			return m, instructions[cursor:]
+		}
+	}
+	return nil, nil
+}
+
+// matchTrailingTuple is matchLeadingTuple scanning backward from the end of
+// instructions instead of forward from the start. See matchLeadingTuple.
+func matchTrailingTuple(
+	tx *solana.Transaction, instructions []solana.CompiledInstruction, allowlist []InstructionTuple,
+) (matched []solana.CompiledInstruction, rest []solana.CompiledInstruction) {
+	for _, tuple := range allowlist {
+		var m []solana.CompiledInstruction
+		identityIndex := len(tuple) - 1
+		cursor := len(instructions) - 1
+		for identityIndex >= 0 && cursor >= 0 {
+			inst := instructions[cursor]
+			if classifyProtocolInstruction(tx, inst) == kindGuard {
+				m = append([]solana.CompiledInstruction{inst}, m...)
+				cursor--
+				continue
+			}
+			if !matchesIdentity(tx, inst, tuple[identityIndex]) {
+				break
+			}
+			m = append([]solana.CompiledInstruction{inst}, m...)
+			cursor--
+			identityIndex--
+		}
+		if identityIndex < 0 {
+			return m, instructions[:cursor+1]
+		}
+	}
+	return nil, nil
+}
+
+// assertFeePayerIsolatedFromTuple isolation-checks a matched
+// preflight/postflight instruction block. Unlike the fixed protocol/guard
+// instruction set, an allowlisted tuple is operator-configured arbitrary
+// code and is not otherwise known to be safe.
+func assertFeePayerIsolatedFromTuple(tx *solana.Transaction, matched []solana.CompiledInstruction, feePayer solana.PublicKey) error {
+	if err := assertFeePayerIsolatedFromInstructions(tx, matched, feePayer); err != nil {
+		return errors.New(ErrPreflightPostflightFeePayerNotIsolated)
+	}
+	return nil
 }
 
 // reconcilePendingSettlement handles a PendingSettlementStore cache hit: a

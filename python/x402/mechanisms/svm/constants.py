@@ -104,6 +104,16 @@ ERR_DUPLICATE_SETTLEMENT = "duplicate_settlement"
 ERR_MEMO_MISMATCH = "invalid_exact_svm_payload_memo_mismatch"
 ERR_MEMO_COUNT = "invalid_exact_svm_payload_memo_count"
 
+# ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED is returned when a
+# preflight/postflight instruction-tuple allowlist matched, but the
+# facilitator's fee payer appeared in one of the matched instructions'
+# accounts or as a program ID. Unlike the fixed protocol/guard instruction
+# set, an allowlisted tuple is operator-configured arbitrary code and must
+# be isolation-checked.
+ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED = (
+    "invalid_exact_svm_preflight_postflight_fee_payer_not_isolated"
+)
+
 # Non-terminal settle error reason meaning a transaction was broadcast but
 # ConfirmTransaction could not observe its confirmation in time — mirrors
 # EVM's ERR_SETTLEMENT_PENDING (mechanisms/evm/constants.py) and the core

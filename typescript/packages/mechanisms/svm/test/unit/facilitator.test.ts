@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "@solana-program/compute-budget";
 import { x402Facilitator } from "@x402/core/facilitator";
-import { generateKeyPairSigner, type Address } from "@solana/kit";
-import { ExactSvmScheme } from "../../src/exact/facilitator/scheme";
+import { AccountRole, generateKeyPairSigner, type Address } from "@solana/kit";
+import { ExactSvmScheme, type InstructionTuple } from "../../src/exact/facilitator/scheme";
 import { registerExactSvmScheme } from "../../src/exact/facilitator/register";
 import * as Errors from "../../src/exact/facilitator/errors";
 import { ExactSvmSchemeV1 } from "../../src/exact/v1/facilitator/scheme";
@@ -932,6 +932,291 @@ describe("ExactSvmScheme", () => {
       expect(result.success).toBe(true);
       expect(result.transaction).toBe("settleSig");
       expect(result.payer).toBe(payer.address);
+    });
+  });
+
+  describe("preflight/postflight instruction allowlist", () => {
+    let SETUP_PROGRAM_ADDRESS: Address;
+    let FINISH_PROGRAM_ADDRESS: Address;
+
+    beforeEach(async () => {
+      SETUP_PROGRAM_ADDRESS = (await generateKeyPairSigner()).address;
+      FINISH_PROGRAM_ADDRESS = (await generateKeyPairSigner()).address;
+    });
+
+    function setupIx(discriminator: Uint8Array = new Uint8Array([0xaa]), feePayer?: Address) {
+      return {
+        programAddress: SETUP_PROGRAM_ADDRESS,
+        accounts: feePayer ? [{ address: feePayer, role: AccountRole.READONLY }] : ([] as const),
+        data: discriminator,
+      };
+    }
+
+    function finishIx(discriminator: Uint8Array = new Uint8Array([0xbb]), feePayer?: Address) {
+      return {
+        programAddress: FINISH_PROGRAM_ADDRESS,
+        accounts: feePayer ? [{ address: feePayer, role: AccountRole.READONLY }] : ([] as const),
+        data: discriminator,
+      };
+    }
+
+    it("should reject an unmatched leading instruction when no preflight allowlist is configured", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx()],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const facilitator = new ExactSvmScheme(mockSigner);
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrUnknownInstruction);
+    });
+
+    it("should verify successfully when a preflight tuple matches the configured allowlist", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx()],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: SETUP_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xaa]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        preflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should verify successfully when a postflight tuple matches the configured allowlist", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        extraInstructions: [finishIx()],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: FINISH_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xbb]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        postflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should reject a leading instruction that does not match any allowlisted preflight tuple", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx(new Uint8Array([0xff]))],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: SETUP_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xaa]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        preflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrUnknownInstruction);
+    });
+
+    it("should reject a trailing instruction that does not match any allowlisted postflight tuple", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        extraInstructions: [finishIx(new Uint8Array([0xff]))],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: FINISH_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xbb]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        postflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrUnknownInstruction);
+    });
+
+    it("should match a preflight tuple with a guard instruction interspersed between its members", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const lighthouseIx = {
+        programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
+        accounts: [] as const,
+        data: new Uint8Array([0x01]),
+      };
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx(new Uint8Array([0xaa])), lighthouseIx, finishIx()],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const allowlist: InstructionTuple[] = [
+        [
+          { programAddress: SETUP_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xaa]) },
+          { programAddress: FINISH_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xbb]) },
+        ],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        preflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
+    });
+
+    it("should reject when the fee payer appears in a matched preflight tuple's accounts", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx(new Uint8Array([0xaa]), feePayer.address)],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: SETUP_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xaa]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        preflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrPreflightPostflightFeePayerNotIsolated);
+    });
+
+    it("should reject when the fee payer appears in a matched postflight tuple's accounts", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        extraInstructions: [finishIx(new Uint8Array([0xbb]), feePayer.address)],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      const allowlist: InstructionTuple[] = [
+        [{ programAddress: FINISH_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xbb]) }],
+      ];
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        postflightInstructionAllowlist: allowlist,
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(Errors.ErrPreflightPostflightFeePayerNotIsolated);
+    });
+
+    it("should match tuples using both short (1-byte) and long (8-byte Anchor sighash) discriminators", async () => {
+      const feePayer = await generateKeyPairSigner();
+      const payer = await generateKeyPairSigner();
+      const payTo = await generateKeyPairSigner();
+      const longDiscriminator = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+      const transaction = await buildExactPaymentTransaction({
+        amount: 100000n,
+        beforeInstructions: [setupIx(longDiscriminator)],
+        extraInstructions: [finishIx(new Uint8Array([0xbb]))],
+        feePayer: feePayer.address,
+        includeMemo: false,
+        mint: USDC_DEVNET_ADDRESS as Address,
+        payTo: payTo.address,
+        payer,
+      });
+      mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
+      mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+      const facilitator = new ExactSvmScheme(mockSigner, undefined, {
+        preflightInstructionAllowlist: [
+          [{ programAddress: SETUP_PROGRAM_ADDRESS, discriminator: longDiscriminator }],
+        ],
+        postflightInstructionAllowlist: [
+          [{ programAddress: FINISH_PROGRAM_ADDRESS, discriminator: new Uint8Array([0xbb]) }],
+        ],
+      });
+      const result = await facilitator.verify(
+        v2Payment(transaction, { extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+        v2Requirements({ extra: { feePayer: feePayer.address }, payTo: payTo.address }),
+      );
+      expect(result.isValid).toBe(true);
     });
   });
 

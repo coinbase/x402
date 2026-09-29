@@ -23,7 +23,9 @@ from x402.mechanisms.svm import (
     TOKEN_PROGRAM_ADDRESS,
     USDC_DEVNET_ADDRESS,
 )
+from x402.mechanisms.svm.constants import ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
 from x402.mechanisms.svm.exact import ExactSvmFacilitatorScheme
+from x402.mechanisms.svm.exact.facilitator import InstructionIdentity
 from x402.mechanisms.svm.utils import derive_ata, transaction_message_hash
 from x402.schemas import PaymentPayload, PaymentRequirements, ResourceInfo, VerifyResponse
 
@@ -69,7 +71,11 @@ def _lighthouse_instruction() -> Instruction:
     return Instruction(_LIGHTHOUSE_PUBKEY, bytes([0x01]), [])
 
 
-def _build_exact_fixture(before: list | None = None, after: list | None = None):
+def _build_exact_fixture(
+    before: list | None = None,
+    after: list | None = None,
+    facilitator: Keypair | None = None,
+):
     """Build a syntactically valid exact-SVM payment payload/requirements pair:
     ComputeLimit + ComputePrice + TransferChecked, with `before`/`after` guard
     instructions inserted ahead of/appended past the protocol sequence --
@@ -78,7 +84,7 @@ def _build_exact_fixture(before: list | None = None, after: list | None = None):
 
     Returns (payload, requirements, facilitator_address).
     """
-    facilitator = Keypair()
+    facilitator = facilitator or Keypair()
     owner = Keypair()
     mint = Keypair().pubkey()
     pay_to = Keypair().pubkey()
@@ -232,6 +238,202 @@ class TestVerifyGuardInstructions:
 
         assert result.is_valid is False
         assert result.invalid_reason == ERR_UNKNOWN_INSTRUCTION
+
+
+def _setup_instruction(
+    program_address: Pubkey, discriminator: bytes, fee_payer: Pubkey | None = None
+) -> Instruction:
+    """Stand-in for an arbitrary operator-configured preflight/postflight
+    instruction. `fee_payer`, if given, is attached as a readonly non-signer
+    account (used to simulate the fee payer appearing in a matched tuple's
+    accounts)."""
+    accounts = [AccountMeta(fee_payer, False, False)] if fee_payer else []
+    return Instruction(program_address, discriminator, accounts)
+
+
+class TestVerifyPreflightPostflightAllowlist:
+    """Verify the preflight/postflight instruction-tuple allowlist: an
+    operator-configured tuple may appear as a contiguous block (guards aside)
+    immediately before/after the required protocol instructions."""
+
+    def test_rejects_unmatched_leading_instruction_no_allowlist(self):
+        setup_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[_setup_instruction(setup_program, bytes([0xAA]))]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(signer)
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_UNKNOWN_INSTRUCTION
+
+    def test_accepts_preflight_tuple_match(self):
+        setup_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[_setup_instruction(setup_program, bytes([0xAA]))]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            preflight_instruction_allowlist=[
+                [InstructionIdentity(setup_program, bytes([0xAA]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is True
+
+    def test_accepts_postflight_tuple_match(self):
+        finish_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            after=[_setup_instruction(finish_program, bytes([0xBB]))]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            postflight_instruction_allowlist=[
+                [InstructionIdentity(finish_program, bytes([0xBB]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is True
+
+    def test_rejects_non_matching_preflight_tuple(self):
+        setup_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[_setup_instruction(setup_program, bytes([0xFF]))]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            preflight_instruction_allowlist=[
+                [InstructionIdentity(setup_program, bytes([0xAA]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_UNKNOWN_INSTRUCTION
+
+    def test_rejects_non_matching_postflight_tuple(self):
+        finish_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            after=[_setup_instruction(finish_program, bytes([0xFF]))]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            postflight_instruction_allowlist=[
+                [InstructionIdentity(finish_program, bytes([0xBB]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_UNKNOWN_INSTRUCTION
+
+    def test_accepts_preflight_tuple_with_interspersed_guard(self):
+        setup_program = Keypair().pubkey()
+        finish_program = Keypair().pubkey()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[
+                _setup_instruction(setup_program, bytes([0xAA])),
+                _lighthouse_instruction(),
+                _setup_instruction(finish_program, bytes([0xBB])),
+            ]
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            preflight_instruction_allowlist=[
+                [
+                    InstructionIdentity(setup_program, bytes([0xAA])),
+                    InstructionIdentity(finish_program, bytes([0xBB])),
+                ]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is True
+
+    def test_rejects_fee_payer_not_isolated_in_preflight_tuple(self):
+        setup_program = Keypair().pubkey()
+        facilitator_key = Keypair()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[
+                _setup_instruction(
+                    setup_program, bytes([0xAA]), fee_payer=facilitator_key.pubkey()
+                )
+            ],
+            facilitator=facilitator_key,
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            preflight_instruction_allowlist=[
+                [InstructionIdentity(setup_program, bytes([0xAA]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
+
+    def test_rejects_fee_payer_not_isolated_in_postflight_tuple(self):
+        finish_program = Keypair().pubkey()
+        facilitator_key = Keypair()
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            after=[
+                _setup_instruction(
+                    finish_program, bytes([0xBB]), fee_payer=facilitator_key.pubkey()
+                )
+            ],
+            facilitator=facilitator_key,
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            postflight_instruction_allowlist=[
+                [InstructionIdentity(finish_program, bytes([0xBB]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
+
+    def test_accepts_tuple_with_long_discriminator(self):
+        setup_program = Keypair().pubkey()
+        finish_program = Keypair().pubkey()
+        long_discriminator = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
+        payload, requirements, facilitator_addr = _build_exact_fixture(
+            before=[_setup_instruction(setup_program, long_discriminator)],
+            after=[_setup_instruction(finish_program, bytes([0xBB]))],
+        )
+        signer = MockFacilitatorSigner([facilitator_addr])
+        facilitator = ExactSvmFacilitatorScheme(
+            signer,
+            preflight_instruction_allowlist=[
+                [InstructionIdentity(setup_program, long_discriminator)]
+            ],
+            postflight_instruction_allowlist=[
+                [InstructionIdentity(finish_program, bytes([0xBB]))]
+            ],
+        )
+
+        result = facilitator.verify(payload, requirements)
+
+        assert result.is_valid is True
 
 
 class TestExactSvmSchemeConstructor:

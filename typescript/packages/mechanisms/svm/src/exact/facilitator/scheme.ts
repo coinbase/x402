@@ -45,11 +45,13 @@ import {
   TransactionOnchainFailureError,
 } from "../../utils";
 import {
+  assertFeePayerIsolatedFromInstructions,
   assertSmartWalletLimits,
   assertSmartWalletVerifySigner,
   resolveAccountKeys,
   verifySmartWalletTransaction,
   verifyPostSettlement,
+  type DecodedInstructionView,
   type DecodedTransactionView,
   type SmartWalletVerifySigner,
   type TransferCheckedInfo,
@@ -216,6 +218,150 @@ function partitionProtocolInstructions(
 }
 
 /**
+ * Identifies a single instruction by program ID and instruction discriminator.
+ * `discriminator` is matched as a byte-for-byte prefix of the instruction's
+ * data, so it supports both short (e.g. single-byte) and long (e.g. 8-byte
+ * Anchor sighash) discriminators.
+ */
+export type InstructionIdentity = {
+  programAddress: string;
+  discriminator: Uint8Array;
+};
+
+/**
+ * An ordered sequence of instruction identities that may appear together as
+ * a contiguous (guard instructions aside) block immediately before or after
+ * the required protocol instructions. See {@link ExactSvmSchemeOptions.preflightInstructionAllowlist}.
+ */
+export type InstructionTuple = InstructionIdentity[];
+
+/**
+ * True when `ix` matches `identity` by program address and discriminator prefix.
+ *
+ * @param ix - Decompiled instruction to test
+ * @param identity - Program address + discriminator to match against
+ * @returns Whether the instruction matches the identity
+ */
+function matchesIdentity(ix: DecompiledIx, identity: InstructionIdentity): boolean {
+  if (ix.programAddress.toString() !== identity.programAddress) return false;
+  const data = ix.data;
+  if (!data || data.length < identity.discriminator.length) return false;
+  for (let i = 0; i < identity.discriminator.length; i++) {
+    if (data[i] !== identity.discriminator[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Attempts to match one allowlisted tuple against the front of `instructions`,
+ * skipping over guard (Lighthouse) instructions while scanning — consistent
+ * with guard instructions being tolerated everywhere else in the sequence.
+ * Tries each configured tuple in order and returns the first full match.
+ *
+ * @param instructions - Full instruction list to match against
+ * @param allowlist - Configured preflight tuples (empty/undefined matches nothing)
+ * @returns The matched instructions (including any skipped guards) and the
+ *   remaining instructions after the match, or null if no tuple matched
+ */
+function matchLeadingTuple(
+  instructions: readonly DecompiledIx[],
+  allowlist: readonly InstructionTuple[] | undefined,
+): { matched: DecompiledIx[]; rest: DecompiledIx[] } | null {
+  if (!allowlist || allowlist.length === 0) return null;
+  for (const tuple of allowlist) {
+    const matched: DecompiledIx[] = [];
+    let identityIndex = 0;
+    let cursor = 0;
+    while (identityIndex < tuple.length) {
+      const ix = instructions[cursor];
+      if (!ix) break;
+      if (classifyProtocolInstruction(ix) === "guard") {
+        matched.push(ix);
+        cursor++;
+        continue;
+      }
+      if (!matchesIdentity(ix, tuple[identityIndex])) break;
+      matched.push(ix);
+      cursor++;
+      identityIndex++;
+    }
+    if (identityIndex === tuple.length) {
+      return { matched, rest: instructions.slice(cursor) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Attempts to match one allowlisted tuple against the back of `instructions`,
+ * skipping over guard (Lighthouse) instructions while scanning backward. See
+ * {@link matchLeadingTuple} for the analogous forward match.
+ *
+ * @param instructions - Instruction list to match against (already
+ *   preflight-stripped, if applicable)
+ * @param allowlist - Configured postflight tuples (empty/undefined matches nothing)
+ * @returns The matched instructions (including any skipped guards, in original
+ *   order) and the remaining instructions before the match, or null if no
+ *   tuple matched
+ */
+function matchTrailingTuple(
+  instructions: readonly DecompiledIx[],
+  allowlist: readonly InstructionTuple[] | undefined,
+): { matched: DecompiledIx[]; rest: DecompiledIx[] } | null {
+  if (!allowlist || allowlist.length === 0) return null;
+  for (const tuple of allowlist) {
+    const matched: DecompiledIx[] = [];
+    let identityIndex = tuple.length - 1;
+    let cursor = instructions.length - 1;
+    while (identityIndex >= 0) {
+      const ix = instructions[cursor];
+      if (!ix) break;
+      if (classifyProtocolInstruction(ix) === "guard") {
+        matched.unshift(ix);
+        cursor--;
+        continue;
+      }
+      if (!matchesIdentity(ix, tuple[identityIndex])) break;
+      matched.unshift(ix);
+      cursor--;
+      identityIndex--;
+    }
+    if (identityIndex < 0) {
+      return { matched, rest: instructions.slice(0, cursor + 1) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Asserts the facilitator fee payer is not referenced by any instruction in a
+ * matched preflight/postflight block. Path 1's fixed protocol/guard
+ * instruction set never needs this check (none of those programs can drain
+ * the fee payer), but an operator-configured allowlisted tuple is arbitrary
+ * code, so it must be isolation-checked the same way Path 2 checks smart
+ * wallet instructions.
+ *
+ * @param matched - The matched (non-guard and guard) instructions from
+ *   {@link matchLeadingTuple} / {@link matchTrailingTuple}
+ * @param feePayerAddress - Facilitator fee payer address that must remain isolated
+ * @returns An error reason string if the fee payer is not isolated, or null when isolated
+ */
+function assertFeePayerIsolatedFromTuple(
+  matched: readonly DecompiledIx[],
+  feePayerAddress: string,
+): string | null {
+  try {
+    assertFeePayerIsolatedFromInstructions(
+      matched as unknown as ReadonlyArray<DecodedInstructionView>,
+      feePayerAddress,
+    );
+    return null;
+  } catch {
+    return Errors.ErrPreflightPostflightFeePayerNotIsolated;
+  }
+}
+
+/**
  * Configuration options for ExactSvmScheme.
  */
 export type ExactSvmSchemeOptions = {
@@ -258,6 +404,27 @@ export type ExactSvmSchemeOptions = {
    * Default: Squads Multisig v4, Squads Smart Account, Swig, SPL Governance, Metaplex Core
    */
   smartWalletAllowedPrograms?: string[];
+
+  /**
+   * Allowlisted instruction tuples that may appear as a contiguous block
+   * (guard/Lighthouse instructions aside) immediately BEFORE the required
+   * protocol instructions (ComputeLimit, ComputePrice, TransferChecked,
+   * optional Memo) on Path 1. Extension point for prefixing the payment with
+   * out-of-band setup (e.g. atomically channeling funds into the transfer).
+   * A matched block is fee-payer-isolation-checked like Path 2 instructions.
+   *
+   * Default: [] (no preflight instructions are accepted; current behavior)
+   */
+  preflightInstructionAllowlist?: InstructionTuple[];
+
+  /**
+   * Allowlisted instruction tuples that may appear as a contiguous block
+   * (guard/Lighthouse instructions aside) immediately AFTER the required
+   * protocol instructions on Path 1. See {@link preflightInstructionAllowlist}.
+   *
+   * Default: [] (no postflight instructions are accepted; current behavior)
+   */
+  postflightInstructionAllowlist?: InstructionTuple[];
 
   /**
    * Maximum compute unit price in microlamports accepted on the static path.
@@ -1060,7 +1227,45 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
     signerAddresses: string[],
   ): Promise<VerifyResponse> {
-    const instructions = decompiled.instructions ?? [];
+    let instructions = (decompiled.instructions ?? []) as unknown as DecompiledIx[];
+
+    // Optional preflight/postflight instruction-tuple allowlist: strips a
+    // matched, allowlisted block from the front/back before the protocol
+    // scan below runs. Empty/unset allowlists (the default) never match, so
+    // this is a no-op unless an operator has configured tuples.
+    const feePayerAddress = requirements.extra?.feePayer as string | undefined;
+    const preflightMatch = matchLeadingTuple(
+      instructions,
+      this.options?.preflightInstructionAllowlist,
+    );
+    if (preflightMatch) {
+      if (feePayerAddress) {
+        const isolationError = assertFeePayerIsolatedFromTuple(
+          preflightMatch.matched,
+          feePayerAddress,
+        );
+        if (isolationError) {
+          return { isValid: false, invalidReason: isolationError, payer: "" };
+        }
+      }
+      instructions = preflightMatch.rest;
+    }
+    const postflightMatch = matchTrailingTuple(
+      instructions,
+      this.options?.postflightInstructionAllowlist,
+    );
+    if (postflightMatch) {
+      if (feePayerAddress) {
+        const isolationError = assertFeePayerIsolatedFromTuple(
+          postflightMatch.matched,
+          feePayerAddress,
+        );
+        if (isolationError) {
+          return { isValid: false, invalidReason: isolationError, payer: "" };
+        }
+      }
+      instructions = postflightMatch.rest;
+    }
 
     // Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
     // an optional Memo) are identified by program ID + instruction
@@ -1070,7 +1275,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // list, since they only assert/abort and never mutate payment-relevant
     // state. See: https://github.com/x402-foundation/x402/issues/828
     //  and: https://github.com/x402-foundation/x402/issues/2097
-    const partitioned = partitionProtocolInstructions(instructions as unknown as DecompiledIx[]);
+    const partitioned = partitionProtocolInstructions(instructions);
     if ("errorReason" in partitioned) {
       return {
         isValid: false,

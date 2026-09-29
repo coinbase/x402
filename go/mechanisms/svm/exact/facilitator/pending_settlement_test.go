@@ -120,6 +120,23 @@ func buildExactFixtureWithOptional(t *testing.T, extra ...solana.Instruction) ex
 // after the payment instructions.
 func buildExactFixtureWithInstructions(t *testing.T, before, after []solana.Instruction) exactFixture {
 	t.Helper()
+	return buildExactFixtureWithInstructionsFn(t,
+		func(solana.PublicKey) []solana.Instruction { return before },
+		func(solana.PublicKey) []solana.Instruction { return after },
+	)
+}
+
+// buildExactFixtureWithInstructionsFn is buildExactFixtureWithInstructions,
+// but `before`/`after` are functions of the (randomly generated) facilitator
+// address — needed by tests that must reference the fee payer's own address
+// inside a preflight/postflight instruction (e.g. to assert isolation is
+// enforced).
+func buildExactFixtureWithInstructionsFn(
+	t *testing.T,
+	before func(facilitatorAddr solana.PublicKey) []solana.Instruction,
+	after func(facilitatorAddr solana.PublicKey) []solana.Instruction,
+) exactFixture {
+	t.Helper()
 
 	facilitatorAddr := solana.NewWallet().PrivateKey.PublicKey()
 	ownerWallet := solana.NewWallet()
@@ -156,14 +173,14 @@ func buildExactFixtureWithInstructions(t *testing.T, before, after []solana.Inst
 	require.NoError(t, err)
 
 	builder := solana.NewTransactionBuilder()
-	for _, ix := range before {
+	for _, ix := range before(facilitatorAddr) {
 		builder = builder.AddInstruction(ix)
 	}
 	builder = builder.
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
 		AddInstruction(transferIx)
-	for _, ix := range after {
+	for _, ix := range after(facilitatorAddr) {
 		builder = builder.AddInstruction(ix)
 	}
 	tx, err := builder.

@@ -74,6 +74,15 @@ const (
 	ErrSmartWalletTransferMismatch          = "invalid_exact_solana_smart_wallet_transfer_mismatch"
 	ErrSmartWalletMultipleMatchingTransfers = "invalid_exact_solana_smart_wallet_multiple_matching_transfers"
 	ErrSmartWalletProgramNotAllowed         = "invalid_exact_solana_smart_wallet_program_not_allowed"
+
+	// ErrPreflightPostflightFeePayerNotIsolated is returned when a
+	// preflight/postflight instruction-tuple allowlist matched, but the
+	// facilitator's fee payer appeared in one of the matched instructions'
+	// accounts or as a program ID. Unlike the fixed protocol/guard
+	// instruction set, an allowlisted tuple is operator-configured arbitrary
+	// code and must be isolation-checked the same way Path 2 smart wallet
+	// instructions are.
+	ErrPreflightPostflightFeePayerNotIsolated = "invalid_exact_solana_preflight_postflight_fee_payer_not_isolated"
 )
 
 // ErrSettlementPending is the non-terminal settle error reason used when a

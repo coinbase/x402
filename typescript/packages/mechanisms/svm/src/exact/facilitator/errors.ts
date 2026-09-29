@@ -102,6 +102,16 @@ export const ErrSmartWalletMultipleMatchingTransfers =
 export const ErrSmartWalletProgramNotAllowed = "invalid_exact_svm_smart_wallet_program_not_allowed";
 
 /**
+ * A preflight/postflight instruction-tuple allowlist matched, but the
+ * facilitator's fee payer appeared in one of the matched instructions'
+ * accounts or as a program ID. Unlike the fixed protocol/guard instruction
+ * set, an allowlisted tuple is operator-configured arbitrary code and must
+ * be isolation-checked the same way Path 2 smart wallet instructions are.
+ */
+export const ErrPreflightPostflightFeePayerNotIsolated =
+  "invalid_exact_svm_preflight_postflight_fee_payer_not_isolated";
+
+/**
  * Non-terminal settle error reason used when a transaction was broadcast but
  * `confirmTransaction` couldn't observe its confirmation in time. Always
  * carries the broadcast signature (as `SettleResponse.transaction`) so a
