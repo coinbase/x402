@@ -1,5 +1,10 @@
 # @x402/core Changelog
 
+## 2.28.0
+
+### Minor Changes
+
+- Bumped to align version with dependent packages
 ## 2.27.0
 
 ### Minor Changes

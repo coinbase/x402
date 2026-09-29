@@ -1,5 +1,12 @@
 # @x402/stellar Changelog
 
+## 2.28.0
+
+### Minor Changes
+
+- Updated dependencies
+  - @x402/core@2.28.0
+
 ## 2.27.0
 
 ### Minor Changes
