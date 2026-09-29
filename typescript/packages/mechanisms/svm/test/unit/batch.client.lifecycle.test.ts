@@ -4,6 +4,7 @@ import type { PaymentRequirements } from "@x402/core/types";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BatchChannelTracker } from "../../src/batch-settlement/client/channel";
+import { NoBatchChannelToRefundError } from "../../src/batch-settlement/client/refund";
 import {
   BatchSvmScheme,
   type BatchClientChannelRecord,
@@ -787,5 +788,20 @@ describe("batch client lifecycle", () => {
       x402Version: 2,
       payload: { type: "refund", voucher: { channelId: RECEIVER, maxClaimableAmount: "1000" } },
     });
+  });
+
+  it("reports no channel when the probe is server-signed and nothing is open", async () => {
+    const operator = await generateKeyPairSigner();
+    const client = new BatchSvmScheme(payer, { discoverChannels: false });
+    const serverFirstProbe = requirements({
+      extra: {
+        ...requirements().extra,
+        operator: operator.address,
+        voucherSigner: "server",
+      },
+    });
+    await expect(client.createRefundPayload(2, serverFirstProbe)).rejects.toBeInstanceOf(
+      NoBatchChannelToRefundError,
+    );
   });
 });

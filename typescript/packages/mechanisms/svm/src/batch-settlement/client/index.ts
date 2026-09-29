@@ -18,6 +18,7 @@ export {
 } from "./trust";
 export {
   type BatchRefundOptions,
+  NoBatchChannelToRefundError,
   probeBatchRequirements,
   refundBatchChannel,
   type RefundPayloadOptions,

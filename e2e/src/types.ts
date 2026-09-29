@@ -89,6 +89,8 @@ export interface ServerConfig {
   networks: NetworkSet;
   /** When set, only forward SERVER_* addresses for these families */
   enabledFamilies?: ProtocolFamily[];
+  /** Narrows catalog routes mounted by the server for this run (from scenario filters). */
+  runRouteFilter?: { excludeSchemes?: string[]; excludeNetworks?: string[] };
   facilitatorUrl?: string;
   mockFacilitatorUrl?: string;
 }

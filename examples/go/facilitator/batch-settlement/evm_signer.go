@@ -125,10 +125,13 @@ func (s *facilitatorEvmSigner) ReadContract(
 	if err != nil {
 		return nil, fmt.Errorf("unpack: %w", err)
 	}
-	if len(results) > 0 {
+	if len(results) == 0 {
+		return nil, nil
+	}
+	if len(results) == 1 {
 		return results[0], nil
 	}
-	return nil, nil
+	return results, nil
 }
 
 func (s *facilitatorEvmSigner) WriteContract(

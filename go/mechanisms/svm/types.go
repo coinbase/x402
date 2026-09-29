@@ -216,7 +216,8 @@ type FacilitatorSvmSigner interface {
 	// SimulateTransaction simulates a transaction to verify it would succeed.
 	// Does not verify signatures (RPC sigVerify is off). Callers must verify
 	// required signatures themselves; the fee-payer slot may be empty.
-	SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string) error
+	// Nil opts also keep replaceRecentBlockhash off.
+	SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string, opts *FacilitatorSimulateTransactionOptions) error
 
 	// SendTransaction sends a signed transaction to the network
 	// Returns transaction signature or error if send fails
@@ -229,11 +230,34 @@ type FacilitatorSvmSigner interface {
 
 // FacilitatorSimulateTransactionOptions configures facilitator transaction
 // simulation. Nil pointer fields use RPC defaults (sigVerify off,
-// replaceRecentBlockhash off).
+// replaceRecentBlockhash off, commitment confirmed).
 type FacilitatorSimulateTransactionOptions struct {
 	SigVerify              *bool
 	ReplaceRecentBlockhash *bool
 	Commitment             rpc.CommitmentType
+}
+
+// SimulationRPCOpts maps facilitator simulation options onto the Solana RPC
+// client. A nil options value keeps the facilitator defaults.
+func SimulationRPCOpts(opts *FacilitatorSimulateTransactionOptions) *rpc.SimulateTransactionOpts {
+	rpcOpts := &rpc.SimulateTransactionOpts{
+		SigVerify:              false,
+		ReplaceRecentBlockhash: false,
+		Commitment:             DefaultCommitment,
+	}
+	if opts == nil {
+		return rpcOpts
+	}
+	if opts.SigVerify != nil {
+		rpcOpts.SigVerify = *opts.SigVerify
+	}
+	if opts.ReplaceRecentBlockhash != nil {
+		rpcOpts.ReplaceRecentBlockhash = *opts.ReplaceRecentBlockhash
+	}
+	if opts.Commitment != "" {
+		rpcOpts.Commitment = opts.Commitment
+	}
+	return rpcOpts
 }
 
 // FacilitatorAccountInfo is the account shape returned by GetAccountInfo on
@@ -248,6 +272,89 @@ type FacilitatorAccountInfo struct {
 type FacilitatorProgramAccount struct {
 	Pubkey  solana.PublicKey
 	Account FacilitatorAccountInfo
+}
+
+// FacilitatorTokenBalance is one token balance from a confirmed transaction.
+// The amounts are that transaction's meta, never a later account snapshot.
+type FacilitatorTokenBalance struct {
+	AccountIndex  int
+	Mint          string
+	Owner         string
+	UITokenAmount FacilitatorTokenAmount
+}
+
+// FacilitatorTokenAmount is the raw atomic amount of a token balance entry.
+type FacilitatorTokenAmount struct {
+	Amount string
+}
+
+// FacilitatorConfirmedMeta is the transaction metadata batch payout accounting reads.
+type FacilitatorConfirmedMeta struct {
+	// Err is non-nil when the transaction failed onchain.
+	Err               interface{}
+	PreTokenBalances  []FacilitatorTokenBalance
+	PostTokenBalances []FacilitatorTokenBalance
+}
+
+// FacilitatorConfirmedTransaction is the confirmed-transaction evidence used
+// to attribute batch payouts.
+type FacilitatorConfirmedTransaction struct {
+	Slot        uint64
+	Meta        *FacilitatorConfirmedMeta
+	AccountKeys []string
+}
+
+// FacilitatorConfirmedTransactionReader is the optional read a facilitator
+// signer provides so batch payout accounting can attribute a landed sweep.
+// Assert it the same way as SmartWalletRPCCapabilities: present when the
+// facilitator settles distributions, absent on exact-only signers.
+type FacilitatorConfirmedTransactionReader interface {
+	// GetConfirmedTransaction returns the confirmed transaction, or (nil, nil)
+	// when the signature is unknown.
+	GetConfirmedTransaction(ctx context.Context, signature solana.Signature, network string) (*FacilitatorConfirmedTransaction, error)
+}
+
+// FacilitatorBlockhashCapabilities is optional. Batch recovery uses it to
+// decide that an unconfirmed broadcast can no longer land.
+type FacilitatorBlockhashCapabilities interface {
+	IsBlockhashValid(ctx context.Context, blockhash solana.Hash, network string) (bool, error)
+}
+
+// FacilitatorConfirmOptions configures one confirmation wait.
+type FacilitatorConfirmOptions struct {
+	// SearchTransactionHistory searches older history. Callers that poll must
+	// set this only on the first lookup; later lookups use the recent-status cache.
+	SearchTransactionHistory bool
+}
+
+// FacilitatorConfirmationStatus is the status a confirmation wait observed.
+type FacilitatorConfirmationStatus struct {
+	Slot uint64
+}
+
+// FacilitatorConfirmWithOptions is an optional confirmation wait that can
+// search transaction history and report the confirmation slot.
+type FacilitatorConfirmWithOptions interface {
+	ConfirmTransactionWithOptions(
+		ctx context.Context,
+		signature solana.Signature,
+		network string,
+		opts *FacilitatorConfirmOptions,
+	) (*FacilitatorConfirmationStatus, error)
+}
+
+// TransactionOnchainFailureError is a transaction that reached the chain and
+// failed there. Callers treat it as terminal: release any pending-settlement
+// record and report a failure. Any other confirmation error may still land.
+type TransactionOnchainFailureError struct {
+	Message string
+}
+
+func (e *TransactionOnchainFailureError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
 }
 
 // SmartWalletRPCCapabilities is the extra read-only RPC surface a

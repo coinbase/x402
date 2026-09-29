@@ -1,0 +1,11 @@
+kind: added
+body: >-
+  Implement Go batch-settlement for Solana (client, server, facilitator) on
+  paymentchannels: cumulative client-signed vouchers and server-signed operator
+  metering with trust policy and PaymentCreationFailureHandler fallback to
+  client-signed accepts; channel manager, pending settlement, seal and
+  distribute, recovery, receiver binding and authorizer stores, delegated
+  receiver auth, and refund/close flows. Document imports and modes in
+  go/mechanisms/svm/batch-settlement/README.md. Expand Go batch-settlement
+  examples (client, server, facilitator signers) and e2e SVM batch coverage.
+time: 2026-09-28T10:00:00Z

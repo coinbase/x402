@@ -4,7 +4,7 @@ import { toClientEvmSigner } from "@x402/evm";
 import { BatchSettlementEvmScheme } from "@x402/evm/batch-settlement/client";
 import { FileClientChannelStorage } from "@x402/evm/batch-settlement/client/file-storage";
 import { x402Client, wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
-import { BatchSvmScheme } from "@x402/svm/batch-settlement/client";
+import { BatchSvmScheme, NoBatchChannelToRefundError } from "@x402/svm/batch-settlement/client";
 import { config } from "dotenv";
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -166,11 +166,19 @@ async function main(): Promise<void> {
     }
     if (svmScheme) {
       const refundT0 = performance.now();
-      const settle = await svmScheme.refund(url);
-      console.log("[SVM]", JSON.stringify(settle, null, 2));
-      console.log(
-        `[SVM] Refund completed in ${((performance.now() - refundT0) / 1000).toFixed(3)}s`,
-      );
+      try {
+        const settle = await svmScheme.refund(url);
+        console.log("[SVM]", JSON.stringify(settle, null, 2));
+        console.log(
+          `[SVM] Refund completed in ${((performance.now() - refundT0) / 1000).toFixed(3)}s`,
+        );
+      } catch (error) {
+        if (error instanceof NoBatchChannelToRefundError) {
+          console.log("[SVM] No open channel to refund (skipped)");
+        } else {
+          throw error;
+        }
+      }
     }
   }
 }

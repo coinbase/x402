@@ -492,6 +492,24 @@ export function filterRoutes(routes: SdkRoute[], filter?: RouteFilter): SdkRoute
   return routes.filter(route => !schemes.has(route.scheme) && !networks.has(route.network));
 }
 
+/** True when a catalog network/scheme pair is excluded by a harness or component route filter. */
+export function isRouteExcludedByFilter(
+  network: string,
+  scheme: string,
+  filter?: RouteFilter,
+): boolean {
+  if (!filter) {
+    return false;
+  }
+  if (filter.excludeNetworks?.includes(network)) {
+    return true;
+  }
+  if (filter.excludeSchemes?.includes(scheme)) {
+    return true;
+  }
+  return false;
+}
+
 export function availableRoutes(
   routes: SdkRoute[],
   env: EnvLookup,
@@ -1046,6 +1064,53 @@ export function routeDiscoveryOutput(): {
     properties[key] = { type: 'string' };
   }
   return { example, schema: { properties, required: Object.keys(example) } };
+}
+
+const HARNESS_PAYMENT_SCHEMES = ['exact', 'upto', 'batch-settlement'] as const;
+
+/** Merge component-level and run-level route exclusions (union of exclude lists). */
+export function mergeRouteFilters(...filters: (RouteFilter | undefined)[]): RouteFilter {
+  const excludeSchemes = new Set<string>();
+  const excludeNetworks = new Set<string>();
+  for (const filter of filters) {
+    if (!filter) continue;
+    for (const scheme of filter.excludeSchemes ?? []) {
+      excludeSchemes.add(scheme);
+    }
+    for (const network of filter.excludeNetworks ?? []) {
+      excludeNetworks.add(network);
+    }
+  }
+  return {
+    ...(excludeSchemes.size > 0 ? { excludeSchemes: [...excludeSchemes] } : {}),
+    ...(excludeNetworks.size > 0 ? { excludeNetworks: [...excludeNetworks] } : {}),
+  };
+}
+
+/** Serialize a {@link RouteFilter} into env vars read by TS/Go/Python e2e servers. */
+export function routeFilterToEnv(filter: RouteFilter): Record<string, string> {
+  const env: Record<string, string> = {};
+  if (filter.excludeSchemes?.length) {
+    env.E2E_EXCLUDE_SCHEMES = filter.excludeSchemes.join(',');
+  }
+  if (filter.excludeNetworks?.length) {
+    env.E2E_EXCLUDE_NETWORKS = filter.excludeNetworks.join(',');
+  }
+  return env;
+}
+
+/**
+ * Route exclusions for the current harness run from selected scenarios
+ * (`--families`, `--schemes`, and other filters that narrow `filteredScenarios`).
+ */
+export function runRouteFilterForHarness(
+  selectedFamilies: ReadonlySet<string>,
+  selectedSchemes: ReadonlySet<string>,
+): RouteFilter {
+  return {
+    excludeNetworks: NETWORK_IDS.filter(id => !selectedFamilies.has(id)),
+    excludeSchemes: HARNESS_PAYMENT_SCHEMES.filter(scheme => !selectedSchemes.has(scheme)),
+  };
 }
 
 /** Route filter parsed from the exclude env vars the harness injects. */

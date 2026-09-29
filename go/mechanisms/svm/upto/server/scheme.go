@@ -351,7 +351,7 @@ func (s *UptoSvmScheme) enrichBlockhashHints(ctx context.Context, extra map[stri
 		return
 	}
 
-	latest, err := rpc.New(s.config.RPCURL).GetLatestBlockhash(ctx, upto.BlockhashCommitment)
+	latest, err := rpc.New(s.config.RPCURL).GetLatestBlockhash(ctx, paymentchannels.BlockhashCommitment)
 	if err != nil || latest == nil {
 		return
 	}

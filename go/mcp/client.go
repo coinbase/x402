@@ -180,7 +180,7 @@ func (c *X402MCPClient) CallTool(ctx context.Context, name string, args map[stri
 	}
 
 	payload, err := c.paymentClient.CreatePaymentPayload(
-		ctx,
+		x402.WithPaymentRequired(ctx, *paymentRequired),
 		selected,
 		paymentRequired.Resource,
 		paymentRequired.Extensions,
@@ -238,7 +238,7 @@ func (c *X402MCPClient) callToolWithPayload(ctx context.Context, name string, ar
 
 	if recovered && paymentRequired != nil {
 		freshPayload, err := c.paymentClient.CreatePaymentPayload(
-			ctx,
+			x402.WithPaymentRequired(ctx, *paymentRequired),
 			payload.Accepted,
 			paymentRequired.Resource,
 			paymentRequired.Extensions,
@@ -589,7 +589,7 @@ func CallPaidTool(
 	}
 
 	paymentPayload, err := x402Client.CreatePaymentPayload(
-		ctx,
+		x402.WithPaymentRequired(ctx, *paymentRequired),
 		selected,
 		paymentRequired.Resource,
 		paymentRequired.Extensions,

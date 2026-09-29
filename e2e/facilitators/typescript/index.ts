@@ -66,7 +66,7 @@ import { toFacilitatorSvmSigner } from "@x402/svm";
 import {
   BatchSvmScheme as BatchSettlementSvmScheme,
   createReceiverBindingHistoryReader,
-  InMemoryBatchReceiverAuthorizerStore,
+  InMemoryBatchChannelStorage,
   type BatchSvmFacilitatorConfig,
 } from "@x402/svm/batch-settlement/facilitator";
 import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
@@ -484,31 +484,17 @@ const svmSigner = svmAccount
     )
   : undefined;
 
-/** SVM batch-settlement facilitator binding source (in-memory store and/or archive RPC history). */
+/** SVM batch-settlement facilitator channel storage and optional archive history. */
 function buildSvmBatchFacilitatorConfig(network: Network): BatchSvmFacilitatorConfig {
-  const bindingStore = process.env.FACILITATOR_SVM_BATCH_BINDING_STORE?.trim().toLowerCase();
-  const useInMemoryStore =
-    bindingStore === undefined ||
-    bindingStore === "" ||
-    bindingStore === "memory" ||
-    bindingStore === "inmemory" ||
-    bindingStore === "true" ||
-    bindingStore === "1";
   const archiveRpcUrl = process.env.SVM_ARCHIVE_RPC_URL?.trim();
-
-  const config: BatchSvmFacilitatorConfig = {};
-  if (useInMemoryStore) {
-    config.receiverAuthorizerStore = new InMemoryBatchReceiverAuthorizerStore();
-  }
+  const config: BatchSvmFacilitatorConfig = {
+    channelStorage: new InMemoryBatchChannelStorage(),
+  };
   if (archiveRpcUrl) {
     config.receiverBindingHistoryReader = createReceiverBindingHistoryReader({
       [network]: archiveRpcUrl,
     });
     console.info(`SVM batch-settlement binding history RPC: ${archiveRpcUrl}`);
-  } else if (!useInMemoryStore) {
-    console.info(
-      "SVM batch-settlement: in-memory receiver binding store disabled; using signer RPC history reads",
-    );
   }
   return config;
 }

@@ -28,7 +28,6 @@ import {
   type ServerInstruction,
 } from "../../payment-channels/onchain";
 import { parseU64 } from "../../payment-channels/open";
-import type { PaymentChannelRecord } from "../../payment-channels/storage";
 import { encodeVoucherMessageBytes, verifyVoucherSignature } from "../../payment-channels/voucher";
 import type { SettlementCache } from "../../settlement-cache";
 import { verifyCloseAuthorization } from "../closeAuthorization";
@@ -41,8 +40,7 @@ import {
   type BatchSealPayload,
   type BatchVoucher,
 } from "../types";
-import type { BatchDelegatedSettleContext } from "./delegatedAuthStore";
-import { requireReceiverAuthorizer } from "./receiverAuthorizerStore";
+import { requireReceiverAuthorizer, type ChannelBinding } from "./bindingSource";
 import type { BatchPendingSettlementStore } from "./recovery";
 import {
   CHANNEL_BUSY,
@@ -51,7 +49,7 @@ import {
   settleFailure,
   settlementPending,
 } from "./responses";
-import type { BatchTerms } from "./types";
+import type { BatchDelegatedSettleContext, BatchTerms } from "./types";
 
 /** Terms `seal` needs: everything {@link BatchTerms} carries except who signs vouchers. */
 export type SealTerms = Omit<BatchTerms, "voucherSigner">;
@@ -81,13 +79,12 @@ export interface SealDependencies {
     requirements: PaymentRequirements,
     binding?: "requirements" | "payload",
   ): Promise<SealTerms>;
-  resolveReceiverAuthorizer(network: Network, channelId: string): Promise<string | undefined>;
+  /** One channel-row read, with history as the binding fallback. */
+  readBinding(network: Network, channelId: string): Promise<ChannelBinding>;
   /** True when `bound` is this facilitator's delegated receiver authorizer. */
   isDelegatedAuthorizer(bound: string): boolean;
   /** Caller identity for this settle, or undefined when the caller is unauthenticated. */
   resolveDelegatedIdentity(ctx: BatchDelegatedSettleContext): Promise<string | undefined>;
-  /** Identity bound at open, or undefined when this facilitator has no row. */
-  getDelegatedCallerIdentity(network: Network, channelId: string): Promise<string | undefined>;
   deriveChannelId(config: BatchChannelConfig, feePayer: string): Promise<string>;
   fetchChannel(network: string, channelId: string): Promise<Channel>;
   readChannel(network: string, channelId: string): Promise<Channel | undefined>;
@@ -119,7 +116,6 @@ export interface SealDependencies {
     network: Network,
     payer: string,
   ): Promise<SettleResponse | undefined>;
-  trackChannel(record: Omit<PaymentChannelRecord, "firstSeenAt" | "lastActivityAt">): Promise<void>;
   nowSeconds(): number;
 }
 
@@ -258,15 +254,6 @@ export async function settleSeal(
   const response =
     intent === "refund" ? { ...sealed, amount: (channel.deposit - cumulative).toString() } : sealed;
   await deps.pendingStore.set(`${key}:result`, JSON.stringify(response));
-  // A confirmed seal is facilitator-visible activity; cleanup will find the
-  // PDA gone or Distributed and reclaim rent from there.
-  await deps.trackChannel({
-    channelId,
-    expiresAt: CLIENT_VOUCHER_EXPIRES_AT,
-    network,
-    payTo: requirements.payTo,
-    tokenProgram: terms.tokenProgram,
-  });
   return response;
 }
 
@@ -316,9 +303,9 @@ export async function prepareRefund(
   }
 
   void context;
-  const bound = await deps.resolveReceiverAuthorizer(requirements.network, channelId);
-  if (bound !== undefined) {
-    requireReceiverAuthorizer(bound, terms.receiverAuthorizer, channelId);
+  const binding = await deps.readBinding(requirements.network, channelId);
+  if (binding.receiverAuthorizer !== undefined) {
+    requireReceiverAuthorizer(binding.receiverAuthorizer, terms.receiverAuthorizer, channelId);
     return { channelId, terms };
   }
   if (payload.transaction === undefined) {
@@ -396,6 +383,9 @@ export async function settleCooperativeRefund(
     ]);
     return refundResponse(channelId, current, requirements.network, "");
   }
+  if (!isBatchVoucher(payload.voucher)) {
+    throw new Error(`${BatchError.VOUCHER_SIGNATURE}: refund missing voucher`);
+  }
   const seal: BatchSealPayload = {
     channelConfig: payload.channelConfig,
     channelId,
@@ -461,8 +451,9 @@ async function authenticateServer(
   intent: CloseIntent,
   context?: FacilitatorContext,
 ): Promise<void> {
+  const binding = await deps.readBinding(requirements.network, channelId);
   const bound = requireReceiverAuthorizer(
-    await deps.resolveReceiverAuthorizer(requirements.network, channelId),
+    binding.receiverAuthorizer,
     terms.receiverAuthorizer,
     channelId,
   );
@@ -474,8 +465,7 @@ async function authenticateServer(
       payer: payload.channelConfig.payer,
       step: intent === "refund" ? "refund" : "seal",
     });
-    const stored = await deps.getDelegatedCallerIdentity(requirements.network, channelId);
-    if (!identity || identity !== stored) {
+    if (!identity || identity !== binding.callerIdentity) {
       throw new Error(
         `${BatchError.DELEGATED_UNAUTHENTICATED}: caller identity does not match the channel binding`,
       );
@@ -485,7 +475,7 @@ async function authenticateServer(
   if (!payload.closeAuthorization) {
     throw new Error(`${BatchError.CLOSE_AUTHORIZATION}: a closeAuthorization is required`);
   }
-  const binding = {
+  const closeBinding = {
     channelId,
     feePayer: terms.feePayer,
     maxClaimableAmount: cumulative,
@@ -494,7 +484,7 @@ async function authenticateServer(
   };
   const valid = await verifyCloseAuthorization(
     payload.closeAuthorization,
-    binding,
+    closeBinding,
     bound,
     requirements.maxTimeoutSeconds,
     deps.nowSeconds(),

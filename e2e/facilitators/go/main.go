@@ -43,6 +43,7 @@ import (
 	svmmech "github.com/x402-foundation/x402/go/v2/mechanisms/svm"
 	svm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/facilitator"
 	svmv1 "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/v1/facilitator"
+	batchsvmfac "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/facilitator"
 	uptosvm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/upto/facilitator"
 	x402types "github.com/x402-foundation/x402/go/v2/types"
 )
@@ -699,19 +700,13 @@ func (s *realFacilitatorSvmSigner) SignTransaction(ctx context.Context, tx *sola
 	return nil
 }
 
-func (s *realFacilitatorSvmSigner) SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
+func (s *realFacilitatorSvmSigner) SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string, opts *svmmech.FacilitatorSimulateTransactionOptions) error {
 	rpcClient, err := s.getRPC(ctx, network)
 	if err != nil {
 		return err
 	}
 
-	opts := rpc.SimulateTransactionOpts{
-		SigVerify:              false,
-		ReplaceRecentBlockhash: false,
-		Commitment:             svmmech.DefaultCommitment,
-	}
-
-	simResult, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, &opts)
+	simResult, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, svmmech.SimulationRPCOpts(opts))
 	if err != nil {
 		return fmt.Errorf("simulation failed: %w", err)
 	}
@@ -826,26 +821,6 @@ func (s *realFacilitatorSvmSigner) GetSlot(ctx context.Context, network string, 
 		return 0, err
 	}
 	return rpcClient.GetSlot(ctx, commitment)
-}
-
-func (s *realFacilitatorSvmSigner) SimulateTransactionWithOpts(
-	ctx context.Context,
-	tx *solana.Transaction,
-	network string,
-	opts *rpc.SimulateTransactionOpts,
-) error {
-	rpcClient, err := s.getRPC(ctx, network)
-	if err != nil {
-		return err
-	}
-	result, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, opts)
-	if err != nil {
-		return fmt.Errorf("simulation failed: %w", err)
-	}
-	if result != nil && result.Value != nil && result.Value.Err != nil {
-		return fmt.Errorf("simulation failed: transaction would fail on-chain")
-	}
-	return nil
 }
 
 func (s *realFacilitatorSvmSigner) GetProgramAccounts(
@@ -1008,6 +983,26 @@ func getV1EvmNetwork(network string) string {
 	}
 }
 
+func buildSvmBatchFacilitatorConfig(svmNetwork, archiveRpcURL string) *batchsvmfac.Config {
+	bindingStore := strings.TrimSpace(strings.ToLower(os.Getenv("FACILITATOR_SVM_BATCH_BINDING_STORE")))
+	useInMemoryStore := bindingStore == "" ||
+		bindingStore == "memory" ||
+		bindingStore == "inmemory" ||
+		bindingStore == "true" ||
+		bindingStore == "1"
+
+	cfg := &batchsvmfac.Config{}
+	if archiveRpcURL != "" {
+		cfg.ReceiverBindingHistoryReader = batchsvmfac.NewReceiverBindingHistoryReader(map[string]string{
+			svmNetwork: archiveRpcURL,
+		})
+		log.Printf("SVM batch-settlement binding history RPC: %s", archiveRpcURL)
+	} else if !useInMemoryStore {
+		log.Printf("SVM batch-settlement: FACILITATOR_SVM_BATCH_BINDING_STORE=none; receiver bindings fall back to RPC history when not on the channel row")
+	}
+	return cfg
+}
+
 func getV1SvmNetwork(network string) string {
 	switch network {
 	case "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp":
@@ -1097,6 +1092,15 @@ func main() {
 		facilitator.Register(
 			[]x402.Network{x402.Network(svmNetwork)},
 			uptosvm.NewUptoSvmScheme(svmSigner, nil),
+		)
+		archiveRpcURL := strings.TrimSpace(os.Getenv("SVM_ARCHIVE_RPC_URL"))
+		facilitator.Register(
+			[]x402.Network{x402.Network(svmNetwork)},
+			batchsvmfac.NewBatchSvmScheme(
+				context.Background(),
+				svmSigner,
+				buildSvmBatchFacilitatorConfig(svmNetwork, archiveRpcURL),
+			),
 		)
 		facilitator.RegisterV1(
 			[]x402.Network{x402.Network(getV1SvmNetwork(svmNetwork))},

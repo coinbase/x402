@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { signCloseAuthorization } from "../../src/batch-settlement/closeAuthorization";
 import { BatchError } from "../../src/batch-settlement/errors";
-import { InMemoryBatchReceiverAuthorizerStore } from "../../src/batch-settlement/facilitator/receiverAuthorizerStore";
+import { InMemoryPaymentChannelStorage } from "../../src/payment-channels/storage";
 import { BatchSvmScheme } from "../../src/batch-settlement/facilitator/scheme";
 import { encodeReceiverBindingMemo } from "../../src/batch-settlement/receiverBinding";
 import {
@@ -109,7 +109,9 @@ function signer() {
     confirmTransaction: vi.fn().mockResolvedValue(undefined),
     getAccountInfo: vi.fn().mockResolvedValue({ owner: TOKEN_PROGRAM_ADDRESS }),
     getAddresses: vi.fn(() => [feePayer.address]),
+    getLatestBlockhash: vi.fn(),
     getSigner: vi.fn(() => feePayer),
+    getSlot: vi.fn(),
     sendTransaction: vi.fn().mockResolvedValue(SIGNATURE),
     signTransaction: vi.fn().mockResolvedValue("signed"),
     simulateTransaction: vi.fn().mockResolvedValue(undefined),
@@ -123,7 +125,6 @@ type Internals = {
   readChannel: ReturnType<typeof vi.fn>;
   distributeInstruction: ReturnType<typeof vi.fn>;
   submitRedemption: ReturnType<typeof vi.fn>;
-  trackChannel: ReturnType<typeof vi.fn>;
   sealDependencies(): { nowSeconds(): number };
 };
 
@@ -158,7 +159,7 @@ async function sealPayload(cumulative: bigint, overrides: Partial<BatchSealPaylo
  * @param options - Binding seed and live channel
  * @param options.live - The channel account the facilitator reads
  * @param options.bound - Whether the receiver authorizer was bound at deposit
- * @returns The scheme, its stubbed internals, and its binding store
+ * @returns The scheme and its stubbed internals
  */
 async function facilitator(
   options: {
@@ -166,12 +167,21 @@ async function facilitator(
     bound?: boolean;
   } = {},
 ) {
-  const store = new InMemoryBatchReceiverAuthorizerStore();
+  const store = new InMemoryPaymentChannelStorage();
   if (options.bound ?? true) {
-    await store.bind({ channelId, network: NETWORK, receiverAuthorizer: authorizer.address });
+    await store.recordOpen({
+      callerIdentity: "",
+      channelId,
+      expiresAt: 0,
+      lastActivityAt: Date.now(),
+      network: NETWORK,
+      payTo: RECEIVER,
+      receiverAuthorizer: authorizer.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
   }
   const scheme = new BatchSvmScheme(signer() as never, {
-    receiverAuthorizerStore: store,
+    channelStorage: store,
   });
   const api = scheme as unknown as Internals;
   api.resolveTerms = vi.fn().mockResolvedValue({
@@ -195,7 +205,6 @@ async function facilitator(
     replayed: false,
     signature: SIGNATURE,
   });
-  api.trackChannel = vi.fn().mockResolvedValue(undefined);
   const original = api.sealDependencies.bind(scheme);
   api.sealDependencies = () => ({ ...original(), nowSeconds: () => NOW });
   return { api, scheme, store };
@@ -242,7 +251,6 @@ describe("batch-settlement seal", () => {
     // Ed25519 precompile, settle_and_seal, distribute.
     expect(instructions).toHaveLength(3);
     expect(key).toBe(`batch:seal:${NETWORK}:${channelId}:3000`);
-    expect(api.trackChannel).toHaveBeenCalledOnce();
 
     // The same close replays from the recorded result without a second broadcast.
     await expect(settle(scheme, await sealPayload(3_000n))).resolves.toMatchObject({
@@ -330,7 +338,16 @@ describe("batch-settlement seal", () => {
 
     // A key other than the binding cannot authorize, even when validly signed.
     const rebound = await facilitator({ bound: false });
-    await rebound.store.bind({ channelId, network: NETWORK, receiverAuthorizer: payer.address });
+    await rebound.store.recordOpen({
+      callerIdentity: "",
+      channelId,
+      expiresAt: 0,
+      lastActivityAt: Date.now(),
+      network: NETWORK,
+      payTo: RECEIVER,
+      receiverAuthorizer: payer.address,
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
     await expect(settle(rebound.scheme, payload)).resolves.toMatchObject({
       errorReason: BatchError.RECEIVER_AUTHORIZER_MISMATCH,
       success: false,

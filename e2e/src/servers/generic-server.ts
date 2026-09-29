@@ -3,7 +3,13 @@ import { loadComponentConfig } from '../component';
 import { ServerProxy, ServerConfig } from '../types';
 import { verboseLog, errorLog } from '../logger';
 import { resolveEvmPermit2Asset } from '../networks/networks';
-import { CATALOG_DIR } from '../mechanisms';
+import {
+  CATALOG_DIR,
+  isRouteExcludedByFilter,
+  mergeRouteFilters,
+  routeFilterToEnv,
+  type RouteFilter,
+} from '../mechanisms';
 import {
   excludedServerCredentialKeys,
   forwardConfigEnv,
@@ -11,20 +17,17 @@ import {
   injectNetworkEnv,
 } from '../env';
 
-/** Mirror a component's declared narrowing into the env its server reads. */
-function routeExclusionEnv(config: unknown): Record<string, string> {
+/** Mirror component + run route narrowing into env vars the server catalog reads. */
+function routeExclusionEnv(config: unknown, runFilter?: RouteFilter): Record<string, string> {
   const { excludeSchemes, excludeNetworks } = (config ?? {}) as {
     excludeSchemes?: string[];
     excludeNetworks?: string[];
   };
-  const env: Record<string, string> = {};
-  if (excludeSchemes?.length) {
-    env.E2E_EXCLUDE_SCHEMES = excludeSchemes.join(',');
-  }
-  if (excludeNetworks?.length) {
-    env.E2E_EXCLUDE_NETWORKS = excludeNetworks.join(',');
-  }
-  return env;
+  const componentFilter: RouteFilter = {
+    ...(excludeSchemes?.length ? { excludeSchemes } : {}),
+    ...(excludeNetworks?.length ? { excludeNetworks } : {}),
+  };
+  return routeFilterToEnv(mergeRouteFilters(componentFilter, runFilter));
 }
 
 export interface HealthResponse {
@@ -105,7 +108,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       // Servers resolve their own routes from the same catalog the harness uses,
       // including the exclusions that narrow a surface (e.g. echo, no batching).
       E2E_MECHANISMS_CATALOG: CATALOG_DIR,
-      ...routeExclusionEnv(componentConfig),
+      ...routeExclusionEnv(componentConfig, config.runRouteFilter),
     };
 
     const runConfig: RunConfig = {
@@ -130,24 +133,32 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
    * the test suite's job to report, not a startup failure. Only families enabled
    * for this run are checked, since the server drops routes whose payee is unset.
    */
-  async verifyPaidRoutes(enabledFamilies?: string[]): Promise<{ ok: boolean; problems: string[] }> {
+  async verifyPaidRoutes(
+    enabledFamilies?: string[],
+    runRouteFilter?: RouteFilter,
+  ): Promise<{ ok: boolean; problems: string[] }> {
     const config = this.loadConfig() as {
       endpoints?: Array<{
         path: string;
         method?: string;
         requiresPayment?: boolean;
         protocolFamily?: string;
+        scheme?: string;
       }>;
     } | null;
 
     const paths = (config?.endpoints ?? [])
       .filter(endpoint => endpoint.requiresPayment && (endpoint.method ?? 'GET') === 'GET')
-      .filter(
-        endpoint =>
-          !enabledFamilies ||
-          !endpoint.protocolFamily ||
-          enabledFamilies.includes(endpoint.protocolFamily),
-      )
+      .filter(endpoint => {
+        const family = endpoint.protocolFamily;
+        if (enabledFamilies && family && !enabledFamilies.includes(family)) {
+          return false;
+        }
+        if (family && isRouteExcludedByFilter(family, endpoint.scheme ?? 'exact', runRouteFilter)) {
+          return false;
+        }
+        return true;
+      })
       .map(endpoint => endpoint.path);
 
     const problems: string[] = [];

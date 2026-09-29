@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
 	x402http "github.com/x402-foundation/x402/go/v2/http"
 	batchedclient "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/client"
+	batchsvmclient "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/client"
 	exactevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/client"
 	exactevmv1 "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/v1/client"
 	uptoevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/upto/client"
@@ -51,8 +54,9 @@ type ClientContext struct {
 	URL           string
 	HTTPClient    *http.Client
 	Settle        SettleResponseExtractor
-	BatchedScheme *batchedclient.BatchSettlementEvmScheme
-	BatchPhase    string
+	BatchedEvmScheme *batchedclient.BatchSettlementEvmScheme
+	BatchedSvmScheme *batchsvmclient.BatchSvmScheme
+	BatchPhase       string
 }
 
 // PaymentClientContext bundles the signer-backed x402 payment client shared
@@ -61,8 +65,9 @@ type ClientContext struct {
 // Client themselves instead of going through Newx402HTTPClient.
 type PaymentClientContext struct {
 	Client        *x402.X402Client
-	BatchedScheme *batchedclient.BatchSettlementEvmScheme
-	BatchPhase    string
+	BatchedEvmScheme *batchedclient.BatchSettlementEvmScheme
+	BatchedSvmScheme *batchsvmclient.BatchSvmScheme
+	BatchPhase       string
 }
 
 // BuildPaymentClient builds the shared x402 payment client + batched scheme
@@ -76,7 +81,8 @@ func BuildPaymentClient() *PaymentClientContext {
 	}
 
 	x402Client := x402.Newx402Client().DisableSpendControls()
-	var batchedScheme *batchedclient.BatchSettlementEvmScheme
+	var batchedEvmScheme *batchedclient.BatchSettlementEvmScheme
+	var batchedSvmScheme *batchsvmclient.BatchSvmScheme
 
 	if evmPrivateKey != "" {
 		evmRpcURL := os.Getenv("EVM_RPC_URL")
@@ -116,18 +122,24 @@ func BuildPaymentClient() *PaymentClientContext {
 			}
 			batchedCfg.VoucherSigner = voucherSigner
 		}
-		batchedScheme = batchedclient.NewBatchSettlementEvmScheme(evmSigner, batchedCfg)
+		batchedEvmScheme = batchedclient.NewBatchSettlementEvmScheme(evmSigner, batchedCfg)
 
 		evmPattern := x402.Network(networkCaip2Pattern("evm"))
 		x402Client.
 			Register(evmPattern, exactevm.NewExactEvmScheme(evmSigner, evmConfig)).
 			Register(evmPattern, uptoevm.NewUptoEvmScheme(evmSigner, uptoConfig)).
-			Register(evmPattern, batchedScheme).
+			Register(evmPattern, batchedEvmScheme).
 			RegisterV1("base-sepolia", exactevmv1.NewExactEvmSchemeV1(evmSigner)).
 			RegisterV1("base", exactevmv1.NewExactEvmSchemeV1(evmSigner))
 	}
 
 	if svmPrivateKey != "" {
+		batchSigner, err := batchsvmclient.NewPrivateKeySigner(svmPrivateKey)
+		if err != nil {
+			OutputError(fmt.Sprintf("Failed to create SVM batch signer: %v", err))
+			return nil
+		}
+
 		svmSigner, err := svmsigners.NewClientSignerFromPrivateKey(svmPrivateKey)
 		if err != nil {
 			OutputError(fmt.Sprintf("Failed to create SVM signer: %v", err))
@@ -135,22 +147,55 @@ func BuildPaymentClient() *PaymentClientContext {
 		}
 
 		var svmCfg *svmconfig.ClientConfig
-		if svmRpcURL := os.Getenv("SVM_RPC_URL"); svmRpcURL != "" {
+		svmRpcURL := os.Getenv("SVM_RPC_URL")
+		if svmRpcURL != "" {
 			svmCfg = &svmconfig.ClientConfig{RPCURL: svmRpcURL}
+		}
+
+		batchCfg := &batchsvmclient.BatchSvmClientConfig{RPCURL: svmRpcURL}
+		if saltHex := batchSettlementChannelSalt(); saltHex != "" {
+			if salt, err := svmChannelSaltU64(saltHex); err != nil {
+				OutputError(fmt.Sprintf("Invalid batch-settlement channel salt: %v", err))
+				return nil
+			} else {
+				batchCfg.Salt = salt
+			}
+		}
+		if operators := parseCommaSeparated(os.Getenv("CLIENT_SVM_SERVER_SIGNED_OPERATORS")); len(operators) > 0 {
+			policy := &batchsvmclient.BatchServerSignedChannelsPolicy{AllowedOperators: operators}
+			if maxDeposit := strings.TrimSpace(os.Getenv("CLIENT_SVM_SERVER_SIGNED_MAX_DEPOSIT")); maxDeposit != "" {
+				policy.MaxDeposit = maxDeposit
+			}
+			batchCfg.ServerSignedChannelsPolicy = policy
+		}
+		batchedSvmScheme, err = batchsvmclient.NewBatchSvmScheme(batchSigner, batchCfg)
+		if err != nil {
+			OutputError(fmt.Sprintf("Failed to create SVM batch-settlement scheme: %v", err))
+			return nil
 		}
 
 		svmPattern := x402.Network(networkCaip2Pattern("svm"))
 		x402Client.
 			Register(svmPattern, svm.NewExactSvmScheme(svmSigner, svmCfg)).
 			Register(svmPattern, uptosvm.NewUptoSvmScheme(svmSigner, svmCfg)).
+			Register(svmPattern, batchedSvmScheme).
 			RegisterV1("solana-devnet", svmv1.NewExactSvmSchemeV1(svmSigner, svmCfg)).
 			RegisterV1("solana", svmv1.NewExactSvmSchemeV1(svmSigner, svmCfg))
+		if batchCfg.ServerSignedChannelsPolicy != nil {
+			x402Client.RegisterPolicy(batchedSvmScheme.PaymentPolicy())
+		}
+	}
+
+	batchPhase := strings.TrimSpace(os.Getenv("BATCH_SETTLEMENT_PHASE"))
+	if batchPhase == "" {
+		batchPhase = strings.TrimSpace(os.Getenv("EVM_BATCH_SETTLEMENT_PHASE"))
 	}
 
 	return &PaymentClientContext{
-		Client:        x402Client,
-		BatchedScheme: batchedScheme,
-		BatchPhase:    os.Getenv("EVM_BATCH_SETTLEMENT_PHASE"),
+		Client:           x402Client,
+		BatchedEvmScheme: batchedEvmScheme,
+		BatchedSvmScheme: batchedSvmScheme,
+		BatchPhase:       batchPhase,
 	}
 }
 
@@ -176,20 +221,33 @@ func CreateClient() *ClientContext {
 	client := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
 
 	return &ClientContext{
-		URL:           serverURL + endpointPath,
-		HTTPClient:    client,
-		Settle:        httpClient,
-		BatchedScheme: pc.BatchedScheme,
-		BatchPhase:    pc.BatchPhase,
+		URL:              serverURL + endpointPath,
+		HTTPClient:       client,
+		Settle:           httpClient,
+		BatchedEvmScheme: pc.BatchedEvmScheme,
+		BatchedSvmScheme: pc.BatchedSvmScheme,
+		BatchPhase:       pc.BatchPhase,
 	}
 }
 
 // RunScenario executes the single-request or batch-settlement client flow.
 func RunScenario(ctx context.Context, c *ClientContext) {
+	refund := batchRefundStep(c)
 	RunPhasedScenario(ctx, c.BatchPhase,
 		func(ctx context.Context) StepResult { return IssueRequest(ctx, c.HTTPClient, c.Settle, c.URL) },
-		func(ctx context.Context) StepResult { return IssueRefund(ctx, c.BatchedScheme, c.URL, nil) },
+		refund,
 	)
+}
+
+func batchRefundStep(c *ClientContext) func(context.Context) StepResult {
+	endpointPath := os.Getenv("ENDPOINT_PATH")
+	useSvm := strings.Contains(endpointPath, "/svm")
+	return func(ctx context.Context) StepResult {
+		if useSvm && c.BatchedSvmScheme != nil {
+			return IssueSvmRefund(ctx, c.BatchedSvmScheme, c.URL, nil)
+		}
+		return IssueRefund(ctx, c.BatchedEvmScheme, c.URL, nil)
+	}
 }
 
 // RunPhasedScenario runs the shared single-request / batch-settlement phase
@@ -229,7 +287,7 @@ func RunPhasedScenario(
 	case "":
 		Emit(ToAggregate(issueRequest(ctx)))
 	default:
-		OutputError(fmt.Sprintf("Unknown EVM_BATCH_SETTLEMENT_PHASE: %s", batchPhase))
+		OutputError(fmt.Sprintf("Unknown BATCH_SETTLEMENT_PHASE: %s", batchPhase))
 	}
 }
 
@@ -285,7 +343,34 @@ func IssueRequest(
 // options is optional (nil uses the default plain-HTTP RefundOptions); the
 // MCP client passes an HTTPClient whose Transport bridges refund requests
 // onto MCP tool calls instead.
+func IssueSvmRefund(ctx context.Context, scheme *batchsvmclient.BatchSvmScheme, url string, options *batchsvmclient.BatchRefundOptions) StepResult {
+	if scheme == nil {
+		return StepResult{Success: false, Error: "SVM batch-settlement scheme not configured"}
+	}
+	if options == nil {
+		options = &batchsvmclient.BatchRefundOptions{}
+	}
+	settle, err := scheme.Refund(ctx, url, options)
+	if err != nil {
+		return StepResult{
+			Success:    false,
+			Error:      fmt.Sprintf("Refund failed: %v", err),
+			StatusCode: 200,
+			Data:       map[string]bool{"refund": true},
+		}
+	}
+	return StepResult{
+		Success:         settle.Success,
+		Data:            map[string]bool{"refund": true},
+		StatusCode:      200,
+		PaymentResponse: settle,
+	}
+}
+
 func IssueRefund(ctx context.Context, scheme *batchedclient.BatchSettlementEvmScheme, url string, options *batchedclient.RefundOptions) StepResult {
+	if scheme == nil {
+		return StepResult{Success: false, Error: "EVM batch-settlement scheme not configured"}
+	}
 	if options == nil {
 		options = &batchedclient.RefundOptions{}
 	}
@@ -348,6 +433,44 @@ func Emit(result AggregateResult) {
 		log.Fatalf("Failed to marshal result: %v", err)
 	}
 	fmt.Println(string(data))
+}
+
+func batchSettlementChannelSalt() string {
+	if salt := strings.TrimSpace(os.Getenv("BATCH_SETTLEMENT_CHANNEL")); salt != "" {
+		return salt
+	}
+	return strings.TrimSpace(os.Getenv("EVM_BATCH_SETTLEMENT_CHANNEL"))
+}
+
+// svmChannelSaltU64 maps the harness hex salt to the uint64 channel salt the SVM
+// batch client uses, matching the TypeScript e2e client.
+func svmChannelSaltU64(channelSalt string) (uint64, error) {
+	hexSalt := strings.TrimPrefix(strings.TrimSpace(channelSalt), "0x")
+	if hexSalt == "" {
+		return 0, fmt.Errorf("empty salt")
+	}
+	value, ok := new(big.Int).SetString(hexSalt, 16)
+	if !ok {
+		return 0, fmt.Errorf("invalid hex salt %q", channelSalt)
+	}
+	mask := new(big.Int).Lsh(big.NewInt(1), 64)
+	value.Mod(value, mask)
+	return value.Uint64(), nil
+}
+
+func parseCommaSeparated(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 // OutputError prints a step error and exits.

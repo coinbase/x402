@@ -456,7 +456,7 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	// Step 6: Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 	// Signatures are verified locally; the fee-payer slot is unsigned until settle.
-	if err := f.signer.SimulateTransaction(ctx, tx, string(requirements.Network)); err != nil {
+	if err := f.signer.SimulateTransaction(ctx, tx, string(requirements.Network), nil); err != nil {
 		return x402.NewVerifyError(ErrTransactionSimulationFailed, payer, err.Error())
 	}
 

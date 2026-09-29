@@ -11,11 +11,11 @@ import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger
 import { handleDiscoveryValidation, shouldRunDiscoveryValidation, type TestedDiscoveryScenario } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
-import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
+import { filterScenarios, TestFilters, shouldShowExtensionOutput, getUniquePaymentSchemes } from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
 import { getNetworkSet, NetworkMode, NetworkConfig, getNetworkModeDescription, resolveEvmPermit2Asset, PROTOCOL_FAMILIES, requiredEnvForFamily, requiredRpcEnvForFamily, protocolFamilyForCredentialKey } from './src/networks/networks';
 import { injectNetworkEnv } from './src/env';
-import { FACILITATOR_ENV_PREFLIGHT_ALLOWLIST } from './src/mechanisms';
+import { FACILITATOR_ENV_PREFLIGHT_ALLOWLIST, runRouteFilterForHarness } from './src/mechanisms';
 import { GenericServerProxy } from './src/servers/generic-server';
 import { Semaphore, ResourceLock } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
@@ -535,7 +535,10 @@ async function startServer(
 
   if (options?.transport !== 'mcp') {
     if (typeof server.verifyPaidRoutes === 'function') {
-      const { ok, problems } = await server.verifyPaidRoutes(serverConfig.enabledFamilies);
+      const { ok, problems } = await server.verifyPaidRoutes(
+        serverConfig.enabledFamilies,
+        serverConfig.runRouteFilter,
+      );
       if (!ok) {
         errorLog(
           `  ❌ Server does not mount every paid route it declares in the mechanisms catalog:\n     ${problems.join('\n     ')}`,
@@ -821,8 +824,6 @@ async function runTest() {
   // Env keys used below (preflight + funding use catalog/process.env directly)
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
-  const facilitatorHederaAccountId = process.env.FACILITATOR_HEDERA_ACCOUNT_ID;
-  const facilitatorHederaPrivateKey = process.env.FACILITATOR_HEDERA_PRIVATE_KEY;
   // Discover all servers, clients, and facilitators (always include legacy)
   const discovery = new TestDiscovery('.');
 
@@ -939,6 +940,8 @@ async function runTest() {
   }
 
   const selectedProtocolFamilies = new Set(filteredScenarios.map(scenario => scenario.protocolFamily));
+  const selectedPaymentSchemes = new Set(getUniquePaymentSchemes(filteredScenarios));
+  const runRouteFilter = runRouteFilterForHarness(selectedProtocolFamilies, selectedPaymentSchemes);
   const missingRequiredEnv = new Set<string>();
   for (const family of selectedProtocolFamilies) {
     for (const [name, value] of requiredEnvByFamily[family] || []) {
@@ -1085,6 +1088,15 @@ async function runTest() {
     uniqueServers.set(scenario.server.name, scenario.server);
     uniqueClients.set(scenario.client.name, scenario.client);
   });
+
+  for (const facilitator of uniqueFacilitators.values()) {
+    const families = facilitator.config?.protocolFamilies as string[] | undefined;
+    if (families?.length) {
+      facilitator.config.protocolFamilies = families.filter(family =>
+        selectedProtocolFamilies.has(family),
+      );
+    }
+  }
 
   // Validate facilitator and client env against catalog-declared requirements.
   log('\n🔍 Validating facilitator and client environment variables...\n');
@@ -1610,17 +1622,7 @@ async function runTest() {
 
     cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
 
-    const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
-
-    const enabledFamilies: import('./src/types').ProtocolFamily[] = ['evm', 'svm'];
-    for (const family of PROTOCOL_FAMILIES) {
-      if (family === 'evm' || family === 'svm') continue;
-      if (!(facilitatorConfig?.protocolFamilies?.includes(family) ?? false)) continue;
-      if (family === 'hedera' && (!facilitatorHederaAccountId || !facilitatorHederaPrivateKey)) {
-        continue;
-      }
-      enabledFamilies.push(family);
-    }
+    const enabledFamilies = Array.from(selectedProtocolFamilies) as import('./src/types').ProtocolFamily[];
 
     // Optional SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY (server role only) opts
     // into self-managed batch-settlement claim/refund signing; omit to delegate
@@ -1629,6 +1631,7 @@ async function runTest() {
       port,
       networks,
       enabledFamilies,
+      runRouteFilter,
       facilitatorUrl,
       mockFacilitatorUrl,
     };

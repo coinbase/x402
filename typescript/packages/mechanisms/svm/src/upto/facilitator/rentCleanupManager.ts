@@ -11,7 +11,7 @@ import {
   type PaymentChannelRentCleanupManagerConfig,
 } from "../../payment-channels/rentCleanup";
 import type { FacilitatorSvmSigner } from "../../signer";
-import type { UptoChannelStorage } from "./channelStorage";
+import type { PaymentChannelStorage } from "../../payment-channels/storage";
 
 export {
   DEFAULT_ABANDON_GRACE_SECS,
@@ -33,7 +33,7 @@ export type {
 /** Configuration for {@link UptoSvmRentCleanupManager}. */
 export interface UptoSvmRentCleanupManagerConfig {
   signer: FacilitatorSvmSigner;
-  storage: UptoChannelStorage;
+  storage: PaymentChannelStorage;
   network: Network;
   /**
    * `SetComputeUnitPrice` (microlamports per compute unit) attached to cleanup

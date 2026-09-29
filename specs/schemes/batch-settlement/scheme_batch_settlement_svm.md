@@ -169,9 +169,12 @@ back into the store. Deposit broadcast depends on which sources are configured:
   different key, MUST NOT send the open. The first writer wins; a different
   key MUST be rejected with
   `invalid_batch_settlement_svm_receiver_authorizer_mismatch`.
-- Store and history: the facilitator attempts the bind. A failed write MUST
-  NOT abort the open; the deposit is still broadcast, and history remains the
-  fallback at close.
+- Store and history: the facilitator MUST bind the open's key and read that row
+  back before broadcasting. A failed write, or a read-back that is missing or a
+  different key, MUST NOT send the open. The first writer wins; a different
+  key MUST be rejected with
+  `invalid_batch_settlement_svm_receiver_authorizer_mismatch`. History remains
+  the fallback at close.
 - History only: the facilitator does not write a store row, because the
   transaction is the record, and the open proceeds.
 

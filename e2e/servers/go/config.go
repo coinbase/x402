@@ -11,6 +11,7 @@ import (
 	batchedserver "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/server"
 	exactevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/server"
 	uptoevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/upto/server"
+	batchsvmserver "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/server"
 	svm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/exact/server"
 	uptosvm "github.com/x402-foundation/x402/go/v2/mechanisms/svm/upto/server"
 	svmsigners "github.com/x402-foundation/x402/go/v2/signers/svm"
@@ -105,8 +106,9 @@ func SchemeBindings(cfg Config) []SchemeBinding {
 		exactEVM *exactevm.ExactEvmScheme
 		uptoEVM  *uptoevm.UptoEvmScheme
 		batched  *batchedserver.BatchSettlementEvmScheme
-		exactSVM *svm.ExactSvmScheme
-		uptoSVM  *uptosvm.UptoSvmScheme
+		exactSVM  *svm.ExactSvmScheme
+		uptoSVM   *uptosvm.UptoSvmScheme
+		batchSVM  *batchsvmserver.BatchSvmScheme
 	)
 
 	schemeFor := func(networkID, scheme string) x402.SchemeNetworkServer {
@@ -166,6 +168,35 @@ func SchemeBindings(cfg Config) []SchemeBinding {
 					})
 				}
 				return uptoSVM
+			case SchemeBatched:
+				if batchSVM == nil {
+					authorizerKey := os.Getenv("SERVER_SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY")
+					if authorizerKey == "" {
+						return nil
+					}
+					authorizer, err := svmsigners.NewReceiverAuthorizerSignerFromPrivateKey(authorizerKey)
+					if err != nil {
+						fmt.Printf("Failed to parse SERVER_SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY: %v\n", err)
+						os.Exit(1)
+					}
+					fmt.Printf("SVM receiver authorizer: %s\n", authorizer.Address())
+					batchCfg := &batchsvmserver.Config{
+						ReceiverAuthorizer: authorizer,
+						Store:              batchsvmserver.NewMemoryChannelStore(),
+					}
+					operatorKey := os.Getenv("SERVER_SVM_OPERATOR_PRIVATE_KEY")
+					if operatorKey != "" {
+						operator, err := svmsigners.NewReceiverAuthorizerSignerFromPrivateKey(operatorKey)
+						if err != nil {
+							fmt.Printf("Failed to parse SERVER_SVM_OPERATOR_PRIVATE_KEY: %v\n", err)
+							os.Exit(1)
+						}
+						fmt.Printf("SVM batch-settlement operator: %s\n", operator.Address())
+						batchCfg.Operator = operator
+					}
+					batchSVM = batchsvmserver.NewBatchSvmScheme(batchCfg)
+				}
+				return batchSVM
 			}
 		}
 		return nil

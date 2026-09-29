@@ -55,13 +55,16 @@ import {
   validateSvmAddress,
 } from "../../utils";
 import { ErrSettlementPending } from "../../exact/facilitator/errors";
-import { resolveUptoSvmPaymentChannelConfig, type UptoSvmPaymentChannelConfig } from "../shared";
 import {
-  InMemoryUptoChannelStorage,
-  type UptoChannelRecord,
-  type UptoChannelStorage,
-} from "./channelStorage";
-import { InMemoryUptoDelegatedAuthStore, type UptoDelegatedAuthStore } from "./delegatedAuthStore";
+  CallerIdentityConflictError,
+  assertPaymentChannelStorage,
+  InMemoryPaymentChannelStorage,
+  reportStorageError,
+  writeThenBroadcast,
+  type PaymentChannelRecord,
+  type PaymentChannelStorage,
+} from "../../payment-channels/storage";
+import { resolveUptoSvmPaymentChannelConfig, type UptoSvmPaymentChannelConfig } from "../shared";
 import { UptoSvmRentCleanupManager } from "./rentCleanupManager";
 
 /** Scheme-specific error returned when the settlement amount exceeds the ceiling. */
@@ -108,12 +111,6 @@ export const DEFAULT_MAX_CHANNEL_LIFETIME_SECS = 3_600;
 /** Client/facilitator clock skew allowance for `expiresAt` checks. */
 const EXPIRES_AT_CLOCK_SKEW_SECS = 60;
 
-/** Context passed to {@link UptoSvmFacilitatorConfig.onStorageError}. */
-export type UptoChannelStorageErrorContext = {
-  channelId: string;
-  phase: "verify" | "settle";
-};
-
 /** Context passed to {@link UptoSvmFacilitatorConfig.resolveCallerIdentity}. */
 export type UptoDelegatedSettleContext = {
   abortSignal?: AbortSignal;
@@ -145,15 +142,16 @@ function assertLimit(name: string, value: number | undefined, min: number): void
 /** Optional configuration for the upto SVM facilitator. */
 export interface UptoSvmFacilitatorConfig {
   /**
-   * Channel storage for rent cleanup. Defaults to in-memory storage.
-   * Inject a durable implementation for multi-process facilitators.
+   * Channel storage for rent cleanup and the delegated caller identity.
+   * Defaults to in-memory storage. Use a durable implementation when more
+   * than one process must read the row.
    */
-  channelStorage?: UptoChannelStorage;
+  channelStorage?: PaymentChannelStorage;
   /**
-   * Called when channel storage upsert fails. Payment results are unchanged;
-   * only rent-cleanup indexing is affected. Defaults to `console.warn`.
+   * Called when reverting a failed open fails. The settle error is unchanged.
+   * Defaults to `console.warn`.
    */
-  onStorageError?: (error: unknown, context: UptoChannelStorageErrorContext) => void;
+  onStorageError?: (error: unknown, network: string, channelId: string) => void;
   /**
    * Max channel lifetime (seconds) accepted at verify/deposit.
    * Default: {@link DEFAULT_MAX_CHANNEL_LIFETIME_SECS} (3600).
@@ -232,12 +230,6 @@ export interface UptoSvmFacilitatorConfig {
     ctx: UptoDelegatedSettleContext,
   ) => Promise<string | undefined> | string | undefined;
   /**
-   * Stores `channelId → caller identity` bindings written at deposit and
-   * checked at claim. Defaults to {@link InMemoryUptoDelegatedAuthStore}.
-   * Inject a shared implementation for a multi-replica facilitator.
-   */
-  delegatedAuthStore?: UptoDelegatedAuthStore;
-  /**
    * Caps how many times settle re-reads a channel account that a confirmed
    * open has not made visible yet. Unset defaults to
    * `DEFAULT_CHANNEL_READ_MAX_ATTEMPTS` (6).
@@ -291,12 +283,11 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
   readonly caipFamily = "solana:*";
 
   private readonly config: UptoSvmFacilitatorConfig;
-  private readonly channelStorage: UptoChannelStorage;
+  private readonly channelStorage: PaymentChannelStorage;
   private readonly settlementCache = new SettlementCache();
   private readonly pendingStore: PendingSettlementStore;
   private readonly authorizerSigner: MessagePartialSigner | undefined;
   private readonly resolveCallerIdentity: UptoSvmFacilitatorConfig["resolveCallerIdentity"];
-  private readonly delegatedAuthStore: UptoDelegatedAuthStore;
   private readonly signer: PaymentChannelFacilitatorSigner;
 
   private readonly getKitSigner: (feePayer: Address) => FacilitatorSigningCapabilities;
@@ -327,20 +318,20 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     if (config.authorizerSigner && !config.resolveCallerIdentity) {
       throw new Error("authorizerSigner requires resolveCallerIdentity");
     }
+    if (config.channelStorage !== undefined) assertPaymentChannelStorage(config.channelStorage);
     this.config = config;
-    this.channelStorage = config.channelStorage ?? new InMemoryUptoChannelStorage();
+    this.channelStorage = config.channelStorage ?? new InMemoryPaymentChannelStorage();
     this.pendingStore = config.pendingSettlementStore ?? new InMemoryPendingSettlementStore();
     this.authorizerSigner = config.authorizerSigner;
     this.resolveCallerIdentity = config.resolveCallerIdentity;
-    this.delegatedAuthStore = config.delegatedAuthStore ?? new InMemoryUptoDelegatedAuthStore();
   }
 
   /**
    * Channel storage used for async rent cleanup.
    *
-   * @returns The configured {@link UptoChannelStorage}
+   * @returns The configured {@link PaymentChannelStorage}
    */
-  getChannelStorage(): UptoChannelStorage {
+  getChannelStorage(): PaymentChannelStorage {
     return this.channelStorage;
   }
 
@@ -728,25 +719,120 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     // Indexed before broadcast, and the index must succeed before broadcast:
     // an open that reaches the chain without a durable record can never be
     // found by rent cleanup, permanently stranding the facilitator's rent.
-    // Nothing has been broadcast yet, so failing here is safe to retry.
+    // A definitive failure reverts a row this call created.
+    const openRecord: PaymentChannelRecord = {
+      callerIdentity: delegated && depositIdentity ? depositIdentity : "",
+      channelId: p.channelId,
+      expiresAt: p.expiresAt,
+      lastActivityAt: Date.now(),
+      network: requirements.network,
+      payTo: requirements.payTo,
+      receiverAuthorizer: "",
+      tokenProgram,
+    };
     try {
-      await this.upsertChannelStorageOrFail({
-        channelId: p.channelId,
-        network: requirements.network,
-        payTo: requirements.payTo,
-        tokenProgram,
-        expiresAt: p.expiresAt,
+      return await writeThenBroadcast({
+        kind: "open",
+        onStorageError: (error, storageNetwork, channelId) =>
+          reportStorageError(this.config.onStorageError, error, storageNetwork, channelId),
+        records: [openRecord],
+        storage: this.channelStorage,
+        broadcast: async reserved => {
+          let openSignature: string;
+          try {
+            openSignature = await broadcastOpen(
+              this.signer,
+              feePayer as Address,
+              requirements.network,
+              p.openTransaction,
+            );
+            reserved();
+          } catch (error) {
+            // Confirmation was not observed: the transaction may still land,
+            // so the row is kept and a retry reconciles this signature.
+            if (error instanceof ChannelBroadcastConfirmationError) {
+              reserved();
+              const pending = await recordPendingOrTerminal(
+                this.pendingStore,
+                depositKey,
+                error.signature,
+                p.from,
+                payload.accepted.network,
+                ErrSettlementPending,
+                ERR_CHANNEL_BROADCAST,
+                error,
+              );
+              return { disposition: "keep", value: pending };
+            }
+            this.settlementCache.delete(depositChannelKey);
+            return {
+              disposition: "revert",
+              value: {
+                success: false as const,
+                network: payload.accepted.network,
+                transaction: "",
+                errorReason: ERR_CHANNEL_BROADCAST,
+                errorMessage: error instanceof Error ? error.message : String(error),
+                payer: p.from,
+              },
+            };
+          }
+
+          try {
+            await fetchAndVerifyOpenChannel(
+              channelRpc,
+              p.channelId,
+              {
+                authorizedSigner: channelConfig.receiverAuthorizer,
+                deposit: maxAmount,
+                gracePeriod: channelConfig.withdrawDelay,
+                mint: requirements.asset,
+                payee: feePayer,
+                payer: p.from,
+                rentPayer: feePayer,
+                splits: channelConfig.splits,
+              },
+              this.resolveChannelReadPolicy(),
+            );
+          } catch (error) {
+            // The open landed; a postcondition mismatch must not drop the row.
+            this.settlementCache.delete(depositChannelKey);
+            return {
+              disposition: "keep",
+              value: {
+                success: false as const,
+                network: payload.accepted.network,
+                transaction: openSignature,
+                errorReason: "invalid_upto_svm_channel_state",
+                errorMessage: error instanceof Error ? error.message : String(error),
+                payer: p.from,
+              },
+            };
+          }
+
+          try {
+            await this.pendingStore.delete(depositKey);
+          } catch {
+            // Best-effort cleanup; the confirmed deposit is correct regardless and
+            // must not be masked by a storage hiccup.
+          }
+          return {
+            disposition: "keep",
+            value: {
+              success: true as const,
+              transaction: openSignature,
+              network: requirements.network,
+              amount: maxAmount.toString(),
+              payer: p.from,
+            },
+          };
+        },
       });
-      if (delegated && depositIdentity) {
-        await this.delegatedAuthStore.bind({
-          channelId: p.channelId,
-          network: requirements.network,
-          callerIdentity: depositIdentity,
-          expiresAt: p.expiresAt,
-        });
-      }
     } catch (error) {
       this.settlementCache.delete(depositChannelKey);
+      if (error instanceof CallerIdentityConflictError) {
+        return this.settleFailure(payload, ERR_DELEGATED_SETTLE_UNAUTHENTICATED, p.from);
+      }
       return {
         success: false,
         network: payload.accepted.network,
@@ -758,85 +844,6 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         payer: p.from,
       };
     }
-
-    let openSignature: string;
-    try {
-      openSignature = await broadcastOpen(
-        this.signer,
-        feePayer as Address,
-        requirements.network,
-        p.openTransaction,
-      );
-    } catch (error) {
-      // A ChannelOpenConfirmationError means the open broadcast successfully
-      // but confirmation couldn't be observed in time: leave the deposit dedup
-      // lock in place (a fresh broadcast would double-open) and record the
-      // signature so a retry reconciles via the fast path above instead of
-      // re-validating.
-      if (error instanceof ChannelBroadcastConfirmationError) {
-        return recordPendingOrTerminal(
-          this.pendingStore,
-          depositKey,
-          error.signature,
-          p.from,
-          payload.accepted.network,
-          ErrSettlementPending,
-          ERR_CHANNEL_BROADCAST,
-          error,
-        );
-      }
-      this.settlementCache.delete(depositChannelKey);
-      return {
-        success: false,
-        network: payload.accepted.network,
-        transaction: "",
-        errorReason: ERR_CHANNEL_BROADCAST,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        payer: p.from,
-      };
-    }
-
-    try {
-      await fetchAndVerifyOpenChannel(
-        channelRpc,
-        p.channelId,
-        {
-          authorizedSigner: channelConfig.receiverAuthorizer,
-          deposit: maxAmount,
-          gracePeriod: channelConfig.withdrawDelay,
-          mint: requirements.asset,
-          payee: feePayer,
-          payer: p.from,
-          rentPayer: feePayer,
-          splits: channelConfig.splits,
-        },
-        this.resolveChannelReadPolicy(),
-      );
-    } catch (error) {
-      this.settlementCache.delete(depositChannelKey);
-      return {
-        success: false,
-        network: payload.accepted.network,
-        transaction: "",
-        errorReason: "invalid_upto_svm_channel_state",
-        errorMessage: error instanceof Error ? error.message : String(error),
-        payer: p.from,
-      };
-    }
-
-    try {
-      await this.pendingStore.delete(depositKey);
-    } catch {
-      // Best-effort cleanup; the confirmed deposit is correct regardless and
-      // must not be masked by a storage hiccup.
-    }
-    return {
-      success: true,
-      transaction: openSignature,
-      network: requirements.network,
-      amount: maxAmount.toString(),
-      payer: p.from,
-    };
   }
 
   /**
@@ -894,11 +901,6 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       );
       if (!pending.ok) {
         return pending.response;
-      }
-      try {
-        await this.delegatedAuthStore.delete(p.channelId, requirements.network);
-      } catch {
-        // Best-effort; settlement is already confirmed.
       }
       return {
         success: true,
@@ -1065,26 +1067,11 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         },
       );
 
-      // Settlement is confirmed onchain past this point; storage is cleanup
-      // bookkeeping and must never turn a charged payment into a failure.
-      await this.upsertChannelStorage("settle", {
-        channelId: channel.channelId,
-        network,
-        payTo: requirements.payTo,
-        tokenProgram,
-        expiresAt: p.expiresAt,
-      });
-
       try {
         await this.pendingStore.delete(settlementKey);
       } catch {
-        // Best-effort cleanup, per the comment above: settlement is already
-        // confirmed onchain and must not be masked by a storage hiccup.
-      }
-      try {
-        await this.delegatedAuthStore.delete(channel.channelId, network);
-      } catch {
-        // Best-effort; settlement is already confirmed.
+        // Best-effort cleanup: settlement is already confirmed onchain and
+        // must not be masked by a storage hiccup.
       }
       return {
         success: true,
@@ -1540,9 +1527,9 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
     if (!identity) {
       return this.settleFailure(payload, ERR_DELEGATED_SETTLE_UNAUTHENTICATED, p.from);
     }
-    let binding: Awaited<ReturnType<UptoDelegatedAuthStore["get"]>>;
+    let record: PaymentChannelRecord | undefined;
     try {
-      binding = await this.delegatedAuthStore.get(p.channelId, requirements.network);
+      record = await this.channelStorage.get(requirements.network, p.channelId);
     } catch (error) {
       return {
         success: false,
@@ -1555,7 +1542,9 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
         payer: p.from,
       };
     }
-    if (!binding || binding.callerIdentity !== identity) {
+    const expiresAt = record?.expiresAt ?? 0;
+    const expired = expiresAt <= Math.floor(Date.now() / 1000);
+    if (!record || expired || record.callerIdentity !== identity) {
       return this.settleFailure(payload, ERR_DELEGATED_SETTLE_UNAUTHENTICATED, p.from);
     }
   }
@@ -1571,57 +1560,5 @@ export class UptoSvmScheme implements SchemeNetworkFacilitator {
       return undefined;
     }
     return this.getKitSigner(feePayerAddress as Address);
-  }
-
-  /**
-   * Upsert a channel into rent-cleanup storage after settlement is already
-   * confirmed onchain. Failures go to
-   * {@link UptoSvmFacilitatorConfig.onStorageError} and never propagate: a
-   * charged payment must never turn into a failure over bookkeeping.
-   *
-   * @param phase - Whether verify or settle succeeded before the upsert
-   * @param fields - Channel facts retained for cleanup (payTo included)
-   */
-  private async upsertChannelStorage(
-    phase: UptoChannelStorageErrorContext["phase"],
-    fields: Omit<UptoChannelRecord, "firstSeenAt">,
-  ): Promise<void> {
-    try {
-      await this.channelStorage.upsert({
-        ...fields,
-        firstSeenAt: Date.now(),
-      });
-    } catch (error) {
-      const context = { channelId: fields.channelId, phase };
-      if (this.config.onStorageError) {
-        this.config.onStorageError(error, context);
-      } else {
-        console.warn(`[x402] upto svm: channel storage upsert failed after ${phase}`, {
-          channelId: fields.channelId,
-          error,
-        });
-      }
-    }
-  }
-
-  /**
-   * Upsert a channel and rethrow on storage failure. Used only for the
-   * pre-broadcast deposit index, where nothing has reached the chain yet and
-   * a durable record is the only way rent cleanup can ever find the channel.
-   *
-   * @param fields - Channel facts retained for cleanup (payTo included)
-   */
-  private async upsertChannelStorageOrFail(
-    fields: Omit<UptoChannelRecord, "firstSeenAt">,
-  ): Promise<void> {
-    try {
-      await this.channelStorage.upsert({
-        ...fields,
-        firstSeenAt: Date.now(),
-      });
-    } catch (error) {
-      this.config.onStorageError?.(error, { channelId: fields.channelId, phase: "settle" });
-      throw error;
-    }
   }
 }
