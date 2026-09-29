@@ -88,7 +88,9 @@ def _build_exact_fixture(before: list | None = None, after: list | None = None):
 
     amount = 1000
     decimals = 6
-    cu_limit_ix = Instruction(_COMPUTE_BUDGET_PUBKEY, bytes([2]) + (200000).to_bytes(4, "little"), [])
+    cu_limit_ix = Instruction(
+        _COMPUTE_BUDGET_PUBKEY, bytes([2]) + (200000).to_bytes(4, "little"), []
+    )
     cu_price_ix = Instruction(_COMPUTE_BUDGET_PUBKEY, bytes([3]) + (1000).to_bytes(8, "little"), [])
     transfer_ix = Instruction(
         _TOKEN_PUBKEY,
