@@ -337,7 +337,6 @@
         "typescript"
       ],
       "paymentFlow": "escrow",
-      "requiresEnv": "SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY",
       "price": {
         "usd": "$0.001"
       },
@@ -355,7 +354,6 @@
         "typescript"
       ],
       "paymentFlow": "escrow",
-      "requiresEnv": "SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY",
       "schemeOptions": {
         "permit2Direct": true
       },

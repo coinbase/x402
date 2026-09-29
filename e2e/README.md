@@ -305,7 +305,7 @@ Optional environment variables (batch-settlement scheme):
 SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY=0x...              # optional: self-managed receiver authorizer (omit to delegate to facilitator /supported)
 CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY=0x...  # EOA the client uses to sign vouchers
 EVM_BATCH_SETTLEMENT_RECOVERY=true                            # test client state-loss recovery scenario (default: true)
-# SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY is also required for /auth-capture/evm/* (signs capture and void; needs no funds). The payer needs Base Sepolia USDC and the facilitator needs gas.
+# /auth-capture/evm/* uses SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY to sign capture and void when set, else a throwaway key (no funds needed). The payer needs Base Sepolia USDC and the facilitator needs gas.
 
 # SVM
 SERVER_SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY=...                # required for /upto/svm and /batch-settlement/svm; signs upto vouchers and the batch receiver authorizer (no SOL required)
