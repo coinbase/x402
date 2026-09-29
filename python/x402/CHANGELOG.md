@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## [2.25.0] - 2026-09-29
+
+### Fixed
+
+- Cap the `svm` extra at `solana<0.40`. `solana` 0.40.0 removed the synchronous `solana.rpc.api` module that the SVM signers, clients and server import, so a fresh `pip install x402[svm]` resolved to 0.40.x and `from x402.mechanisms.svm import KeypairSigner` failed with a misleading "requires solana packages" error. ([#3573](https://github.com/x402-foundation/x402/pull/3573)) - Thanks [@JulienKervarrec](https://github.com/JulienKervarrec)!
+
+### Added
+
+- Add Arc mainnet (chain ID 5042) and Arc Testnet (chain ID 5042002) with native USDC as the default stablecoin. ([#3590](https://github.com/x402-foundation/x402/pull/3590)) - Thanks [@NotMcAfee](https://github.com/NotMcAfee)!
+- Add Monad testnet USDC (EIP-3009) as the default asset for `eip155:10143` so `"$0.10"` dollar-string pricing resolves on Monad testnet. Register v1 network name `monad-testnet`. ([#3570](https://github.com/x402-foundation/x402/pull/3570)) - Thanks [@phdargen](https://github.com/phdargen) and [@cursoragent](https://github.com/cursoragent)!
+
+
 ## [2.24.0] - 2026-09-22
 
 ### Fixed
