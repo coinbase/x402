@@ -1,6 +1,7 @@
 package authcapture
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -164,4 +165,209 @@ func GetPermit2TransferFromEIP712Types() map[string][]evm.TypedDataField {
 		"PermitTransferFrom": Permit2TransferFromTypes["PermitTransferFrom"],
 		"TokenPermissions":   Permit2TransferFromTypes["TokenPermissions"],
 	}
+}
+
+// OperatorEIP712Domain is the shared partial EIP-712 domain for every
+// facilitator-relayed lifecycle operation (Capture, Void, Charge, Refund).
+// ChainID and VerifyingContract (the capture authorizer, PaymentInfo.operator)
+// are filled in per call, not scheme-wide.
+var OperatorEIP712Domain = evm.TypedDataDomain{
+	Name:    "x402 Auth Capture Operator",
+	Version: "1",
+}
+
+// CaptureTypesV1_1 defines EIP-712 types for the Capture operator signature on
+// v1.1 deployments (absolute feeAmount).
+var CaptureTypesV1_1 = map[string][]evm.TypedDataField{
+	"Capture": {
+		{Name: "paymentInfoHash", Type: "bytes32"},
+		{Name: "amount", Type: "uint256"},
+		{Name: "feeAmount", Type: "uint256"},
+		{Name: "feeReceiver", Type: "address"},
+		{Name: "expectedCapturableAmount", Type: "uint256"},
+		{Name: "expectedRefundableAmount", Type: "uint256"},
+	},
+}
+
+// CaptureTypesV1_0 defines EIP-712 types for the Capture operator signature on
+// v1.0 deployments (feeBps).
+var CaptureTypesV1_0 = map[string][]evm.TypedDataField{
+	"Capture": {
+		{Name: "paymentInfoHash", Type: "bytes32"},
+		{Name: "amount", Type: "uint256"},
+		{Name: "feeBps", Type: "uint16"},
+		{Name: "feeReceiver", Type: "address"},
+		{Name: "expectedCapturableAmount", Type: "uint256"},
+		{Name: "expectedRefundableAmount", Type: "uint256"},
+	},
+}
+
+// VoidTypes defines EIP-712 types for the Void operator signature (identical
+// across v1.0 and v1.1 — void has no fee parameter).
+var VoidTypes = map[string][]evm.TypedDataField{
+	"Void": {
+		{Name: "paymentInfoHash", Type: "bytes32"},
+	},
+}
+
+// CaptureTypesForDeployment returns the Capture EIP-712 types matching the
+// deployment's fee encoding (feeBps for v1.0, feeAmount for v1.1).
+func CaptureTypesForDeployment(deployment *AuthCaptureDeployment) map[string][]evm.TypedDataField {
+	if deployment != nil && deployment.Version == AuthCaptureDeploymentV1_0 {
+		return CaptureTypesV1_0
+	}
+	return CaptureTypesV1_1
+}
+
+// FeeAmountFromBps computes the absolute fee for amount at feeBps, using the
+// same truncating integer division as the AuthCaptureEscrow contract.
+func FeeAmountFromBps(amount *big.Int, feeBps uint16) *big.Int {
+	fee := new(big.Int).Mul(amount, big.NewInt(int64(feeBps)))
+	return fee.Div(fee, big.NewInt(10000))
+}
+
+// paymentInfoTupleABI is the AuthCaptureEscrow.PaymentInfo tuple, shared by
+// every function/event ABI fragment below.
+const paymentInfoTupleABI = `{"name": "paymentInfo", "type": "tuple", "components": [
+	{"name": "operator", "type": "address"},
+	{"name": "payer", "type": "address"},
+	{"name": "receiver", "type": "address"},
+	{"name": "token", "type": "address"},
+	{"name": "maxAmount", "type": "uint120"},
+	{"name": "preApprovalExpiry", "type": "uint48"},
+	{"name": "authorizationExpiry", "type": "uint48"},
+	{"name": "refundExpiry", "type": "uint48"},
+	{"name": "minFeeBps", "type": "uint16"},
+	{"name": "maxFeeBps", "type": "uint16"},
+	{"name": "feeReceiver", "type": "address"},
+	{"name": "salt", "type": "uint256"}
+]}`
+
+// authorizeVoidPaymentStateABI is the version-independent portion of the
+// escrow ABI: authorize (collect), void (finalize), and paymentState
+// (balance read). None of these are called with an authorizer signature —
+// authorize/void are gated on-chain by onlySender(paymentInfo.operator); the
+// EIP-712 authorizer signature is a facilitator-side, off-chain consent check
+// verified before the (plain) contract call is made, not a contract argument.
+const authorizeVoidPaymentStateABI = `
+	{
+		"name": "authorize",
+		"type": "function",
+		"stateMutability": "nonpayable",
+		"inputs": [
+			` + paymentInfoTupleABI + `,
+			{"name": "amount", "type": "uint256"},
+			{"name": "tokenCollector", "type": "address"},
+			{"name": "collectorData", "type": "bytes"}
+		],
+		"outputs": []
+	},
+	{
+		"name": "void",
+		"type": "function",
+		"stateMutability": "nonpayable",
+		"inputs": [
+			` + paymentInfoTupleABI + `
+		],
+		"outputs": []
+	},
+	{
+		"name": "paymentState",
+		"type": "function",
+		"stateMutability": "view",
+		"inputs": [
+			{"name": "paymentInfoHash", "type": "bytes32"}
+		],
+		"outputs": [
+			{"name": "hasCollectedPayment", "type": "bool"},
+			{"name": "capturableAmount", "type": "uint120"},
+			{"name": "refundableAmount", "type": "uint120"}
+		]
+	},
+	{
+		"name": "PaymentAuthorized",
+		"type": "event",
+		"anonymous": false,
+		"inputs": [
+			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
+			` + paymentInfoTupleABI + `,
+			{"name": "amount", "type": "uint256", "indexed": false},
+			{"name": "tokenCollector", "type": "address", "indexed": false}
+		]
+	},
+	{
+		"name": "PaymentVoided",
+		"type": "event",
+		"anonymous": false,
+		"inputs": [
+			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
+			{"name": "amount", "type": "uint256", "indexed": false}
+		]
+	}
+`
+
+// AuthCaptureEscrowABIV1_1 is the AuthCaptureEscrow ABI for v1.1 deployments
+// (absolute feeAmount on capture), covering the delegated-operator, EIP-3009,
+// escrow-flow, sync-capture slice: authorize, capture, void, paymentState.
+var AuthCaptureEscrowABIV1_1 = []byte(`[` + authorizeVoidPaymentStateABI + `,
+	{
+		"name": "capture",
+		"type": "function",
+		"stateMutability": "nonpayable",
+		"inputs": [
+			` + paymentInfoTupleABI + `,
+			{"name": "amount", "type": "uint256"},
+			{"name": "feeAmount", "type": "uint256"},
+			{"name": "feeReceiver", "type": "address"}
+		],
+		"outputs": []
+	},
+	{
+		"name": "PaymentCaptured",
+		"type": "event",
+		"anonymous": false,
+		"inputs": [
+			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
+			{"name": "amount", "type": "uint256", "indexed": false},
+			{"name": "feeAmount", "type": "uint256", "indexed": false},
+			{"name": "feeReceiver", "type": "address", "indexed": false}
+		]
+	}
+]`)
+
+// AuthCaptureEscrowABIV1_0 is the AuthCaptureEscrow ABI for v1.0 deployments
+// (feeBps on capture).
+var AuthCaptureEscrowABIV1_0 = []byte(`[` + authorizeVoidPaymentStateABI + `,
+	{
+		"name": "capture",
+		"type": "function",
+		"stateMutability": "nonpayable",
+		"inputs": [
+			` + paymentInfoTupleABI + `,
+			{"name": "amount", "type": "uint256"},
+			{"name": "feeBps", "type": "uint16"},
+			{"name": "feeReceiver", "type": "address"}
+		],
+		"outputs": []
+	},
+	{
+		"name": "PaymentCaptured",
+		"type": "event",
+		"anonymous": false,
+		"inputs": [
+			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
+			{"name": "amount", "type": "uint256", "indexed": false},
+			{"name": "feeBps", "type": "uint16", "indexed": false},
+			{"name": "feeReceiver", "type": "address", "indexed": false}
+		]
+	}
+]`)
+
+// EscrowABIForDeployment returns the AuthCaptureEscrow ABI matching the
+// deployment's capture fee encoding (feeBps for v1.0, feeAmount for v1.1).
+func EscrowABIForDeployment(deployment *AuthCaptureDeployment) []byte {
+	if deployment != nil && deployment.Version == AuthCaptureDeploymentV1_0 {
+		return AuthCaptureEscrowABIV1_0
+	}
+	return AuthCaptureEscrowABIV1_1
 }

@@ -207,6 +207,85 @@ func IsEip3009Payload(value interface{}) bool {
 	return true
 }
 
+func isPaymentInfoStructMap(value interface{}) bool {
+	v, ok := value.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"operator", "payer", "receiver", "token", "feeReceiver"} {
+		if !isNonEmptyString(v[key]) {
+			return false
+		}
+	}
+	if !isNonEmptyString(v["maxAmount"]) {
+		return false
+	}
+	if !isHexString(v["salt"]) {
+		return false
+	}
+	for _, key := range []string{"preApprovalExpiry", "authorizationExpiry", "refundExpiry", "minFeeBps", "maxFeeBps"} {
+		if !isJSONNumber(v[key]) {
+			return false
+		}
+	}
+	return true
+}
+
+// IsLifecyclePayload reports whether value names a lifecycle operation
+// ("capture" or "void" — "refund" is out of scope for this slice). Field-level
+// validation happens in IsCapturePayload/IsVoidPayload.
+func IsLifecyclePayload(value interface{}) bool {
+	v, ok := value.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	t, ok := v["type"].(string)
+	return ok && (t == "capture" || t == "void")
+}
+
+// IsCapturePayload reports whether value is a capture lifecycle payload.
+func IsCapturePayload(value interface{}) bool {
+	v, ok := value.(map[string]interface{})
+	if !ok || !IsLifecyclePayload(value) || v["type"] != "capture" {
+		return false
+	}
+	_, hasFeeBpsFloat := v["feeBps"].(float64)
+	_, hasFeeBpsInt := v["feeBps"].(int)
+	hasFeeBps := hasFeeBpsFloat || hasFeeBpsInt
+	_, hasFeeAmount := v["feeAmount"].(string)
+	if hasFeeBps == hasFeeAmount {
+		return false
+	}
+	if !isPaymentInfoStructMap(v["paymentInfo"]) {
+		return false
+	}
+	if !isHexString(v["saltNonce"]) {
+		return false
+	}
+	if !isNonEmptyString(v["amount"]) || !isNonEmptyString(v["feeReceiver"]) {
+		return false
+	}
+	if !isNonEmptyString(v["expectedCapturableAmount"]) || !isNonEmptyString(v["expectedRefundableAmount"]) {
+		return false
+	}
+	return isNonEmptyString(v["authorizerSignature"])
+}
+
+// IsVoidPayload reports whether value is a void lifecycle payload.
+func IsVoidPayload(value interface{}) bool {
+	v, ok := value.(map[string]interface{})
+	if !ok || !IsLifecyclePayload(value) || v["type"] != "void" {
+		return false
+	}
+	if !isPaymentInfoStructMap(v["paymentInfo"]) {
+		return false
+	}
+	if !isHexString(v["saltNonce"]) {
+		return false
+	}
+	return isNonEmptyString(v["authorizerSignature"])
+}
+
 // IsPermit2Payload reports whether value is a Permit2-shaped auth-capture collect payload.
 func IsPermit2Payload(value interface{}) bool {
 	v, ok := value.(map[string]interface{})
