@@ -277,18 +277,119 @@ func isLayoutRecoverable(err error) bool {
 		reason = ve.InvalidReason
 	}
 	switch reason {
-	case ErrTransactionInstructionsLength,
-		ErrNoTransferInstruction,
-		ErrUnknownFourthInstruction,
-		ErrUnknownFifthInstruction,
-		ErrUnknownSixthInstruction,
-		ErrUnknownOptionalInstruction,
+	case ErrNoTransferInstruction,
+		ErrUnknownInstruction,
+		ErrProtocolInstructionOrder,
 		ErrComputeLimitInstruction,
 		ErrComputePriceInstruction:
 		return true
 	default:
 		return false
 	}
+}
+
+// protocolInstructionKind identifies the role a protocol/guard instruction
+// plays, by program ID and instruction discriminator rather than position.
+type protocolInstructionKind int
+
+const (
+	kindGuard protocolInstructionKind = iota
+	kindComputeLimit
+	kindComputePrice
+	kindTransfer
+	kindMemo
+	kindUnknown
+)
+
+// classifyProtocolInstruction identifies which protocol/guard role an
+// instruction plays. kindGuard covers wallet-injected assertion instructions
+// (currently only Lighthouse) that may appear anywhere in the instruction
+// list.
+func classifyProtocolInstruction(tx *solana.Transaction, inst solana.CompiledInstruction) protocolInstructionKind {
+	progID, err := tx.Message.Program(inst.ProgramIDIndex)
+	if err != nil {
+		return kindUnknown
+	}
+	if progID.Equals(solana.ComputeBudget) {
+		if len(inst.Data) >= 5 && inst.Data[0] == ixSetComputeUnitLimit {
+			return kindComputeLimit
+		}
+		if len(inst.Data) >= 9 && inst.Data[0] == ixSetComputeUnitPrice {
+			return kindComputePrice
+		}
+		return kindUnknown
+	}
+	if isTokenProgram(progID) {
+		if len(inst.Data) >= 10 && inst.Data[0] == ixTokenTransferChecked {
+			return kindTransfer
+		}
+		return kindUnknown
+	}
+	if progID.Equals(solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)) {
+		return kindMemo
+	}
+	if progID.Equals(solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)) {
+		return kindGuard
+	}
+	return kindUnknown
+}
+
+// partitionedInstructions holds the protocol instructions found by identity.
+// A nil pointer field means that instruction was not found.
+type partitionedInstructions struct {
+	computeLimitIx *solana.CompiledInstruction
+	computePriceIx *solana.CompiledInstruction
+	transferIx     *solana.CompiledInstruction
+	memoIx         *solana.CompiledInstruction
+}
+
+// partitionProtocolInstructions partitions a decoded instruction list into
+// the fixed-relative-order protocol instructions (ComputeLimit, then
+// ComputePrice, then TransferChecked, then optional Memo) found by identity
+// rather than position. Guard instructions (Lighthouse) may appear
+// anywhere — before, after, or interspersed among the protocol
+// instructions — since they only assert/abort and never mutate
+// payment-relevant state. Any other program, a duplicate protocol
+// instruction, or a protocol instruction out of its required relative order
+// returns an error.
+func partitionProtocolInstructions(tx *solana.Transaction) (*partitionedInstructions, error) {
+	result := &partitionedInstructions{}
+	for i := range tx.Message.Instructions {
+		inst := tx.Message.Instructions[i]
+		switch classifyProtocolInstruction(tx, inst) {
+		case kindGuard:
+			// Allowed anywhere.
+		case kindComputeLimit:
+			if result.computeLimitIx != nil || result.computePriceIx != nil || result.transferIx != nil || result.memoIx != nil {
+				return nil, errors.New(ErrProtocolInstructionOrder)
+			}
+			result.computeLimitIx = &inst
+		case kindComputePrice:
+			if result.computeLimitIx == nil || result.computePriceIx != nil || result.transferIx != nil || result.memoIx != nil {
+				return nil, errors.New(ErrProtocolInstructionOrder)
+			}
+			result.computePriceIx = &inst
+		case kindTransfer:
+			if result.computeLimitIx == nil || result.computePriceIx == nil || result.memoIx != nil {
+				return nil, errors.New(ErrProtocolInstructionOrder)
+			}
+			if result.transferIx != nil {
+				return nil, errors.New(ErrProtocolInstructionOrder)
+			}
+			result.transferIx = &inst
+		case kindMemo:
+			if result.transferIx == nil {
+				return nil, errors.New(ErrProtocolInstructionOrder)
+			}
+			if result.memoIx != nil {
+				return nil, errors.New(ErrMemoCount)
+			}
+			result.memoIx = &inst
+		default:
+			return nil, errors.New(ErrUnknownInstruction)
+		}
+	}
+	return result, nil
 }
 
 func (f *ExactSvmScheme) assertSmartWalletAllowlist(tx *solana.Transaction) error {
@@ -350,25 +451,28 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	requirements types.PaymentRequirements,
 	signerAddressStrs []string,
 ) error {
-	// Allow 3-7 instructions:
-	// - 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-	// - 4 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse or Memo
-	// - 5 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse or Memo
-	// - 6 instructions: ComputeLimit + ComputePrice + TransferChecked + Lighthouse + Lighthouse + Memo
-	// - 7 instructions: + a third wallet-injected Lighthouse (Phantom, see #2097)
-	// See: https://github.com/x402-foundation/x402/issues/828
+	// Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
+	// an optional Memo) are identified by program ID + instruction
+	// discriminator and MUST appear in that fixed relative order. Guard
+	// instructions (currently only Lighthouse — Phantom/Solflare's
+	// wallet-protection assertions) may appear anywhere in the instruction
+	// list, since they only assert/abort and never mutate payment-relevant
+	// state. See: https://github.com/x402-foundation/x402/issues/828
 	//  and: https://github.com/x402-foundation/x402/issues/2097
-	numInstructions := len(tx.Message.Instructions)
-	if numInstructions < 3 || numInstructions > 7 {
-		return x402.NewVerifyError(ErrTransactionInstructionsLength, "", fmt.Sprintf("transaction instructions length mismatch: %d < 3 or %d > 7", numInstructions, numInstructions))
+	partitioned, err := partitionProtocolInstructions(tx)
+	if err != nil {
+		return x402.NewVerifyError(err.Error(), "", err.Error())
+	}
+	if partitioned.computeLimitIx == nil || partitioned.computePriceIx == nil || partitioned.transferIx == nil {
+		return x402.NewVerifyError(ErrNoTransferInstruction, "", "missing required protocol instruction")
 	}
 
 	// Step 3: Verify Compute Budget Instructions
-	if err := f.verifyComputeLimitInstruction(tx, tx.Message.Instructions[0]); err != nil {
+	if err := f.verifyComputeLimitInstruction(tx, *partitioned.computeLimitIx); err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	if err := f.verifyComputePriceInstruction(tx, tx.Message.Instructions[1]); err != nil {
+	if err := f.verifyComputePriceInstruction(tx, *partitioned.computePriceIx); err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
@@ -392,64 +496,19 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	}
 
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], reqStruct, signerAddressStrs); err != nil {
+	if err := f.verifyTransferInstruction(tx, *partitioned.transferIx, reqStruct, signerAddressStrs); err != nil {
 		return x402.NewVerifyError(err.Error(), payer, err.Error())
 	}
 
-	// Step 5: Verify optional instructions (if present)
-	// Allowed optional programs: Lighthouse (wallet protection) and Memo (uniqueness)
-	if numInstructions >= 4 {
-		lighthousePubkey := solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)
-		memoPubkey := solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)
-		optionalInstructions := tx.Message.Instructions[3:]
-		invalidReasons := []string{
-			ErrUnknownFourthInstruction,
-			ErrUnknownFifthInstruction,
-			ErrUnknownSixthInstruction,
-			ErrUnknownSeventhInstruction,
+	// Step 5: Verify memo content matches extra.memo when present. Guard
+	// (Lighthouse) instructions and unknown programs were already rejected
+	// by partitionProtocolInstructions above.
+	if expectedMemo, ok := requirements.Extra["memo"].(string); ok && expectedMemo != "" {
+		if partitioned.memoIx == nil {
+			return x402.NewVerifyError(ErrMemoCount, payer, "expected exactly one memo instruction when extra.memo is present")
 		}
-
-		for i, instruction := range optionalInstructions {
-			progID, progErr := tx.Message.Program(instruction.ProgramIDIndex)
-			if progErr != nil {
-				reason := ErrUnknownOptionalInstruction
-				if i < len(invalidReasons) {
-					reason = invalidReasons[i]
-				}
-				return x402.NewVerifyError(reason, payer, progErr.Error())
-			}
-			if progID.Equals(lighthousePubkey) || progID.Equals(memoPubkey) {
-				continue
-			}
-
-			reason := ErrUnknownOptionalInstruction
-			if i < len(invalidReasons) {
-				reason = invalidReasons[i]
-			}
-
-			return x402.NewVerifyError(reason, payer, fmt.Sprintf("unknown optional instruction: %s", progID.String()))
-		}
-
-		// Step 5b: Verify memo content matches extra.memo when present
-		if expectedMemo, ok := requirements.Extra["memo"].(string); ok && expectedMemo != "" {
-			var memoCount int
-			var actualMemoData []byte
-			for _, instruction := range optionalInstructions {
-				progID, progErr := tx.Message.Program(instruction.ProgramIDIndex)
-				if progErr != nil {
-					continue
-				}
-				if progID.Equals(memoPubkey) {
-					memoCount++
-					actualMemoData = instruction.Data
-				}
-			}
-			if memoCount != 1 {
-				return x402.NewVerifyError(ErrMemoCount, payer, "expected exactly one memo instruction when extra.memo is present")
-			}
-			if string(actualMemoData) != expectedMemo {
-				return x402.NewVerifyError(ErrMemoMismatch, payer, "memo data does not match extra.memo")
-			}
+		if string(partitioned.memoIx.Data) != expectedMemo {
+			return x402.NewVerifyError(ErrMemoMismatch, payer, "memo data does not match extra.memo")
 		}
 	}
 
@@ -642,19 +701,11 @@ func (f *ExactSvmScheme) postSettlementVerified(
 }
 
 func hasStaticTransferLayout(tx *solana.Transaction) bool {
-	n := len(tx.Message.Instructions)
-	if n < 3 || n > 7 {
-		return false
-	}
-	transfer := tx.Message.Instructions[2]
-	programID, err := tx.Message.Program(transfer.ProgramIDIndex)
+	partitioned, err := partitionProtocolInstructions(tx)
 	if err != nil {
 		return false
 	}
-	if !isTokenProgram(programID) {
-		return false
-	}
-	return len(transfer.Data) >= 10 && transfer.Data[0] == ixTokenTransferChecked
+	return partitioned.transferIx != nil
 }
 
 // reconcilePendingSettlement handles a PendingSettlementStore cache hit: a

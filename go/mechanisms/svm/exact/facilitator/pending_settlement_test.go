@@ -110,6 +110,16 @@ func buildExactFixture(t *testing.T) exactFixture {
 
 func buildExactFixtureWithOptional(t *testing.T, extra ...solana.Instruction) exactFixture {
 	t.Helper()
+	return buildExactFixtureWithInstructions(t, nil, extra)
+}
+
+// buildExactFixtureWithInstructions builds ComputeLimit + ComputePrice +
+// TransferChecked with `before` instructions inserted ahead of ComputeLimit
+// and `after` instructions appended after TransferChecked — reproducing
+// wallets (e.g. Phantom) that inject guard instructions both before and
+// after the payment instructions.
+func buildExactFixtureWithInstructions(t *testing.T, before, after []solana.Instruction) exactFixture {
+	t.Helper()
 
 	facilitatorAddr := solana.NewWallet().PrivateKey.PublicKey()
 	ownerWallet := solana.NewWallet()
@@ -145,11 +155,15 @@ func buildExactFixtureWithOptional(t *testing.T, extra ...solana.Instruction) ex
 	blockhash, err := solana.HashFromBase58("5Tx8F3jgSHx21CbtjwmdaKPLM5tWmreWAnPrbqHomSJF")
 	require.NoError(t, err)
 
-	builder := solana.NewTransactionBuilder().
+	builder := solana.NewTransactionBuilder()
+	for _, ix := range before {
+		builder = builder.AddInstruction(ix)
+	}
+	builder = builder.
 		AddInstruction(cuLimit).
 		AddInstruction(cuPrice).
 		AddInstruction(transferIx)
-	for _, ix := range extra {
+	for _, ix := range after {
 		builder = builder.AddInstruction(ix)
 	}
 	tx, err := builder.

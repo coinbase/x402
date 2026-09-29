@@ -5,21 +5,35 @@ import x402 "github.com/x402-foundation/x402/go/v2"
 // Facilitator error constants for the exact SVM scheme (V2)
 const (
 	// Verify errors
-	ErrUnsupportedScheme              = "invalid_exact_solana_unsupported_scheme"
-	ErrNetworkMismatch                = "invalid_exact_solana_network_mismatch"
-	ErrMissingFeePayer                = "invalid_exact_solana_payload_missing_fee_payer"
-	ErrFeePayerNotManaged             = "invalid_exact_solana_fee_payer_not_managed_by_facilitator"
-	ErrInvalidPayloadTransaction      = "invalid_exact_solana_payload_transaction"
-	ErrTransactionCouldNotBeDecoded   = "invalid_exact_solana_payload_transaction_could_not_be_decoded"
-	ErrSignatureInvalid               = "invalid_exact_solana_payload_signature_invalid"
-	ErrExcessiveSigners               = "invalid_exact_solana_payload_excessive_signers"
-	ErrTransactionInstructionsLength  = "invalid_exact_solana_payload_transaction_instructions_length"
+	ErrUnsupportedScheme            = "invalid_exact_solana_unsupported_scheme"
+	ErrNetworkMismatch              = "invalid_exact_solana_network_mismatch"
+	ErrMissingFeePayer              = "invalid_exact_solana_payload_missing_fee_payer"
+	ErrFeePayerNotManaged           = "invalid_exact_solana_fee_payer_not_managed_by_facilitator"
+	ErrInvalidPayloadTransaction    = "invalid_exact_solana_payload_transaction"
+	ErrTransactionCouldNotBeDecoded = "invalid_exact_solana_payload_transaction_could_not_be_decoded"
+	ErrSignatureInvalid             = "invalid_exact_solana_payload_signature_invalid"
+	ErrExcessiveSigners             = "invalid_exact_solana_payload_excessive_signers"
+
+	// Legacy: superseded by identity-based classification (ErrUnknownInstruction /
+	// ErrProtocolInstructionOrder below), which no longer relies on a fixed
+	// instruction count or fixed positional indices. Kept for backward
+	// compatibility with any code importing/matching on these constants.
+	ErrTransactionInstructionsLength = "invalid_exact_solana_payload_transaction_instructions_length"
+	ErrUnknownFourthInstruction      = "invalid_exact_solana_payload_unknown_fourth_instruction"
+	ErrUnknownFifthInstruction       = "invalid_exact_solana_payload_unknown_fifth_instruction"
+	ErrUnknownSixthInstruction       = "invalid_exact_solana_payload_unknown_sixth_instruction"
+	ErrUnknownSeventhInstruction     = "invalid_exact_solana_payload_unknown_seventh_instruction"
+	ErrUnknownOptionalInstruction    = "invalid_exact_solana_payload_unknown_optional_instruction"
+
 	ErrComputeLimitInstructionTooHigh = "invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction_too_high"
-	ErrUnknownFourthInstruction       = "invalid_exact_solana_payload_unknown_fourth_instruction"
-	ErrUnknownFifthInstruction        = "invalid_exact_solana_payload_unknown_fifth_instruction"
-	ErrUnknownSixthInstruction        = "invalid_exact_solana_payload_unknown_sixth_instruction"
-	ErrUnknownSeventhInstruction      = "invalid_exact_solana_payload_unknown_seventh_instruction"
-	ErrUnknownOptionalInstruction     = "invalid_exact_solana_payload_unknown_optional_instruction"
+	// Identity-based instruction classification (program ID + discriminator)
+	// replaces the positional/count checks above. ErrUnknownInstruction covers
+	// any unrecognized program anywhere in the sequence; ErrProtocolInstructionOrder
+	// covers protocol instructions (compute limit/price, transfer, memo) found out
+	// of relative order or duplicated. Guard (Lighthouse) instructions are exempt
+	// from ordering and may appear anywhere.
+	ErrUnknownInstruction             = "invalid_exact_solana_payload_unknown_instruction"
+	ErrProtocolInstructionOrder       = "invalid_exact_solana_payload_transaction_instructions_order"
 	ErrComputeLimitInstruction        = "invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction"
 	ErrComputePriceInstruction        = "invalid_exact_solana_payload_transaction_instructions_compute_price_instruction"
 	ErrComputePriceInstructionTooHigh = "invalid_exact_solana_payload_transaction_instructions_compute_price_instruction_too_high"
