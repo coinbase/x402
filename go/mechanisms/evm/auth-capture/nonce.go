@@ -287,22 +287,10 @@ func GenerateSalt() (string, error) {
 	return evm.BytesToHex(buf), nil
 }
 
-// NormalizeBytes32 zero-pads a hex integer to a full 32-byte word.
-func NormalizeBytes32(value string) (string, error) {
-	hexPart := strings.TrimPrefix(strings.TrimPrefix(value, "0x"), "0X")
-	if len(hexPart) == 0 || len(hexPart) > 64 {
-		return "", fmt.Errorf("invalid bytes32: %s", value)
-	}
-	if _, err := hex.DecodeString(hexPart); err != nil {
-		return "", fmt.Errorf("invalid bytes32: %s", value)
-	}
-	return "0x" + strings.ToLower(strings.Repeat("0", 64-len(hexPart))+hexPart), nil
-}
-
 // ExtraAddress treats absent or invalid values as the zero address.
 func ExtraAddress(value string) string {
 	if value == "" || !evm.IsValidAddress(value) {
-		return "0x0000000000000000000000000000000000000000"
+		return ZeroAddress
 	}
 	return evm.NormalizeAddress(value)
 }
@@ -312,7 +300,7 @@ func IsNonZeroAddress(value string) bool {
 	if value == "" || !evm.IsValidAddress(value) {
 		return false
 	}
-	return !strings.EqualFold(evm.NormalizeAddress(value), "0x0000000000000000000000000000000000000000")
+	return !strings.EqualFold(evm.NormalizeAddress(value), ZeroAddress)
 }
 
 // IsSaltBindingOn is true when receiverAuthorizer or policy is non-zero.

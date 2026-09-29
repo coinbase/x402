@@ -71,7 +71,7 @@ func mockRequirements(extra map[string]interface{}) types.PaymentRequirements {
 		Amount:            "1000000",
 		Asset:             testAsset,
 		PayTo:             testPayTo,
-		MaxTimeoutSeconds: 3600,
+		MaxTimeoutSeconds: 300,
 		Extra:             baseExtra,
 	}
 }
@@ -92,31 +92,9 @@ func eip3009CollectPayload(extra map[string]interface{}) types.PaymentPayload {
 			},
 			"signature": "0xdeadbeef",
 			"salt":      "0x2222222222222222222222222222222222222222222222222222222222222222",
+			"saltNonce": "0x01",
 		},
 	}
-}
-
-func TestAuthCaptureEvmScheme_Scheme(t *testing.T) {
-	scheme := NewAuthCaptureEvmScheme(&Config{ReceiverAuthorizerSigner: &mockSigner{address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}})
-	assert.Equal(t, authcapture.SchemeAuthCapture, scheme.Scheme())
-}
-
-func TestPaymentFlowsDeclareEscrowOnly(t *testing.T) {
-	scheme := NewAuthCaptureEvmScheme(&Config{ReceiverAuthorizerSigner: &mockSigner{address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}})
-
-	flows := scheme.PaymentFlows()
-
-	require.Contains(t, flows, string(evm.AssetTransferMethodEIP3009))
-	require.Contains(t, flows, string(evm.AssetTransferMethodPermit2))
-	for _, flow := range flows {
-		assert.Equal(t, []x402.PaymentFlowName{x402.PaymentFlowEscrow}, flow.Supported)
-		assert.Equal(t, x402.PaymentFlowEscrow, flow.Default)
-	}
-	assert.Equal(t, string(evm.AssetTransferMethodEIP3009), scheme.DefaultAssetTransferMethod())
-}
-
-func TestNewAuthCaptureEvmSchemeAllowsNilConfig(t *testing.T) {
-	assert.NotPanics(t, func() { NewAuthCaptureEvmScheme(nil) })
 }
 
 func TestValidateFacilitatorSupport(t *testing.T) {
@@ -242,25 +220,28 @@ func TestEnhancePaymentRequirements_MissingCaptureAuthorizer(t *testing.T) {
 	require.ErrorContains(t, err, ErrMissingCaptureAuthorizer)
 }
 
-func TestEnhancePaymentRequirements_MissingFeeRecipient(t *testing.T) {
-	signer := &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
-	scheme := NewAuthCaptureEvmScheme(&Config{ReceiverAuthorizerSigner: signer, CaptureAuthorizer: testCaptureAuthorizer})
-
+func TestEnhancePaymentRequirements_NoFeeTermsPublishesZeroRecipient(t *testing.T) {
+	scheme := NewAuthCaptureEvmScheme(&Config{
+		ReceiverAuthorizerSigner: &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		CaptureAuthorizer:        testCaptureAuthorizer,
+	})
 	requirements := mockRequirements(nil)
 	requirements.Extra = map[string]interface{}{}
 
-	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
-	require.ErrorContains(t, err, ErrMissingFeeRecipient)
+	enhanced, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, authcapture.ZeroAddress, enhanced.Extra["feeRecipient"])
+	assert.Equal(t, uint16(0), enhanced.Extra["minFeeBps"])
+	assert.Equal(t, uint16(0), enhanced.Extra["maxFeeBps"])
 }
 
-func TestEnhancePaymentRequirements_DefaultFeeBounds(t *testing.T) {
-	signer := &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+func TestEnhancePaymentRequirements_ConfiguredRecipientDefaultsToNoFee(t *testing.T) {
 	scheme := NewAuthCaptureEvmScheme(&Config{
-		ReceiverAuthorizerSigner: signer,
+		ReceiverAuthorizerSigner: &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
 		CaptureAuthorizer:        testCaptureAuthorizer,
 		FeeRecipient:             testFeeRecipient,
 	})
-
 	requirements := mockRequirements(nil)
 	requirements.Extra = map[string]interface{}{}
 
@@ -268,7 +249,53 @@ func TestEnhancePaymentRequirements_DefaultFeeBounds(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, uint16(0), enhanced.Extra["minFeeBps"])
-	assert.Equal(t, DefaultMaxFeeBps, enhanced.Extra["maxFeeBps"])
+	assert.Equal(t, uint16(0), enhanced.Extra["maxFeeBps"])
+}
+
+func TestEnhancePaymentRequirements_InvalidFeeTerms(t *testing.T) {
+	maxFee := uint16(100)
+	overMax := uint16(10001)
+	minFee := uint16(200)
+	tests := []struct {
+		name    string
+		config  Config
+		wantErr string
+	}{
+		{name: "non-zero bounds without a recipient", config: Config{MaxFeeBps: &maxFee}, wantErr: ErrMissingFeeRecipient},
+		{name: "min above max", config: Config{FeeRecipient: testFeeRecipient, MinFeeBps: &minFee, MaxFeeBps: &maxFee}, wantErr: ErrInvalidFeeTerms},
+		{name: "max above 10000", config: Config{FeeRecipient: testFeeRecipient, MaxFeeBps: &overMax}, wantErr: ErrInvalidFeeTerms},
+		{name: "malformed recipient", config: Config{FeeRecipient: "not-an-address"}, wantErr: ErrInvalidFeeTerms},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := test.config
+			config.ReceiverAuthorizerSigner = &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+			config.CaptureAuthorizer = testCaptureAuthorizer
+			requirements := mockRequirements(nil)
+			requirements.Extra = map[string]interface{}{}
+
+			_, err := NewAuthCaptureEvmScheme(&config).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+func TestEnhancePaymentRequirements_TimeoutMustFitCaptureDeadline(t *testing.T) {
+	scheme := NewAuthCaptureEvmScheme(&Config{
+		ReceiverAuthorizerSigner: &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		CaptureAuthorizer:        testCaptureAuthorizer,
+		CaptureDeadline:          time.Minute,
+	})
+	requirements := mockRequirements(nil)
+	requirements.Extra = map[string]interface{}{}
+	requirements.MaxTimeoutSeconds = 61
+
+	_, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+	require.ErrorContains(t, err, ErrTimeoutExceedsCaptureDeadline)
+
+	requirements.MaxTimeoutSeconds = 60
+	_, err = scheme.EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+	require.NoError(t, err)
 }
 
 func TestEnhancePaymentRequirements_CopiesThroughExtensionKeys(t *testing.T) {
@@ -320,6 +347,20 @@ func TestEnrichSettlementPayload_BeforeHandlerNoOp(t *testing.T) {
 	assert.Nil(t, fields)
 }
 
+// mergeEnrichment applies the core's additive settlement-payload policy and merge.
+func mergeEnrichment(t *testing.T, payload types.PaymentPayload, enrichment map[string]interface{}) map[string]interface{} {
+	t.Helper()
+	require.NoError(t, x402.AssertAdditivePayloadEnrichment(payload.Payload, enrichment, "auth-capture"))
+	merged := map[string]interface{}{}
+	for k, v := range payload.Payload {
+		merged[k] = v
+	}
+	for k, v := range enrichment {
+		merged[k] = v
+	}
+	return merged
+}
+
 func TestEnrichSettlementPayload_AfterHandlerSignsCapture(t *testing.T) {
 	signer := &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
 	scheme := newTestScheme(signer)
@@ -333,6 +374,7 @@ func TestEnrichSettlementPayload_AfterHandlerSignsCapture(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	assert.True(t, authcapture.IsCapturePayload(mergeEnrichment(t, eip3009CollectPayload(nil), fields)))
 	assert.Equal(t, "capture", fields["type"])
 	assert.Equal(t, requirements.Amount, fields["amount"])
 	assert.Equal(t, requirements.Amount, fields["expectedCapturableAmount"])
@@ -387,6 +429,7 @@ func TestEnrichSettlementPayload_CancelSignsVoid(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	assert.True(t, authcapture.IsVoidPayload(mergeEnrichment(t, eip3009CollectPayload(nil), fields)))
 	assert.Equal(t, "void", fields["type"])
 	assert.NotEmpty(t, fields["authorizerSignature"])
 	assert.Equal(t, "Void", signer.lastPrimaryType)
@@ -459,4 +502,38 @@ func TestSettleOnCancel(t *testing.T) {
 			assert.Equal(t, requirements.PayTo, result.PayTo)
 		})
 	}
+}
+
+func TestParsePrice(t *testing.T) {
+	scheme := NewAuthCaptureEvmScheme(&Config{})
+	network := x402.Network("eip155:84532")
+
+	t.Run("asset amount passes through", func(t *testing.T) {
+		got, err := scheme.ParsePrice(map[string]interface{}{"amount": "42", "asset": "0xasset"}, network)
+		require.NoError(t, err)
+		assert.Equal(t, "42", got.Amount)
+		assert.Equal(t, "0xasset", got.Asset)
+	})
+
+	t.Run("asset amount needs a string amount and an asset", func(t *testing.T) {
+		_, err := scheme.ParsePrice(map[string]interface{}{"amount": 42, "asset": "0xasset"}, network)
+		assert.EqualError(t, err, ErrAmountMustBeString)
+		_, err = scheme.ParsePrice(map[string]interface{}{"amount": "42"}, network)
+		assert.EqualError(t, err, ErrNoAssetSpecified)
+	})
+
+	t.Run("dollar amount uses the network default asset", func(t *testing.T) {
+		got, err := scheme.ParsePrice("$0.50", network)
+		require.NoError(t, err)
+		assert.Equal(t, "500000", got.Amount)
+		assert.NotEmpty(t, got.Asset)
+	})
+
+	t.Run("a registered parser wins over the default", func(t *testing.T) {
+		custom := &x402.AssetAmount{Amount: "7", Asset: "0xcustom"}
+		scheme.RegisterMoneyParser(func(string, x402.Network) (*x402.AssetAmount, error) { return custom, nil })
+		got, err := scheme.ParsePrice("$1", network)
+		require.NoError(t, err)
+		assert.Equal(t, *custom, got)
+	})
 }

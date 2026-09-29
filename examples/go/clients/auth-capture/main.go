@@ -16,10 +16,8 @@ import (
 	evmsigners "github.com/x402-foundation/x402/go/v2/signers/evm"
 )
 
-// Auth-capture client demo. Signs an authorize (collect) payload; the
-// facilitator escrows the funds up front, the resource server handles the
-// request, and the facilitator then captures (or voids) the hold based on
-// the server's post-handler signature.
+// Auth-capture client demo: signs an authorize payload that the facilitator escrows
+// before the server handles the request.
 func main() {
 	_ = godotenv.Load()
 

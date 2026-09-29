@@ -2,14 +2,12 @@ package facilitator
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"math/big"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,574 +17,343 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// ─── Mock facilitator signer ────────────────────────────────────────────────
-
-type mockFacSigner struct {
-	addresses         []string
-	deployedAddresses map[string]bool // lowercased address -> has code (EIP-1271 routing)
-
-	paymentStateHasCollected bool
-	paymentStateCapturable   *big.Int
-	paymentStateRefundable   *big.Int
-	paymentStateErr          error
-
-	simulateErr map[string]error // functionName ("authorize"/"capture"/"void") -> forced error
-
-	writeTx             string
-	writeErr             error
-	writeContractCalls  int
-
-	receipt    *evm.TransactionReceipt
-	receiptErr error
-}
-
-func newMockFacSigner(addresses ...string) *mockFacSigner {
-	return &mockFacSigner{
-		addresses:         addresses,
-		deployedAddresses: map[string]bool{},
-		simulateErr:       map[string]error{},
-		writeTx:           "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-		receipt:           &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"},
-	}
-}
-
-func (m *mockFacSigner) GetAddresses() []string { return m.addresses }
-
-func (m *mockFacSigner) GetCode(_ context.Context, address string) ([]byte, error) {
-	if m.deployedAddresses[strings.ToLower(address)] {
-		return []byte{0x60, 0x80}, nil
-	}
-	return nil, nil
-}
-
-func (m *mockFacSigner) ReadContract(_ context.Context, _ string, _ []byte, functionName string, _ ...interface{}) (interface{}, error) {
-	if functionName == "paymentState" {
-		if m.paymentStateErr != nil {
-			return nil, m.paymentStateErr
-		}
-		return []interface{}{m.paymentStateHasCollected, m.paymentStateCapturable, m.paymentStateRefundable}, nil
-	}
-	if err, ok := m.simulateErr[functionName]; ok && err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (m *mockFacSigner) VerifyTypedData(_ context.Context, _ string, _ evm.TypedDataDomain, _ map[string][]evm.TypedDataField, _ string, _ map[string]interface{}, _ []byte) (bool, error) {
-	return false, nil
-}
-
-func (m *mockFacSigner) WriteContract(_ context.Context, _ string, _ []byte, _ string, _ []byte, _ ...interface{}) (string, error) {
-	m.writeContractCalls++
-	if m.writeErr != nil {
-		return "", m.writeErr
-	}
-	return m.writeTx, nil
-}
-
-func (m *mockFacSigner) SendTransaction(_ context.Context, _ string, _ []byte) (string, error) {
-	return m.writeTx, m.writeErr
-}
-
-func (m *mockFacSigner) WaitForTransactionReceipt(_ context.Context, _ string) (*evm.TransactionReceipt, error) {
-	if m.receiptErr != nil {
-		return nil, m.receiptErr
-	}
-	return m.receipt, nil
-}
-
-func (m *mockFacSigner) GetBalance(_ context.Context, _ string, _ string) (*big.Int, error) {
-	return big.NewInt(0), nil
-}
-
-func (m *mockFacSigner) GetChainID(_ context.Context) (*big.Int, error) {
-	return big.NewInt(84532), nil
-}
-
-// ─── Fixtures ────────────────────────────────────────────────────────────────
-
-var (
-	facCaptureAuthorizer = "0x" + strings.Repeat("c", 40)
-	facFeeRecipient      = "0x" + strings.Repeat("3", 40)
-	facPayTo             = "0x" + strings.Repeat("2", 40)
-	facAsset             = "0x" + strings.Repeat("a", 40)
-)
-
-const (
-	facNetwork = "eip155:84532"
-	facAmount  = "1000000"
-)
-
-func facBaseRequirements(captureAuthorizer string, extraOverrides map[string]interface{}) types.PaymentRequirements {
-	future := time.Now().Unix() + 86400
-	extra := map[string]interface{}{
-		"name":              "USDC",
-		"version":           "2",
-		"captureAuthorizer": captureAuthorizer,
-		"feeRecipient":      facFeeRecipient,
-		"minFeeBps":         float64(0),
-		"maxFeeBps":         float64(100),
-		"captureDeadline":   float64(future),
-		"refundDeadline":    float64(future + 86400),
-	}
-	for k, v := range extraOverrides {
-		extra[k] = v
-	}
-	return types.PaymentRequirements{
-		Scheme:            authcapture.SchemeAuthCapture,
-		Network:           facNetwork,
-		Amount:            facAmount,
-		Asset:             facAsset,
-		PayTo:             facPayTo,
-		MaxTimeoutSeconds: 3600,
-		Extra:             extra,
-	}
-}
-
-// buildEip3009Payload builds a fully valid, real-signature EIP-3009 collect
-// payload for requirements, signed by payerKey.
-func buildEip3009Payload(t *testing.T, requirements types.PaymentRequirements, payerKey *ecdsa.PrivateKey) types.PaymentPayload {
-	t.Helper()
-	extra, deployment, err := authcapture.ParseAuthCaptureExtra(requirements)
-	require.NoError(t, err)
-
-	payerAddr := crypto.PubkeyToAddress(payerKey.PublicKey).Hex()
-	validBefore := time.Now().Unix() + 3600
-	salt := "0x" + strings.Repeat("0", 64)
-
-	paymentInfo := authcapture.ReconstructPaymentInfo(payerAddr, uint64(validBefore), salt, requirements, extra, "")
-
-	chainID, err := evm.GetEvmChainId(string(requirements.Network))
-	require.NoError(t, err)
-
-	nonceHex, err := authcapture.ComputePayerAgnosticPaymentInfoHash(chainID, paymentInfo, deployment.Escrow)
-	require.NoError(t, err)
-
-	authorization := authcapture.Eip3009Authorization{
-		From:        payerAddr,
-		To:          deployment.EIP3009Collector,
-		Value:       requirements.Amount,
-		ValidAfter:  "0",
-		ValidBefore: strconv.FormatInt(validBefore, 10),
-		Nonce:       nonceHex,
-	}
-
-	hash, err := authcapture.HashERC3009Authorization(authorization, extra, requirements.Asset, chainID)
-	require.NoError(t, err)
-
-	sig, err := crypto.Sign(hash[:], payerKey)
-	require.NoError(t, err)
-	sig[64] += 27
-
-	return types.PaymentPayload{
-		X402Version: 2,
-		Accepted:    requirements,
-		Payload: map[string]interface{}{
-			"authorization": map[string]interface{}{
-				"from":        authorization.From,
-				"to":          authorization.To,
-				"value":       authorization.Value,
-				"validAfter":  authorization.ValidAfter,
-				"validBefore": authorization.ValidBefore,
-				"nonce":       authorization.Nonce,
-			},
-			"signature": evm.BytesToHex(sig),
-			"salt":      salt,
-		},
-	}
-}
-
-func assertVerifyReason(t *testing.T, err error, reason string) {
-	t.Helper()
-	require.Error(t, err)
-	ve := &x402.VerifyError{}
-	require.ErrorAs(t, err, &ve)
-	assert.Equal(t, reason, ve.InvalidReason)
-}
-
-// ─── Verify/Settle routing ───────────────────────────────────────────────────
-
-func TestVerify_UnknownPayloadShape(t *testing.T) {
+func TestSchemeMetadata(t *testing.T) {
 	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
+
+	noFee := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+	assert.Equal(t, authcapture.SchemeAuthCapture, noFee.Scheme())
+	assert.Equal(t, "eip155:*", noFee.CaipFamily())
+	assert.Equal(t, []string{facCaptureAuthorizer}, noFee.GetSigners(facNetwork))
+	assert.Equal(t, map[string]interface{}{"captureAuthorizer": facCaptureAuthorizer}, noFee.GetExtra(facNetwork))
+
+	withFee := newScheme(signer, AuthCaptureEvmSchemeConfig{FeeRecipient: facFeeRecipient, MinFeeBps: 5, MaxFeeBps: 5})
+	extra := withFee.GetExtra(facNetwork)
+	assert.Equal(t, facFeeRecipient, extra["feeRecipient"])
+	assert.Equal(t, uint16(5), extra["minFeeBps"])
+
+	unconfigured := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{})
+	assert.Nil(t, unconfigured.GetExtra(facNetwork))
+}
+
+func TestVerifyAndSettle_UnknownPayloadShape(t *testing.T) {
+	scheme := newScheme(newMockFacSigner(facCaptureAuthorizer), AuthCaptureEvmSchemeConfig{})
 	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	_, err := scheme.Verify(context.Background(), types.PaymentPayload{Accepted: requirements, Payload: map[string]interface{}{"foo": "bar"}}, requirements, nil)
-	assertVerifyReason(t, err, ErrPayloadFormat)
-}
-
-func TestSettle_UnknownPayloadShape(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	_, err := scheme.Settle(context.Background(), types.PaymentPayload{Accepted: requirements, Payload: map[string]interface{}{"foo": "bar"}}, requirements, nil)
-	require.ErrorContains(t, err, ErrPayloadFormat)
-}
-
-// ─── Collect (authorize) verification ───────────────────────────────────────
-
-func TestVerifyCollect_Eip3009HappyPath(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-
-	resp, err := scheme.Verify(context.Background(), payload, requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-	assert.Equal(t, strings.ToLower(crypto.PubkeyToAddress(payerKey.PublicKey).Hex()), strings.ToLower(resp.Payer))
-}
-
-func TestVerifyCollect_SchemeMismatch(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-	payload.Accepted.Scheme = "exact"
-
-	_, err = scheme.Verify(context.Background(), payload, requirements, nil)
-	assertVerifyReason(t, err, ErrInvalidScheme)
-}
-
-func TestVerifyCollect_AmountMismatch(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-	payload.Payload["authorization"].(map[string]interface{})["value"] = "1"
-
-	_, err = scheme.Verify(context.Background(), payload, requirements, nil)
-	assertVerifyReason(t, err, ErrAmountMismatch)
-}
-
-func TestVerifyCollect_NonceMismatch(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-	payload.Payload["authorization"].(map[string]interface{})["nonce"] = "0x" + strings.Repeat("1", 64)
-
-	_, err = scheme.Verify(context.Background(), payload, requirements, nil)
-	assertVerifyReason(t, err, ErrNonceMismatch)
-}
-
-func TestVerifyCollect_OperatorNotAdmitted(t *testing.T) {
-	// Facilitator's own signer does not control the captureAuthorizer the
-	// client declared in requirements.Extra.
-	signer := newMockFacSigner("0x" + strings.Repeat("9", 40))
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-
-	_, err = scheme.Verify(context.Background(), payload, requirements, nil)
-	assertVerifyReason(t, err, ErrOperatorNotAdmitted)
-}
-
-// ─── Collect (authorize) settlement ──────────────────────────────────────────
-
-func TestSettleCollect_Eip3009HappyPath(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-
-	resp, err := scheme.Settle(context.Background(), payload, requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.Success)
-	assert.Equal(t, signer.writeTx, resp.Transaction)
-	assert.Equal(t, 1, signer.writeContractCalls)
-}
-
-func TestSettleCollect_PendingReconciliationSkipsRebroadcast(t *testing.T) {
-	signer := newMockFacSigner(facCaptureAuthorizer)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	payload := buildEip3009Payload(t, requirements, payerKey)
-
-	sigHex := payload.Payload["signature"].(string)
-	require.NoError(t, scheme.pendingStore.Set(context.Background(), sigHex, "0x"+strings.Repeat("a", 64)))
-
-	resp, err := scheme.Settle(context.Background(), payload, requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.Success)
-	assert.Equal(t, 0, signer.writeContractCalls, "pending-settlement fast path must not re-broadcast")
-}
-
-// ─── Lifecycle (capture/void) fixtures ───────────────────────────────────────
-
-// lifecycleFixture is the shared state a capture/void test needs: a requirements
-// object with a real receiverAuthorizer, a matching real-signed PaymentInfo the
-// mock's paymentState reports as collected, and the keys to sign lifecycle messages.
-type lifecycleFixture struct {
-	requirements types.PaymentRequirements
-	extra        authcapture.AuthCaptureExtra
-	deployment   authcapture.AuthCaptureDeployment
-	chainID      *big.Int
-	paymentInfo  authcapture.PaymentInfoStruct
-	receiverKey  *ecdsa.PrivateKey
-	saltNonce    string
-}
-
-func newLifecycleFixture(t *testing.T) lifecycleFixture {
-	t.Helper()
-	receiverKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-	receiverAddr := crypto.PubkeyToAddress(receiverKey.PublicKey).Hex()
-
-	requirements := facBaseRequirements(facCaptureAuthorizer, map[string]interface{}{
-		"receiverAuthorizer": receiverAddr,
-	})
-	extra, deployment, err := authcapture.ParseAuthCaptureExtra(requirements)
-	require.NoError(t, err)
-
-	saltNonce := "0x01"
-	salt, err := authcapture.DeriveBoundSalt(receiverAddr, authcapture.ExtraAddress(""), saltNonce)
-	require.NoError(t, err)
-
-	payerKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-
-	paymentInfo := authcapture.PaymentInfoStruct{
-		Operator:            extra.CaptureAuthorizer,
-		Payer:               crypto.PubkeyToAddress(payerKey.PublicKey).Hex(),
-		Receiver:            requirements.PayTo,
-		Token:               requirements.Asset,
-		MaxAmount:           requirements.Amount,
-		PreApprovalExpiry:   extra.CaptureDeadline - 1,
-		AuthorizationExpiry: extra.CaptureDeadline,
-		RefundExpiry:        extra.RefundDeadline,
-		MinFeeBps:           extra.MinFeeBps,
-		MaxFeeBps:           extra.MaxFeeBps,
-		FeeReceiver:         extra.FeeRecipient,
-		Salt:                salt,
-	}
-
-	chainID, err := evm.GetEvmChainId(string(requirements.Network))
-	require.NoError(t, err)
-
-	return lifecycleFixture{
-		requirements: requirements,
-		extra:        extra,
-		deployment:   deployment,
-		chainID:      chainID,
-		paymentInfo:  paymentInfo,
-		receiverKey:  receiverKey,
-		saltNonce:    saltNonce,
-	}
-}
-
-func paymentInfoMap(p authcapture.PaymentInfoStruct) map[string]interface{} {
-	return map[string]interface{}{
-		"operator":            p.Operator,
-		"payer":               p.Payer,
-		"receiver":            p.Receiver,
-		"token":               p.Token,
-		"maxAmount":           p.MaxAmount,
-		"preApprovalExpiry":   float64(p.PreApprovalExpiry),
-		"authorizationExpiry": float64(p.AuthorizationExpiry),
-		"refundExpiry":        float64(p.RefundExpiry),
-		"minFeeBps":           float64(p.MinFeeBps),
-		"maxFeeBps":           float64(p.MaxFeeBps),
-		"feeReceiver":         p.FeeReceiver,
-		"salt":                p.Salt,
-	}
-}
-
-// buildCapturePayload builds a real-signed capture lifecycle wire payload for
-// fx's v1.1 (default) deployment.
-func buildCapturePayload(t *testing.T, fx lifecycleFixture, amount, expectedCapturable, expectedRefundable string) map[string]interface{} {
-	t.Helper()
-	paymentInfoHash, err := authcapture.ComputePaymentInfoHash(fx.chainID, fx.paymentInfo, fx.paymentInfo.Payer, fx.deployment.Escrow)
-	require.NoError(t, err)
-
-	amountBig, ok := new(big.Int).SetString(amount, 10)
-	require.True(t, ok)
-	expCapBig, ok := new(big.Int).SetString(expectedCapturable, 10)
-	require.True(t, ok)
-	expRefBig, ok := new(big.Int).SetString(expectedRefundable, 10)
-	require.True(t, ok)
-
-	message := map[string]interface{}{
-		"paymentInfoHash":          paymentInfoHash,
-		"amount":                   amountBig,
-		"feeAmount":                big.NewInt(0),
-		"feeReceiver":              evm.NormalizeAddress(fx.extra.FeeRecipient),
-		"expectedCapturableAmount": expCapBig,
-		"expectedRefundableAmount": expRefBig,
-	}
-
-	domain := lifecycleDomain(fx.extra, fx.chainID)
-	hash, err := evm.HashEIP712TypedData(domain, authcapture.CaptureTypesForDeployment(&fx.deployment), "Capture", message)
-	require.NoError(t, err)
-
-	sig, err := crypto.Sign(hash[:], fx.receiverKey)
-	require.NoError(t, err)
-	sig[64] += 27
-
-	return map[string]interface{}{
-		"type":                     "capture",
-		"paymentInfo":              paymentInfoMap(fx.paymentInfo),
-		"saltNonce":                fx.saltNonce,
-		"amount":                   amount,
-		"feeAmount":                "0",
-		"feeReceiver":              fx.extra.FeeRecipient,
-		"expectedCapturableAmount": expectedCapturable,
-		"expectedRefundableAmount": expectedRefundable,
-		"authorizerSignature":      evm.BytesToHex(sig),
-	}
-}
-
-// buildVoidPayload builds a real-signed void lifecycle wire payload.
-func buildVoidPayload(t *testing.T, fx lifecycleFixture) map[string]interface{} {
-	t.Helper()
-	paymentInfoHash, err := authcapture.ComputePaymentInfoHash(fx.chainID, fx.paymentInfo, fx.paymentInfo.Payer, fx.deployment.Escrow)
-	require.NoError(t, err)
-
-	domain := lifecycleDomain(fx.extra, fx.chainID)
-	message := map[string]interface{}{"paymentInfoHash": paymentInfoHash}
-	hash, err := evm.HashEIP712TypedData(domain, authcapture.VoidTypes, "Void", message)
-	require.NoError(t, err)
-
-	sig, err := crypto.Sign(hash[:], fx.receiverKey)
-	require.NoError(t, err)
-	sig[64] += 27
-
-	return map[string]interface{}{
-		"type":                "void",
-		"paymentInfo":         paymentInfoMap(fx.paymentInfo),
-		"saltNonce":           fx.saltNonce,
-		"authorizerSignature": evm.BytesToHex(sig),
-	}
-}
-
-func facSignerForFixture(fx lifecycleFixture) *mockFacSigner {
-	signer := newMockFacSigner(fx.extra.CaptureAuthorizer)
-	signer.paymentStateHasCollected = true
-	maxAmount, _ := new(big.Int).SetString(fx.paymentInfo.MaxAmount, 10)
-	signer.paymentStateCapturable = maxAmount
-	signer.paymentStateRefundable = big.NewInt(0)
-	return signer
-}
-
-// ─── Capture verification/settlement ────────────────────────────────────────
-
-func TestVerifyCapture_HappyPath(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-
-	capturePayload := buildCapturePayload(t, fx, fx.paymentInfo.MaxAmount, fx.paymentInfo.MaxAmount, "0")
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: capturePayload}
-
-	resp, err := scheme.Verify(context.Background(), payload, fx.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-	assert.Equal(t, strings.ToLower(fx.paymentInfo.Payer), strings.ToLower(resp.Payer))
-}
-
-func TestVerifyCapture_StaleExpectedAmounts(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-
-	// Signed expectedCapturableAmount ("1") no longer matches the mock's
-	// on-chain capturable balance (the full maxAmount) — must be rejected as stale.
-	capturePayload := buildCapturePayload(t, fx, "1", "1", "0")
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: capturePayload}
-
-	_, err := scheme.Verify(context.Background(), payload, fx.requirements, nil)
-	assertVerifyReason(t, err, ErrUnexpectedPaymentState)
-}
-
-func TestVerifyCapture_MissingReceiverAuthorizer(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-
-	requirements := facBaseRequirements(facCaptureAuthorizer, nil) // no receiverAuthorizer
-	capturePayload := buildCapturePayload(t, fx, fx.paymentInfo.MaxAmount, fx.paymentInfo.MaxAmount, "0")
-	payload := types.PaymentPayload{X402Version: 2, Accepted: requirements, Payload: capturePayload}
+	payload := types.PaymentPayload{Accepted: requirements, Payload: map[string]interface{}{"foo": "bar"}}
 
 	_, err := scheme.Verify(context.Background(), payload, requirements, nil)
-	assertVerifyReason(t, err, ErrLifecycleNotRelayed)
+	assertVerifyReason(t, err, ErrPayloadFormat)
+
+	_, err = scheme.Settle(context.Background(), payload, requirements, nil)
+	assertSettleReason(t, err, ErrPayloadFormat)
 }
 
-func TestSettleCapture_HappyPath(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
+func TestVerifyCollect_HappyPath(t *testing.T) {
+	tests := []struct {
+		name  string
+		extra map[string]interface{}
+	}{
+		{name: "eip3009"},
+		{name: "permit2", extra: map[string]interface{}{"assetTransferMethod": "permit2"}},
+		{name: "salt bound", extra: map[string]interface{}{"receiverAuthorizer": "0x" + strings.Repeat("7", 40)}},
+		{name: "no fee, zero recipient", extra: map[string]interface{}{"feeRecipient": authcapture.ZeroAddress, "maxFeeBps": float64(0)}},
+		{name: "v1.0 deployment", extra: map[string]interface{}{"authCaptureEscrow": authcapture.AuthCaptureEscrowV1_0Address}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scheme := newScheme(newMockFacSigner(facCaptureAuthorizer), AuthCaptureEvmSchemeConfig{})
+			requirements := facBaseRequirements(facCaptureAuthorizer, test.extra)
+			payer := newKeySigner(t)
 
-	capturePayload := buildCapturePayload(t, fx, fx.paymentInfo.MaxAmount, fx.paymentInfo.MaxAmount, "0")
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: capturePayload}
+			resp, err := scheme.Verify(context.Background(), buildCollectPayload(t, requirements, payer, collectOpts{}), requirements, nil)
+			require.NoError(t, err)
+			assert.True(t, resp.IsValid)
+			assert.Equal(t, strings.ToLower(payer.Address()), strings.ToLower(resp.Payer))
+		})
+	}
+}
 
-	resp, err := scheme.Settle(context.Background(), payload, fx.requirements, nil)
+func TestVerifyCollect_Rejections(t *testing.T) {
+	now := time.Now().Unix()
+	tests := []struct {
+		name   string
+		extra  map[string]interface{}
+		opts   collectOpts
+		mutate func(requirements *types.PaymentRequirements, payload *types.PaymentPayload)
+		reason string
+	}{
+		{
+			name:   "payload scheme mismatch",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) { p.Accepted.Scheme = "exact" },
+			reason: ErrInvalidScheme,
+		},
+		{
+			name:   "requirements scheme mismatch",
+			mutate: func(r *types.PaymentRequirements, _ *types.PaymentPayload) { r.Scheme = "exact" },
+			reason: ErrInvalidScheme,
+		},
+		{
+			name:   "network mismatch",
+			mutate: func(r *types.PaymentRequirements, _ *types.PaymentPayload) { r.Network = "eip155:1" },
+			reason: ErrNetworkMismatch,
+		},
+		{
+			name: "non-eip155 network",
+			mutate: func(r *types.PaymentRequirements, p *types.PaymentPayload) {
+				r.Network = "solana:devnet"
+				p.Accepted.Network = "solana:devnet"
+			},
+			reason: ErrInvalidNetwork,
+		},
+		{
+			name:   "missing extra",
+			mutate: func(r *types.PaymentRequirements, _ *types.PaymentPayload) { delete(r.Extra, "captureDeadline") },
+			reason: ErrExtra,
+		},
+		{name: "min fee above max", extra: map[string]interface{}{"minFeeBps": float64(200)}, reason: ErrExtra},
+		{name: "max fee above 10000", extra: map[string]interface{}{"maxFeeBps": float64(10001)}, reason: ErrExtra},
+		{name: "zero recipient with fee bounds", extra: map[string]interface{}{"feeRecipient": authcapture.ZeroAddress}, reason: ErrZeroFeeReceiver},
+		{name: "legacy autoCapture", extra: map[string]interface{}{"autoCapture": true}, reason: ErrUnsupportedPaymentFlow},
+		{name: "authorization flow", extra: map[string]interface{}{"paymentFlow": "authorization"}, reason: ErrUnsupportedPaymentFlow},
+		{name: "custom operator", extra: map[string]interface{}{"operatorType": "custom"}, reason: ErrUnsupportedOperatorType},
+		{name: "policy operator", extra: map[string]interface{}{"policy": "0x" + strings.Repeat("5", 40)}, reason: ErrPolicy},
+		{name: "operator not controlled", extra: map[string]interface{}{"captureAuthorizer": "0x" + strings.Repeat("9", 40)}, reason: ErrOperatorNotAdmitted},
+		{
+			name: "eip3009 payload for permit2 route",
+			mutate: func(r *types.PaymentRequirements, _ *types.PaymentPayload) {
+				r.Extra["assetTransferMethod"] = "permit2"
+			},
+			reason: ErrPayloadMethodMismatch,
+		},
+		{name: "unknown asset transfer method", extra: map[string]interface{}{"assetTransferMethod": "magic"}, reason: ErrUnsupportedAssetTransferMethod},
+		{
+			name:   "capture deadline inside the skew floor",
+			extra:  map[string]interface{}{"captureDeadline": float64(now + 3), "refundDeadline": float64(now + 100)},
+			reason: ErrCaptureDeadlineExpired,
+		},
+		{
+			name:   "timeout longer than the capture window",
+			extra:  map[string]interface{}{"captureDeadline": float64(now + 1000), "refundDeadline": float64(now + 2000)},
+			reason: ErrDeadlineOrdering,
+		},
+		{
+			name:   "refund before capture",
+			extra:  map[string]interface{}{"captureDeadline": float64(now + 86400), "refundDeadline": float64(now + 4000)},
+			reason: ErrDeadlineOrdering,
+		},
+		{name: "validBefore inside the skew floor", opts: collectOpts{validBefore: now + 3}, reason: ErrAuthorizationExpired},
+		{name: "validAfter in the future", opts: collectOpts{validAfter: uint64(now + 600)}, reason: ErrAuthorizationNotYetValid},
+		{
+			name: "amount mismatch",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["authorization"].(map[string]interface{})["value"] = "1"
+			},
+			reason: ErrAmountMismatch,
+		},
+		{
+			name: "collector mismatch",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["authorization"].(map[string]interface{})["to"] = "0x" + strings.Repeat("1", 40)
+			},
+			reason: ErrTokenCollectorMismatch,
+		},
+		{
+			name: "nonce mismatch",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["authorization"].(map[string]interface{})["nonce"] = "0x" + strings.Repeat("1", 64)
+			},
+			reason: ErrNonceMismatch,
+		},
+		{
+			name: "saltNonce present while unbound",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["saltNonce"] = "0x01"
+			},
+			reason: ErrPayloadFormat,
+		},
+		{
+			name:  "saltNonce missing while bound",
+			extra: map[string]interface{}{"receiverAuthorizer": "0x" + strings.Repeat("7", 40)},
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				delete(p.Payload, "saltNonce")
+			},
+			reason: ErrPayloadFormat,
+		},
+		{
+			name:  "salt does not match the binding",
+			extra: map[string]interface{}{"receiverAuthorizer": "0x" + strings.Repeat("7", 40)},
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["salt"] = "0x" + strings.Repeat("1", 64)
+			},
+			reason: ErrSaltBindingMismatch,
+		},
+		{
+			name: "signature from another key",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["authorization"].(map[string]interface{})["from"] = newKeySigner(t).Address()
+			},
+			reason: ErrSignature,
+		},
+		{
+			name: "terminal charge completion",
+			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
+				p.Payload["amount"] = "1"
+				p.Payload["feeAmount"] = "0"
+				p.Payload["feeReceiver"] = facFeeRecipient
+				p.Payload["authorizerSignature"] = "0x01"
+				p.Payload["saltNonce"] = "0x01"
+			},
+			reason: ErrUnsupportedPaymentFlow,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scheme := newScheme(newMockFacSigner(facCaptureAuthorizer), AuthCaptureEvmSchemeConfig{})
+			requirements := facBaseRequirements(facCaptureAuthorizer, test.extra)
+			payload := buildCollectPayload(t, requirements, newKeySigner(t), test.opts)
+			if test.mutate != nil {
+				test.mutate(&requirements, &payload)
+			}
+
+			_, err := scheme.Verify(context.Background(), payload, requirements, nil)
+			assertVerifyReason(t, err, test.reason)
+		})
+	}
+}
+
+func TestVerifyCollect_Permit2Rejections(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(auth map[string]interface{})
+		reason string
+	}{
+		{name: "spender is not the collector", mutate: func(a map[string]interface{}) { a["spender"] = "0x" + strings.Repeat("1", 40) }, reason: ErrTokenCollectorMismatch},
+		{
+			name: "permitted token differs",
+			mutate: func(a map[string]interface{}) {
+				a["permitted"].(map[string]interface{})["token"] = "0x" + strings.Repeat("1", 40)
+			},
+			reason: ErrTokenMismatch,
+		},
+		{
+			name:   "permitted amount differs",
+			mutate: func(a map[string]interface{}) { a["permitted"].(map[string]interface{})["amount"] = "1" },
+			reason: ErrAmountMismatch,
+		},
+		{name: "malformed nonce", mutate: func(a map[string]interface{}) { a["nonce"] = "abc" }, reason: ErrPayloadFormat},
+		{name: "malformed deadline", mutate: func(a map[string]interface{}) { a["deadline"] = "soon" }, reason: ErrPayloadFormat},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scheme := newScheme(newMockFacSigner(facCaptureAuthorizer), AuthCaptureEvmSchemeConfig{})
+			requirements := facBaseRequirements(facCaptureAuthorizer, map[string]interface{}{"assetTransferMethod": "permit2"})
+			payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
+			test.mutate(payload.Payload["permit2Authorization"].(map[string]interface{}))
+
+			_, err := scheme.Verify(context.Background(), payload, requirements, nil)
+			assertVerifyReason(t, err, test.reason)
+		})
+	}
+}
+
+func TestVerifyCollect_SimulationRevertsAreTyped(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		reason string
+	}{
+		{name: "pre-approval expired", err: escrowRevert(t, "AfterPreApprovalExpiry", big.NewInt(2), big.NewInt(1)), reason: ErrAuthorizationExpired},
+		{name: "wrong sender", err: escrowRevert(t, "InvalidSender", common.Address{}, common.Address{}), reason: ErrOperatorMismatch},
+		{name: "already collected", err: escrowRevert(t, "PaymentAlreadyCollected", [32]byte{}), reason: ErrPaymentAlreadyCollected},
+		{name: "collection failed", err: escrowRevert(t, "TokenCollectionFailed"), reason: ErrTokenCollectionFailed},
+		{name: "unmapped rpc failure", err: assert.AnError, reason: ErrSimulationFailed},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			signer := newMockFacSigner(facCaptureAuthorizer)
+			signer.simulateErr["authorize"] = test.err
+			scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+			requirements := facBaseRequirements(facCaptureAuthorizer, nil)
+
+			_, err := scheme.Verify(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
+			assertVerifyReason(t, err, test.reason)
+		})
+	}
+}
+
+func TestSettleCollect_HappyPath(t *testing.T) {
+	signer := newMockFacSigner(facCaptureAuthorizer)
+	scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
+
+	resp, err := scheme.Settle(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
 	require.NoError(t, err)
 	assert.True(t, resp.Success)
 	assert.Equal(t, signer.writeTx, resp.Transaction)
-	assert.Equal(t, 1, signer.writeContractCalls)
+	assert.Equal(t, facAmount, resp.Amount)
+	assert.Equal(t, []string{"authorize"}, signer.writtenFunctions)
 }
 
-// ─── Void verification/settlement ───────────────────────────────────────────
+func TestSettleCollect_FailureReasons(t *testing.T) {
+	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
 
-func TestVerifyVoid_HappyPath(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
+	t.Run("verification failure", func(t *testing.T) {
+		scheme := newScheme(newMockFacSigner("0x"+strings.Repeat("9", 40)), AuthCaptureEvmSchemeConfig{})
+		_, err := scheme.Settle(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
+		assertSettleReason(t, err, ErrOperatorNotAdmitted)
+	})
 
-	voidPayload := buildVoidPayload(t, fx)
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: voidPayload}
+	t.Run("typed write revert", func(t *testing.T) {
+		signer := newMockFacSigner(facCaptureAuthorizer)
+		signer.writeErr["authorize"] = escrowRevert(t, "PaymentAlreadyCollected", [32]byte{})
+		scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+		_, err := scheme.Settle(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
+		assertSettleReason(t, err, ErrPaymentAlreadyCollected)
+	})
 
-	resp, err := scheme.Verify(context.Background(), payload, fx.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
+	t.Run("simulation in settle", func(t *testing.T) {
+		signer := newMockFacSigner(facCaptureAuthorizer)
+		signer.simulateErr["authorize"] = escrowRevert(t, "TokenCollectionFailed")
+		scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{SimulateInSettle: true})
+		_, err := scheme.Settle(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
+		assertSettleReason(t, err, ErrTokenCollectionFailed)
+		assert.Empty(t, signer.writtenFunctions)
+	})
+
+	t.Run("reverted receipt", func(t *testing.T) {
+		signer := newMockFacSigner(facCaptureAuthorizer)
+		signer.receipt = &evm.TransactionReceipt{Status: evm.TxStatusFailed, TxHash: signer.writeTx}
+		scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+		_, err := scheme.Settle(context.Background(), buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{}), requirements, nil)
+		assertSettleReason(t, err, ErrTransactionReverted)
+	})
 }
 
-func TestVerifyVoid_NoCapturableBalance(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	signer.paymentStateCapturable = big.NewInt(0)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
+func TestSettleCollect_PendingSettlementSkipsRebroadcast(t *testing.T) {
+	signer := newMockFacSigner(facCaptureAuthorizer)
+	scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
+	payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
 
-	voidPayload := buildVoidPayload(t, fx)
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: voidPayload}
+	store := x402.NewInMemoryPendingSettlementStore()
+	scheme.SetPendingSettlementStore(store)
+	scheme.SetPendingSettlementStore(nil) // nil keeps the store
+	require.NoError(t, store.Set(context.Background(), payload.Payload["signature"].(string), signer.writeTx))
 
-	_, err := scheme.Verify(context.Background(), payload, fx.requirements, nil)
-	assertVerifyReason(t, err, ErrUnexpectedPaymentState)
-}
-
-func TestSettleVoid_HappyPath(t *testing.T) {
-	fx := newLifecycleFixture(t)
-	signer := facSignerForFixture(fx)
-	scheme := NewAuthCaptureEvmScheme(signer, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer})
-
-	voidPayload := buildVoidPayload(t, fx)
-	payload := types.PaymentPayload{X402Version: 2, Accepted: fx.requirements, Payload: voidPayload}
-
-	resp, err := scheme.Settle(context.Background(), payload, fx.requirements, nil)
+	resp, err := scheme.Settle(context.Background(), payload, requirements, nil)
 	require.NoError(t, err)
 	assert.True(t, resp.Success)
-	assert.Equal(t, signer.writeTx, resp.Transaction)
-	assert.Equal(t, 1, signer.writeContractCalls)
+	assert.Empty(t, signer.writtenFunctions, "a pending settlement must not be re-broadcast")
+}
+
+func TestSimulateFactoryDeploy(t *testing.T) {
+	sigData := &evm.ERC6492SignatureData{FactoryCalldata: []byte{0x01}}
+	sigData.Factory[0] = 0xaa
+	assert.True(t, needsFactoryDeploy(sigData))
+	assert.False(t, needsFactoryDeploy(&evm.ERC6492SignatureData{}))
+
+	signer := newMockFacSigner(facCaptureAuthorizer)
+	require.NoError(t, simulateFactoryDeploy(context.Background(), signer, sigData, "0xpayer"))
+
+	signer.multicallSuccess = false
+	assertVerifyReason(t, simulateFactoryDeploy(context.Background(), signer, sigData, "0xpayer"), ErrSimulationFailed)
 }

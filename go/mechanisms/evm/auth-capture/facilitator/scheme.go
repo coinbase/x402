@@ -2,7 +2,6 @@ package facilitator
 
 import (
 	"context"
-	"strings"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
@@ -10,30 +9,24 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// AuthCaptureEvmSchemeConfig holds configuration for the AuthCaptureEvmScheme facilitator.
-//
-// This implementation only supports operatorType "delegated" (the facilitator's own signer
-// is PaymentInfo.operator) with the escrow payment flow (authorize/capture/void). "custom"/
-// "policy" operator types, the "authorization" (terminal charge) flow, and refund are out of
-// scope.
+// AuthCaptureEvmSchemeConfig configures the facilitator for the delegated operator type
+// and the escrow flow (authorize, capture, void).
 type AuthCaptureEvmSchemeConfig struct {
-	// CaptureAuthorizer is the address this facilitator commits to submitting delegated
-	// authorize/capture/void calls from. Required, and MUST be one of signer.GetAddresses().
+	// CaptureAuthorizer is the operator address; it MUST be one of signer.GetAddresses().
 	CaptureAuthorizer string
-	// FeeRecipient, MinFeeBps, MaxFeeBps are the facilitator's advertised fee terms,
-	// published verbatim in the /supported response extra. Optional; omitted means no fee.
+	// FeeRecipient, MinFeeBps and MaxFeeBps are the fee terms advertised in /supported; omit for no fee.
 	FeeRecipient string
 	MinFeeBps    uint16
 	MaxFeeBps    uint16
-	// EIP6492AllowedFactories is the allowlist of factory contract addresses (hex strings,
-	// case-insensitive) the facilitator will call when deploying an undeployed smart wallet
-	// via ERC-6492. An empty list (the default) denies all factory deployment calls.
+	// EIP6492AllowedFactories allowlists factories called to deploy counterfactual wallets; empty denies all.
 	EIP6492AllowedFactories []string
 	// SimulateInSettle reruns collect/lifecycle simulation during settle. Verify always simulates.
 	SimulateInSettle bool
 }
 
 // AuthCaptureEvmScheme implements SchemeNetworkFacilitator for the auth-capture EVM scheme.
+// The signer's ReadContract must eth_call from the operator address, since the escrow
+// gates authorize, capture and void on msg.sender.
 type AuthCaptureEvmScheme struct {
 	signer       evm.FacilitatorEvmSigner
 	config       AuthCaptureEvmSchemeConfig
@@ -87,18 +80,7 @@ func (f *AuthCaptureEvmScheme) GetSigners(_ x402.Network) []string {
 	return f.signer.GetAddresses()
 }
 
-// controlsAddress reports whether address is one this facilitator submits transactions from.
-func (f *AuthCaptureEvmScheme) controlsAddress(address string) bool {
-	for _, controlled := range f.signer.GetAddresses() {
-		if strings.EqualFold(controlled, address) {
-			return true
-		}
-	}
-	return false
-}
-
-// Verify verifies a V2 auth-capture payment payload against requirements.
-// Routes to collect (authorize) or lifecycle (capture/void) verification based on payload shape.
+// Verify routes to collect or lifecycle verification by payload shape.
 func (f *AuthCaptureEvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
@@ -107,7 +89,7 @@ func (f *AuthCaptureEvmScheme) Verify(
 ) (*x402.VerifyResponse, error) {
 	switch {
 	case authcapture.IsEip3009Payload(payload.Payload), authcapture.IsPermit2Payload(payload.Payload):
-		return f.verifyCollect(ctx, payload, requirements, true)
+		return f.verifyCollect(ctx, payload, requirements)
 	case authcapture.IsCapturePayload(payload.Payload):
 		return f.verifyCapture(ctx, payload, requirements)
 	case authcapture.IsVoidPayload(payload.Payload):
@@ -117,8 +99,7 @@ func (f *AuthCaptureEvmScheme) Verify(
 	}
 }
 
-// Settle settles a V2 auth-capture payment on-chain.
-// Routes to collect (authorize) or lifecycle (capture/void) settlement based on payload shape.
+// Settle routes to collect or lifecycle settlement by payload shape.
 func (f *AuthCaptureEvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,

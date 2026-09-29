@@ -24,56 +24,42 @@ const DefaultCaptureDeadline = 10 * time.Minute
 // Config.RefundDeadline is zero.
 const DefaultRefundDeadline = 24 * time.Hour
 
-// DefaultMaxFeeBps is used when Config.MaxFeeBps is nil.
-const DefaultMaxFeeBps uint16 = 10000
-
 // Config configures the server-side EVM auth-capture scheme.
 type Config struct {
-	// ReceiverAuthorizerSigner signs the Capture/Void EIP-712 messages that
-	// authorize the facilitator (the escrow operator) to release funds. This
-	// scheme only supports the escrow payment flow, and the facilitator
-	// package here verifies but never produces these signatures, so a signer
-	// is required.
+	// ReceiverAuthorizerSigner signs the Capture and Void messages that let the
+	// facilitator (the escrow operator) release funds. Required.
 	ReceiverAuthorizerSigner evm.ClientEvmSigner
 
-	// CaptureAuthorizer is the escrow operator address. Falls back to the
-	// facilitator's advertised captureAuthorizer when empty.
+	// CaptureAuthorizer is the escrow operator; empty uses the facilitator's advertised one.
 	CaptureAuthorizer string
 
-	// FeeRecipient receives the capture fee. Falls back to the facilitator's
-	// advertised feeRecipient when empty.
+	// FeeRecipient receives the capture fee; empty uses the facilitator's advertised one.
 	FeeRecipient string
 
-	// MinFeeBps/MaxFeeBps bound the fee charged on capture. Nil selects the
-	// facilitator-advertised value, else 0/DefaultMaxFeeBps.
+	// MinFeeBps and MaxFeeBps bound the capture fee; nil uses the facilitator's advertised
+	// value, else 0. With no fee terms the recipient is the zero address and both bounds are 0.
 	MinFeeBps *uint16
 	MaxFeeBps *uint16
 
-	// CaptureDeadline/RefundDeadline are the durations, from the moment
-	// requirements are issued, after which capture/refund are no longer
-	// permitted onchain. Zero selects the package defaults.
+	// CaptureDeadline and RefundDeadline are how long after issuing requirements capture and
+	// refund stay possible onchain; zero selects the defaults.
 	CaptureDeadline time.Duration
 	RefundDeadline  time.Duration
 
-	// Policy is an optional onchain policy contract bound into the payment's
-	// salt (see IsSaltBindingOn). Leave empty when unused.
+	// Policy is an optional policy contract bound into the payment's salt.
 	Policy string
 
-	// AuthCaptureEscrow optionally pins a specific commerce-payments
-	// deployment (v1.0 or v1.1 escrow address). Empty selects the default.
+	// AuthCaptureEscrow optionally pins a commerce-payments deployment (v1.0 or v1.1 escrow address).
 	AuthCaptureEscrow string
 }
 
-// AuthCaptureEvmScheme implements SchemeNetworkServer for EVM auth-capture
-// payments: escrow-only, with the server pre-authorizing capture/void via a
-// receiver-authorizer EIP-712 signature.
+// AuthCaptureEvmScheme implements SchemeNetworkServer for EVM auth-capture payments (escrow flow).
 type AuthCaptureEvmScheme struct {
 	moneyParsers []x402.MoneyParser
 	config       *Config
 }
 
-// NewAuthCaptureEvmScheme creates a new AuthCaptureEvmScheme. A
-// ReceiverAuthorizerSigner is required.
+// NewAuthCaptureEvmScheme creates a new AuthCaptureEvmScheme.
 func NewAuthCaptureEvmScheme(config *Config) *AuthCaptureEvmScheme {
 	if config == nil {
 		config = &Config{}
@@ -94,8 +80,7 @@ func (s *AuthCaptureEvmScheme) DefaultAssetTransferMethod() string {
 	return string(evm.AssetTransferMethodEIP3009)
 }
 
-// PaymentFlows returns ATM-keyed payment flow support for auth-capture EVM.
-// Auth-capture only supports the escrow flow (authorize, then capture/void).
+// PaymentFlows declares the escrow flow for both asset transfer methods.
 func (s *AuthCaptureEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
 	escrowOnly := x402.PaymentFlowConfig{
 		Supported: []x402.PaymentFlowName{x402.PaymentFlowEscrow},
@@ -107,9 +92,7 @@ func (s *AuthCaptureEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig 
 	}
 }
 
-// ValidateFacilitatorSupport fails server startup when neither this config nor
-// the facilitator can supply a receiverAuthorizerSigner-equivalent operator
-// address, since capture/void could never be relayed otherwise.
+// ValidateFacilitatorSupport fails startup when no signer or captureAuthorizer is available.
 func (s *AuthCaptureEvmScheme) ValidateFacilitatorSupport(
 	network x402.Network,
 	supportedKind types.SupportedKind,
@@ -130,20 +113,13 @@ func (s *AuthCaptureEvmScheme) ValidateFacilitatorSupport(
 	)
 }
 
-// RegisterMoneyParser registers a custom money parser in the parser chain.
-// Multiple parsers can be registered - they will be tried in registration order.
-// Each parser receives a decimal string (e.g., "1.50" for $1.50).
-// If a parser returns nil, the next parser in the chain will be tried.
-// The default parser is always the final fallback.
+// RegisterMoneyParser adds a custom money parser, tried in registration order before the default.
 func (s *AuthCaptureEvmScheme) RegisterMoneyParser(parser x402.MoneyParser) *AuthCaptureEvmScheme {
 	s.moneyParsers = append(s.moneyParsers, parser)
 	return s
 }
 
-// ParsePrice parses a price and converts it to an asset amount.
-// If price is already an AssetAmount, returns it directly.
-// If price is Money (string | number), parses to decimal and tries custom parsers.
-// Falls back to default conversion if all custom parsers return nil.
+// ParsePrice converts a price to an asset amount, returning an AssetAmount as-is.
 func (s *AuthCaptureEvmScheme) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	if priceMap, ok := price.(map[string]interface{}); ok {
 		if amountVal, hasAmount := priceMap["amount"]; hasAmount {
@@ -199,12 +175,8 @@ func (s *AuthCaptureEvmScheme) defaultMoneyConversion(amount string, network x40
 	}, nil
 }
 
-// EnhancePaymentRequirements resolves the asset/amount and fills in every
-// auth-capture extra field: EIP-712 domain (name/version), escrow topology
-// (captureAuthorizer/feeRecipient/min-maxFeeBps/authCaptureEscrow), the
-// server's receiverAuthorizer, and absolute capture/refund deadlines.
-// captureAuthorizer/feeRecipient/fee-bounds resolve local config first, then
-// the facilitator's advertised value; everything else is server-owned.
+// EnhancePaymentRequirements resolves the asset and amount and fills in the auth-capture
+// extra. Operator and fee terms come from config, then the facilitator's advertised kind.
 func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
@@ -255,37 +227,13 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 	}
 	extra["captureAuthorizer"] = evm.NormalizeAddress(captureAuthorizer)
 
-	feeRecipient := s.config.FeeRecipient
-	if feeRecipient == "" {
-		feeRecipient, _ = extra["feeRecipient"].(string)
+	feeRecipient, minFeeBps, maxFeeBps, err := s.resolveFeeTerms(extra)
+	if err != nil {
+		return requirements, err
 	}
-	if !evm.IsValidAddress(feeRecipient) {
-		return requirements, errors.New(ErrMissingFeeRecipient)
-	}
-	extra["feeRecipient"] = evm.NormalizeAddress(feeRecipient)
-
-	minFeeBps := s.config.MinFeeBps
-	if minFeeBps == nil {
-		if advertised, ok := jsonNumberToUint16(extra["minFeeBps"]); ok {
-			minFeeBps = &advertised
-		}
-	}
-	maxFeeBps := s.config.MaxFeeBps
-	if maxFeeBps == nil {
-		if advertised, ok := jsonNumberToUint16(extra["maxFeeBps"]); ok {
-			maxFeeBps = &advertised
-		}
-	}
-	resolvedMinFeeBps := uint16(0)
-	if minFeeBps != nil {
-		resolvedMinFeeBps = *minFeeBps
-	}
-	resolvedMaxFeeBps := DefaultMaxFeeBps
-	if maxFeeBps != nil {
-		resolvedMaxFeeBps = *maxFeeBps
-	}
-	extra["minFeeBps"] = resolvedMinFeeBps
-	extra["maxFeeBps"] = resolvedMaxFeeBps
+	extra["feeRecipient"] = feeRecipient
+	extra["minFeeBps"] = minFeeBps
+	extra["maxFeeBps"] = maxFeeBps
 
 	extra["receiverAuthorizer"] = evm.NormalizeAddress(s.config.ReceiverAuthorizerSigner.Address())
 	if s.config.Policy != "" {
@@ -299,6 +247,10 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 	refundDeadline := s.config.RefundDeadline
 	if refundDeadline <= 0 {
 		refundDeadline = DefaultRefundDeadline
+	}
+	if timeout := time.Duration(requirements.MaxTimeoutSeconds) * time.Second; timeout > captureDeadline {
+		return requirements, fmt.Errorf("%s: maxTimeoutSeconds %d exceeds the capture deadline of %s",
+			ErrTimeoutExceedsCaptureDeadline, requirements.MaxTimeoutSeconds, captureDeadline)
 	}
 	now := time.Now()
 	extra["captureDeadline"] = uint64(now.Add(captureDeadline).Unix())
@@ -329,4 +281,39 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 
 	requirements.Extra = extra
 	return requirements, nil
+}
+
+// resolveFeeTerms picks the fee recipient and bounds from config, then the facilitator's
+// advertised extra. Absent terms mean no fee: the zero address with 0/0 bounds.
+func (s *AuthCaptureEvmScheme) resolveFeeTerms(extra map[string]interface{}) (string, uint16, uint16, error) {
+	feeRecipient := s.config.FeeRecipient
+	if feeRecipient == "" {
+		feeRecipient, _ = extra["feeRecipient"].(string)
+	}
+	if feeRecipient == "" {
+		feeRecipient = authcapture.ZeroAddress
+	}
+	if !evm.IsValidAddress(feeRecipient) {
+		return "", 0, 0, fmt.Errorf("%s: invalid feeRecipient %q", ErrInvalidFeeTerms, feeRecipient)
+	}
+
+	minFeeBps := feeBound(s.config.MinFeeBps, extra["minFeeBps"])
+	maxFeeBps := feeBound(s.config.MaxFeeBps, extra["maxFeeBps"])
+	if minFeeBps > maxFeeBps || maxFeeBps > authcapture.BpsDenominator {
+		return "", 0, 0, fmt.Errorf("%s: minFeeBps %d and maxFeeBps %d must satisfy min <= max <= %d",
+			ErrInvalidFeeTerms, minFeeBps, maxFeeBps, authcapture.BpsDenominator)
+	}
+	if !authcapture.IsNonZeroAddress(feeRecipient) && maxFeeBps != 0 {
+		return "", 0, 0, errors.New(ErrMissingFeeRecipient)
+	}
+	return evm.NormalizeAddress(feeRecipient), minFeeBps, maxFeeBps, nil
+}
+
+// feeBound returns the configured bound, else the advertised one, else 0.
+func feeBound(configured *uint16, advertised interface{}) uint16 {
+	if configured != nil {
+		return *configured
+	}
+	bound, _ := authcapture.JSONNumberToUint16(advertised)
+	return bound
 }

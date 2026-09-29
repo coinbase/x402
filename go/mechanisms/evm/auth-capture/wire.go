@@ -1,11 +1,12 @@
 package authcapture
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
-// ChargeCompletion carries the charge-only completion fields a client may add
-// on top of an authorize-shaped collect payload (see spec "Completing the
-// payload for settlement"). FeeBps is nil when the payload used feeAmount
-// (v1.1) instead.
+// ChargeCompletion carries the fields a server adds to a collect payload to complete
+// a charge. FeeBps is nil when the payload uses feeAmount (v1.1).
 type ChargeCompletion struct {
 	Amount              string
 	FeeBps              *uint16
@@ -46,11 +47,26 @@ type CapturePayload struct {
 	VoidAuthorizerSignature  string
 }
 
-// VoidPayload is the parsed void lifecycle payload.
+// VoidPayload is the parsed void lifecycle payload. VoidAuthorizerSignature is only
+// parsed so the facilitator can reject it.
 type VoidPayload struct {
-	PaymentInfo         PaymentInfoStruct
-	SaltNonce           string
-	AuthorizerSignature string
+	PaymentInfo             PaymentInfoStruct
+	SaltNonce               string
+	AuthorizerSignature     string
+	VoidAuthorizerSignature string
+}
+
+// ToWireMap returns the JSON wire form of the PaymentInfo carried by lifecycle payloads.
+func (p PaymentInfoStruct) ToWireMap() (map[string]interface{}, error) {
+	encoded, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]interface{}
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Eip3009CollectPayloadFromMap parses a wire payload already confirmed by IsEip3009Payload.
@@ -113,30 +129,11 @@ func chargeCompletionFromMap(data map[string]interface{}) *ChargeCompletion {
 		FeeReceiver:         feeReceiver,
 		AuthorizerSignature: authorizerSignature,
 	}
-	if feeAmount, ok := data["feeAmount"].(string); ok {
-		charge.FeeAmount = feeAmount
-	}
-	if feeBps, ok := jsonNumberToUint16(data["feeBps"]); ok {
+	charge.FeeAmount, _ = data["feeAmount"].(string)
+	if feeBps, ok := JSONNumberToUint16(data["feeBps"]); ok {
 		charge.FeeBps = &feeBps
 	}
 	return charge
-}
-
-func jsonNumberToUint16(value interface{}) (uint16, bool) {
-	switch v := value.(type) {
-	case float64:
-		if v < 0 || v > 65535 {
-			return 0, false
-		}
-		return uint16(v), true
-	case int:
-		if v < 0 || v > 65535 {
-			return 0, false
-		}
-		return uint16(v), true
-	default:
-		return 0, false
-	}
 }
 
 func paymentInfoStructFromMap(v map[string]interface{}) (PaymentInfoStruct, error) {
@@ -149,57 +146,28 @@ func paymentInfoStructFromMap(v map[string]interface{}) (PaymentInfoStruct, erro
 	info.FeeReceiver, _ = v["feeReceiver"].(string)
 	info.Salt, _ = v["salt"].(string)
 
-	preApprovalExpiry, ok := jsonNumberToUint64(v["preApprovalExpiry"])
-	if !ok {
-		return PaymentInfoStruct{}, fmt.Errorf("invalid preApprovalExpiry")
+	for key, dst := range map[string]*uint64{
+		"preApprovalExpiry":   &info.PreApprovalExpiry,
+		"authorizationExpiry": &info.AuthorizationExpiry,
+		"refundExpiry":        &info.RefundExpiry,
+	} {
+		n, ok := JSONNumberToUint64(v[key])
+		if !ok {
+			return PaymentInfoStruct{}, fmt.Errorf("invalid %s", key)
+		}
+		*dst = n
 	}
-	authorizationExpiry, ok := jsonNumberToUint64(v["authorizationExpiry"])
-	if !ok {
-		return PaymentInfoStruct{}, fmt.Errorf("invalid authorizationExpiry")
+	for key, dst := range map[string]*uint16{
+		"minFeeBps": &info.MinFeeBps,
+		"maxFeeBps": &info.MaxFeeBps,
+	} {
+		n, ok := JSONNumberToUint16(v[key])
+		if !ok {
+			return PaymentInfoStruct{}, fmt.Errorf("invalid %s", key)
+		}
+		*dst = n
 	}
-	refundExpiry, ok := jsonNumberToUint64(v["refundExpiry"])
-	if !ok {
-		return PaymentInfoStruct{}, fmt.Errorf("invalid refundExpiry")
-	}
-	minFeeBps, ok := jsonNumberToUint16(v["minFeeBps"])
-	if !ok {
-		return PaymentInfoStruct{}, fmt.Errorf("invalid minFeeBps")
-	}
-	maxFeeBps, ok := jsonNumberToUint16(v["maxFeeBps"])
-	if !ok {
-		return PaymentInfoStruct{}, fmt.Errorf("invalid maxFeeBps")
-	}
-
-	info.PreApprovalExpiry = preApprovalExpiry
-	info.AuthorizationExpiry = authorizationExpiry
-	info.RefundExpiry = refundExpiry
-	info.MinFeeBps = minFeeBps
-	info.MaxFeeBps = maxFeeBps
 	return info, nil
-}
-
-func jsonNumberToUint64(value interface{}) (uint64, bool) {
-	switch v := value.(type) {
-	case float64:
-		if v < 0 {
-			return 0, false
-		}
-		return uint64(v), true
-	case int:
-		if v < 0 {
-			return 0, false
-		}
-		return uint64(v), true
-	case int64:
-		if v < 0 {
-			return 0, false
-		}
-		return uint64(v), true
-	case uint64:
-		return v, true
-	default:
-		return 0, false
-	}
 }
 
 // CapturePayloadFromMap parses a wire payload already confirmed by IsCapturePayload.
@@ -217,14 +185,12 @@ func CapturePayloadFromMap(data map[string]interface{}) (*CapturePayload, error)
 	payload.SaltNonce, _ = data["saltNonce"].(string)
 	payload.Amount, _ = data["amount"].(string)
 	payload.FeeReceiver, _ = data["feeReceiver"].(string)
+	payload.FeeAmount, _ = data["feeAmount"].(string)
 	payload.ExpectedCapturableAmount, _ = data["expectedCapturableAmount"].(string)
 	payload.ExpectedRefundableAmount, _ = data["expectedRefundableAmount"].(string)
 	payload.AuthorizerSignature, _ = data["authorizerSignature"].(string)
 	payload.VoidAuthorizerSignature, _ = data["voidAuthorizerSignature"].(string)
-	if feeAmount, ok := data["feeAmount"].(string); ok {
-		payload.FeeAmount = feeAmount
-	}
-	if feeBps, ok := jsonNumberToUint16(data["feeBps"]); ok {
+	if feeBps, ok := JSONNumberToUint16(data["feeBps"]); ok {
 		payload.FeeBps = &feeBps
 	}
 	return payload, nil
@@ -244,5 +210,6 @@ func VoidPayloadFromMap(data map[string]interface{}) (*VoidPayload, error) {
 	payload := &VoidPayload{PaymentInfo: info}
 	payload.SaltNonce, _ = data["saltNonce"].(string)
 	payload.AuthorizerSignature, _ = data["authorizerSignature"].(string)
+	payload.VoidAuthorizerSignature, _ = data["voidAuthorizerSignature"].(string)
 	return payload, nil
 }

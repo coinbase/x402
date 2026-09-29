@@ -3,19 +3,18 @@ package authcapture
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// ParseAuthCaptureExtra validates and parses requirements.Extra into an
-// AuthCaptureExtra plus the resolved commerce-payments deployment. Shared by
-// the client (to build a collect payload) and the facilitator (to verify and
-// settle one).
+// ParseAuthCaptureExtra validates requirements.Extra and returns it with the resolved
+// commerce-payments deployment. Shared by the client, server and facilitator.
 func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureExtra, AuthCaptureDeployment, error) {
-	if requirements.Extra == nil {
+	ex := requirements.Extra
+	if ex == nil {
 		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("'captureAuthorizer' is required in payment requirements extra")
 	}
-	ex := requirements.Extra
 
 	name, _ := ex["name"].(string)
 	if name == "" {
@@ -52,13 +51,13 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("'maxFeeBps' is required in payment requirements extra")
 	}
 
-	authCaptureEscrow := stringFromExtra(ex, "authCaptureEscrow")
-	deployment := ResolveAuthCaptureDeployment(authCaptureEscrow)
+	deployment := ResolveAuthCaptureDeployment(stringFromExtra(ex, "authCaptureEscrow"))
 	if deployment == nil {
 		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("invalid authCaptureEscrow in payment requirements extra")
 	}
 
-	extraOut := AuthCaptureExtra{
+	autoCapture, _ := ex["autoCapture"].(bool)
+	return AuthCaptureExtra{
 		CaptureAuthorizer:   captureAuthorizer,
 		CaptureDeadline:     captureDeadline,
 		RefundDeadline:      refundDeadline,
@@ -70,34 +69,28 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		ReceiverAuthorizer:  stringFromExtra(ex, "receiverAuthorizer"),
 		Policy:              stringFromExtra(ex, "policy"),
 		PaymentFlow:         stringFromExtra(ex, "paymentFlow"),
-		CaptureMode:         stringFromExtra(ex, "captureMode"),
+		AutoCapture:         autoCapture,
 		OperatorType:        stringFromExtra(ex, "operatorType"),
 		AssetTransferMethod: stringFromExtra(ex, "assetTransferMethod"),
 		AuthCaptureEscrow:   deployment.Escrow,
-	}
-	return extraOut, *deployment, nil
+	}, *deployment, nil
 }
 
-// ReconstructPaymentInfo rebuilds the onchain PaymentInfo struct from wire-payload-derived
-// inputs (payer, preApprovalExpiry, salt) plus the server-published requirements/extra.
-// maxAmount defaults to requirements.Amount when empty (the authorize-only path).
+// ReconstructPaymentInfo rebuilds the onchain PaymentInfo from the payload-derived
+// payer, preApprovalExpiry and salt plus the server-published requirements and extra.
 func ReconstructPaymentInfo(
 	payer string,
 	preApprovalExpiry uint64,
 	salt string,
 	requirements types.PaymentRequirements,
 	extra AuthCaptureExtra,
-	maxAmount string,
 ) PaymentInfoStruct {
-	if maxAmount == "" {
-		maxAmount = requirements.Amount
-	}
 	return PaymentInfoStruct{
 		Operator:            extra.CaptureAuthorizer,
 		Payer:               payer,
 		Receiver:            requirements.PayTo,
 		Token:               requirements.Asset,
-		MaxAmount:           maxAmount,
+		MaxAmount:           requirements.Amount,
 		PreApprovalExpiry:   preApprovalExpiry,
 		AuthorizationExpiry: extra.CaptureDeadline,
 		RefundExpiry:        extra.RefundDeadline,
@@ -108,54 +101,71 @@ func ReconstructPaymentInfo(
 	}
 }
 
-func stringFromExtra(ex map[string]interface{}, key string) string {
-	if v, ok := ex[key].(string); ok {
-		return v
+// JSONNumberToUint64 converts a decoded JSON or in-process number to uint64,
+// rejecting negative and fractional values.
+func JSONNumberToUint64(value interface{}) (uint64, bool) {
+	switch v := value.(type) {
+	case float64:
+		if v < 0 || v != math.Trunc(v) || v > math.MaxUint64 {
+			return 0, false
+		}
+		return uint64(v), true
+	case int:
+		return nonNegative(int64(v))
+	case int32:
+		return nonNegative(int64(v))
+	case int64:
+		return nonNegative(v)
+	case uint16:
+		return uint64(v), true
+	case uint32:
+		return uint64(v), true
+	case uint64:
+		return v, true
+	case json.Number:
+		n, err := v.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return nonNegative(n)
+	default:
+		return 0, false
 	}
-	return ""
+}
+
+// JSONNumberToUint16 is JSONNumberToUint64 restricted to the uint16 range.
+func JSONNumberToUint16(value interface{}) (uint16, bool) {
+	n, ok := JSONNumberToUint64(value)
+	if !ok || n > math.MaxUint16 {
+		return 0, false
+	}
+	return uint16(n), true
+}
+
+func nonNegative(n int64) (uint64, bool) {
+	if n < 0 {
+		return 0, false
+	}
+	return uint64(n), true
+}
+
+func stringFromExtra(ex map[string]interface{}, key string) string {
+	v, _ := ex[key].(string)
+	return v
 }
 
 func extraUint64(ex map[string]interface{}, key string) (uint64, error) {
-	value, ok := ex[key]
+	n, ok := JSONNumberToUint64(ex[key])
 	if !ok {
-		return 0, fmt.Errorf("missing %s", key)
+		return 0, fmt.Errorf("missing or invalid %s", key)
 	}
-	switch v := value.(type) {
-	case float64:
-		if v < 0 || v != float64(uint64(v)) {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case int:
-		if v < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case int64:
-		if v < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(v), nil
-	case uint64:
-		return v, nil
-	case json.Number:
-		n, err := v.Int64()
-		if err != nil || n < 0 {
-			return 0, fmt.Errorf("invalid %s", key)
-		}
-		return uint64(n), nil
-	default:
-		return 0, fmt.Errorf("invalid %s", key)
-	}
+	return n, nil
 }
 
 func extraUint16(ex map[string]interface{}, key string) (uint16, error) {
-	n, err := extraUint64(ex, key)
-	if err != nil {
-		return 0, err
+	n, ok := JSONNumberToUint16(ex[key])
+	if !ok {
+		return 0, fmt.Errorf("missing or invalid %s", key)
 	}
-	if n > 65535 {
-		return 0, fmt.Errorf("invalid %s", key)
-	}
-	return uint16(n), nil
+	return n, nil
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
 	exttypes "github.com/x402-foundation/x402/go/v2/extensions/types"
 	evmmech "github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	authcapturefacilitator "github.com/x402-foundation/x402/go/v2/mechanisms/evm/auth-capture/facilitator"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement"
 	batchedevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/facilitator"
 	exactevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/facilitator"
@@ -1061,6 +1062,13 @@ func main() {
 		facilitator.Register(
 			[]x402.Network{x402.Network(evmNetwork)},
 			batchedevm.NewBatchSettlementEvmScheme(evmSigner, batchedAuthorizer),
+		)
+
+		facilitator.Register(
+			[]x402.Network{x402.Network(evmNetwork)},
+			authcapturefacilitator.NewAuthCaptureEvmScheme(evmSigner, authcapturefacilitator.AuthCaptureEvmSchemeConfig{
+				CaptureAuthorizer: addresses[0],
+			}),
 		)
 
 		evmV1Config := &exactevmv1.ExactEvmSchemeV1Config{}

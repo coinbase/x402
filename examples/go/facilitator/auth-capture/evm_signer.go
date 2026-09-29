@@ -114,7 +114,8 @@ func (s *facilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("pack call: %w", err)
 	}
 	to := common.HexToAddress(contractAddress)
-	out, err := s.client.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data}, nil)
+	// The escrow gates capture and void on msg.sender, so simulations must call as the operator.
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{From: s.address, To: &to, Data: data}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("call contract: %w", err)
 	}

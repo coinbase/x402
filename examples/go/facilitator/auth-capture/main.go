@@ -16,10 +16,8 @@ import (
 
 const defaultPort = "4022"
 
-// Auth-capture facilitator demo. Registers as the escrow operator
-// ("captureAuthorizer") for the delegated-operator auth-capture EVM scheme:
-// it verifies/settles the initial authorize (collect) and later relays the
-// resource server's signed capture/void onchain.
+// Auth-capture facilitator demo: acts as the escrow operator (captureAuthorizer),
+// authorizing holds and relaying the server's signed capture or void.
 func main() {
 	_ = godotenv.Load()
 

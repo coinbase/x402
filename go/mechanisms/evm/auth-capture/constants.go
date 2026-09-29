@@ -49,6 +49,9 @@ const (
 	// OperatorRefundCollectorAddress is the default operator refund collector (v1.1).
 	OperatorRefundCollectorAddress = OperatorRefundCollectorV1_1Address
 
+	// ZeroAddress is the zero EVM address, used for an absent fee recipient or policy.
+	ZeroAddress = "0x0000000000000000000000000000000000000000"
+
 	saltBindingTypeString = "x402AuthCaptureSaltBinding(address receiverAuthorizer,address policy,uint256 saltNonce)"
 
 	paymentInfoTypeString = "PaymentInfo(address operator,address payer,address receiver,address token,uint120 maxAmount,uint48 preApprovalExpiry,uint48 authorizationExpiry,uint48 refundExpiry,uint16 minFeeBps,uint16 maxFeeBps,address feeReceiver,uint256 salt)"
@@ -167,10 +170,8 @@ func GetPermit2TransferFromEIP712Types() map[string][]evm.TypedDataField {
 	}
 }
 
-// OperatorEIP712Domain is the shared partial EIP-712 domain for every
-// facilitator-relayed lifecycle operation (Capture, Void, Charge, Refund).
-// ChainID and VerifyingContract (the capture authorizer, PaymentInfo.operator)
-// are filled in per call, not scheme-wide.
+// OperatorEIP712Domain is the name/version half of the operator EIP-712 domain;
+// see OperatorDomain for the per-call chain and verifying contract.
 var OperatorEIP712Domain = evm.TypedDataDomain{
 	Name:    "x402 Auth Capture Operator",
 	Version: "1",
@@ -219,15 +220,17 @@ func CaptureTypesForDeployment(deployment *AuthCaptureDeployment) map[string][]e
 	return CaptureTypesV1_1
 }
 
+// BpsDenominator is the basis-point denominator; fee bounds are at most this value.
+const BpsDenominator = 10000
+
 // FeeAmountFromBps computes the absolute fee for amount at feeBps, using the
-// same truncating integer division as the AuthCaptureEscrow contract.
+// escrow's truncating integer division.
 func FeeAmountFromBps(amount *big.Int, feeBps uint16) *big.Int {
 	fee := new(big.Int).Mul(amount, big.NewInt(int64(feeBps)))
-	return fee.Div(fee, big.NewInt(10000))
+	return fee.Div(fee, big.NewInt(BpsDenominator))
 }
 
-// paymentInfoTupleABI is the AuthCaptureEscrow.PaymentInfo tuple, shared by
-// every function/event ABI fragment below.
+// paymentInfoTupleABI is the AuthCaptureEscrow.PaymentInfo tuple shared by the function fragments.
 const paymentInfoTupleABI = `{"name": "paymentInfo", "type": "tuple", "components": [
 	{"name": "operator", "type": "address"},
 	{"name": "payer", "type": "address"},
@@ -243,13 +246,10 @@ const paymentInfoTupleABI = `{"name": "paymentInfo", "type": "tuple", "component
 	{"name": "salt", "type": "uint256"}
 ]}`
 
-// authorizeVoidPaymentStateABI is the version-independent portion of the
-// escrow ABI: authorize (collect), void (finalize), and paymentState
-// (balance read). None of these are called with an authorizer signature —
-// authorize/void are gated on-chain by onlySender(paymentInfo.operator); the
-// EIP-712 authorizer signature is a facilitator-side, off-chain consent check
-// verified before the (plain) contract call is made, not a contract argument.
-const authorizeVoidPaymentStateABI = `
+// escrowCommonABI holds the version-independent escrow functions and custom errors.
+// authorize and void are gated onchain by the operator; the receiver authorizer
+// signature is checked off-chain before the call and is not a contract argument.
+const escrowCommonABI = `
 	{
 		"name": "authorize",
 		"type": "function",
@@ -284,32 +284,28 @@ const authorizeVoidPaymentStateABI = `
 			{"name": "refundableAmount", "type": "uint120"}
 		]
 	},
-	{
-		"name": "PaymentAuthorized",
-		"type": "event",
-		"anonymous": false,
-		"inputs": [
-			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
-			` + paymentInfoTupleABI + `,
-			{"name": "amount", "type": "uint256", "indexed": false},
-			{"name": "tokenCollector", "type": "address", "indexed": false}
-		]
-	},
-	{
-		"name": "PaymentVoided",
-		"type": "event",
-		"anonymous": false,
-		"inputs": [
-			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
-			{"name": "amount", "type": "uint256", "indexed": false}
-		]
-	}
+	{"name": "InvalidSender", "type": "error", "inputs": [{"name": "sender", "type": "address"}, {"name": "expected", "type": "address"}]},
+	{"name": "ZeroAmount", "type": "error", "inputs": []},
+	{"name": "AmountOverflow", "type": "error", "inputs": [{"name": "amount", "type": "uint256"}, {"name": "limit", "type": "uint256"}]},
+	{"name": "ExceedsMaxAmount", "type": "error", "inputs": [{"name": "amount", "type": "uint256"}, {"name": "maxAmount", "type": "uint256"}]},
+	{"name": "AfterPreApprovalExpiry", "type": "error", "inputs": [{"name": "timestamp", "type": "uint48"}, {"name": "expiry", "type": "uint48"}]},
+	{"name": "InvalidExpiries", "type": "error", "inputs": [{"name": "preApproval", "type": "uint48"}, {"name": "authorization", "type": "uint48"}, {"name": "refund", "type": "uint48"}]},
+	{"name": "FeeBpsOverflow", "type": "error", "inputs": [{"name": "feeBps", "type": "uint16"}]},
+	{"name": "InvalidFeeBpsRange", "type": "error", "inputs": [{"name": "minFeeBps", "type": "uint16"}, {"name": "maxFeeBps", "type": "uint16"}]},
+	{"name": "ZeroFeeReceiver", "type": "error", "inputs": []},
+	{"name": "InvalidFeeReceiver", "type": "error", "inputs": [{"name": "attempted", "type": "address"}, {"name": "expected", "type": "address"}]},
+	{"name": "InvalidCollectorForOperation", "type": "error", "inputs": []},
+	{"name": "TokenCollectionFailed", "type": "error", "inputs": []},
+	{"name": "PaymentAlreadyCollected", "type": "error", "inputs": [{"name": "paymentInfoHash", "type": "bytes32"}]},
+	{"name": "AfterAuthorizationExpiry", "type": "error", "inputs": [{"name": "timestamp", "type": "uint48"}, {"name": "expiry", "type": "uint48"}]},
+	{"name": "InsufficientAuthorization", "type": "error", "inputs": [{"name": "paymentInfoHash", "type": "bytes32"}, {"name": "authorizedAmount", "type": "uint256"}, {"name": "requestedAmount", "type": "uint256"}]},
+	{"name": "ZeroAuthorization", "type": "error", "inputs": [{"name": "paymentInfoHash", "type": "bytes32"}]},
+	{"name": "AfterRefundExpiry", "type": "error", "inputs": [{"name": "timestamp", "type": "uint48"}, {"name": "expiry", "type": "uint48"}]},
+	{"name": "RefundExceedsCapture", "type": "error", "inputs": [{"name": "refund", "type": "uint256"}, {"name": "captured", "type": "uint256"}]}
 `
 
-// AuthCaptureEscrowABIV1_1 is the AuthCaptureEscrow ABI for v1.1 deployments
-// (absolute feeAmount on capture), covering the delegated-operator, EIP-3009,
-// escrow-flow, sync-capture slice: authorize, capture, void, paymentState.
-var AuthCaptureEscrowABIV1_1 = []byte(`[` + authorizeVoidPaymentStateABI + `,
+// AuthCaptureEscrowABIV1_1 is the escrow ABI for v1.1 deployments (absolute feeAmount on capture).
+var AuthCaptureEscrowABIV1_1 = []byte(`[` + escrowCommonABI + `,
 	{
 		"name": "capture",
 		"type": "function",
@@ -322,22 +318,11 @@ var AuthCaptureEscrowABIV1_1 = []byte(`[` + authorizeVoidPaymentStateABI + `,
 		],
 		"outputs": []
 	},
-	{
-		"name": "PaymentCaptured",
-		"type": "event",
-		"anonymous": false,
-		"inputs": [
-			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
-			{"name": "amount", "type": "uint256", "indexed": false},
-			{"name": "feeAmount", "type": "uint256", "indexed": false},
-			{"name": "feeReceiver", "type": "address", "indexed": false}
-		]
-	}
+	{"name": "FeeAmountOutOfRange", "type": "error", "inputs": [{"name": "feeAmount", "type": "uint256"}, {"name": "minFee", "type": "uint256"}, {"name": "maxFee", "type": "uint256"}]}
 ]`)
 
-// AuthCaptureEscrowABIV1_0 is the AuthCaptureEscrow ABI for v1.0 deployments
-// (feeBps on capture).
-var AuthCaptureEscrowABIV1_0 = []byte(`[` + authorizeVoidPaymentStateABI + `,
+// AuthCaptureEscrowABIV1_0 is the escrow ABI for v1.0 deployments (feeBps on capture).
+var AuthCaptureEscrowABIV1_0 = []byte(`[` + escrowCommonABI + `,
 	{
 		"name": "capture",
 		"type": "function",
@@ -350,17 +335,7 @@ var AuthCaptureEscrowABIV1_0 = []byte(`[` + authorizeVoidPaymentStateABI + `,
 		],
 		"outputs": []
 	},
-	{
-		"name": "PaymentCaptured",
-		"type": "event",
-		"anonymous": false,
-		"inputs": [
-			{"name": "paymentInfoHash", "type": "bytes32", "indexed": true},
-			{"name": "amount", "type": "uint256", "indexed": false},
-			{"name": "feeBps", "type": "uint16", "indexed": false},
-			{"name": "feeReceiver", "type": "address", "indexed": false}
-		]
-	}
+	{"name": "FeeBpsOutOfRange", "type": "error", "inputs": [{"name": "feeBps", "type": "uint16"}, {"name": "minFeeBps", "type": "uint16"}, {"name": "maxFeeBps", "type": "uint16"}]}
 ]`)
 
 // EscrowABIForDeployment returns the AuthCaptureEscrow ABI matching the

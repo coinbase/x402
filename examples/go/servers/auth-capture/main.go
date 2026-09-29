@@ -21,10 +21,8 @@ const (
 	price       = "$0.01"
 )
 
-// Auth-capture resource server demo. Uses the escrow payment flow: the
-// facilitator authorizes funds into escrow before the handler runs, then
-// this server's receiver-authorizer signature lets the facilitator capture
-// (on success) or void (on failure/cancel) after the handler completes.
+// Auth-capture resource server demo: after the handler runs, its receiver-authorizer
+// signature lets the facilitator capture (on success) or void (on failure).
 func main() {
 	_ = godotenv.Load()
 
