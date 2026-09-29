@@ -64,10 +64,24 @@ ERR_UNSUPPORTED_SCHEME = "unsupported_scheme"
 ERR_NETWORK_MISMATCH = "network_mismatch"
 ERR_INVALID_PAYLOAD = "invalid_exact_svm_payload"
 ERR_TRANSACTION_DECODE_FAILED = "invalid_exact_svm_payload_transaction_could_not_be_decoded"
+
+# V1-only: V1's positional instruction-layout check still uses these (see
+# mechanisms/svm/exact/v1/facilitator.py). V2 replaced positional checks with
+# identity-based classification; see ERR_UNKNOWN_INSTRUCTION and
+# ERR_PROTOCOL_INSTRUCTION_ORDER below.
 ERR_INVALID_INSTRUCTION_COUNT = "invalid_exact_svm_payload_transaction_instructions_length"
 ERR_UNKNOWN_FOURTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fourth_instruction"
 ERR_UNKNOWN_FIFTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_fifth_instruction"
 ERR_UNKNOWN_SIXTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_sixth_instruction"
+
+# V2: identity-based instruction classification (program ID + discriminator)
+# replaces V1's positional checks above. ERR_UNKNOWN_INSTRUCTION covers any
+# unrecognized program anywhere in the sequence; ERR_PROTOCOL_INSTRUCTION_ORDER
+# covers protocol instructions (compute limit/price, transfer, memo) found out
+# of relative order or duplicated. Guard (Lighthouse) instructions are exempt
+# from ordering and may appear anywhere.
+ERR_UNKNOWN_INSTRUCTION = "invalid_exact_svm_payload_unknown_instruction"
+ERR_PROTOCOL_INSTRUCTION_ORDER = "invalid_exact_svm_payload_transaction_instructions_order"
 ERR_INVALID_COMPUTE_LIMIT = (
     "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction"
 )

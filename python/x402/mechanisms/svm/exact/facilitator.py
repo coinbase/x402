@@ -29,20 +29,18 @@ from ..constants import (
     ERR_FEE_PAYER_TRANSFERRING,
     ERR_INVALID_COMPUTE_LIMIT,
     ERR_INVALID_COMPUTE_PRICE,
-    ERR_INVALID_INSTRUCTION_COUNT,
     ERR_MEMO_COUNT,
     ERR_MEMO_MISMATCH,
     ERR_MINT_MISMATCH,
     ERR_NETWORK_MISMATCH,
     ERR_NO_TRANSFER_INSTRUCTION,
+    ERR_PROTOCOL_INSTRUCTION_ORDER,
     ERR_RECIPIENT_MISMATCH,
     ERR_SETTLEMENT_PENDING,
     ERR_SIMULATION_FAILED,
     ERR_TRANSACTION_DECODE_FAILED,
     ERR_TRANSACTION_FAILED,
-    ERR_UNKNOWN_FIFTH_INSTRUCTION,
-    ERR_UNKNOWN_FOURTH_INSTRUCTION,
-    ERR_UNKNOWN_SIXTH_INSTRUCTION,
+    ERR_UNKNOWN_INSTRUCTION,
     ERR_UNSUPPORTED_SCHEME,
     LIGHTHOUSE_PROGRAM_ADDRESS,
     MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
@@ -60,6 +58,113 @@ from ..utils import (
     get_token_payer_from_transaction,
     transaction_message_hash,
 )
+
+_COMPUTE_BUDGET_PUBKEY = Pubkey.from_string(COMPUTE_BUDGET_PROGRAM_ADDRESS)
+_TOKEN_PUBKEY = Pubkey.from_string(TOKEN_PROGRAM_ADDRESS)
+_TOKEN_2022_PUBKEY = Pubkey.from_string(TOKEN_2022_PROGRAM_ADDRESS)
+_MEMO_PUBKEY = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
+_LIGHTHOUSE_PUBKEY = Pubkey.from_string(LIGHTHOUSE_PROGRAM_ADDRESS)
+
+
+class _PartitionedInstructions:
+    """Result of classifying a transaction's instructions by identity (program ID +
+    instruction discriminator), not position.
+    """
+
+    def __init__(self) -> None:
+        self.compute_limit_ix: Any = None
+        self.compute_price_ix: Any = None
+        self.transfer_ix: Any = None
+        self.memo_ix: Any = None
+
+
+def _classify_protocol_instruction(static_accounts: list, ix: Any) -> str:
+    """Classify an instruction by program ID + discriminator into one of:
+    "compute_limit", "compute_price", "transfer", "memo", "guard" (Lighthouse,
+    allowed anywhere), or "unknown" (rejected).
+    """
+    program_address = static_accounts[ix.program_id_index]
+    data = bytes(ix.data)
+
+    if program_address == _COMPUTE_BUDGET_PUBKEY:
+        if len(data) >= 5 and data[0] == 2:  # SetComputeUnitLimit
+            return "compute_limit"
+        if len(data) >= 9 and data[0] == 3:  # SetComputeUnitPrice
+            return "compute_price"
+        return "unknown"
+
+    if program_address == _TOKEN_PUBKEY or program_address == _TOKEN_2022_PUBKEY:
+        if len(data) >= 10 and data[0] == 12:  # TransferChecked
+            return "transfer"
+        return "unknown"
+
+    if program_address == _MEMO_PUBKEY:
+        return "memo"
+
+    if program_address == _LIGHTHOUSE_PUBKEY:
+        return "guard"
+
+    return "unknown"
+
+
+def _partition_protocol_instructions(
+    static_accounts: list, instructions: list
+) -> tuple[_PartitionedInstructions | None, str | None]:
+    """Partition a transaction's instructions into their protocol roles.
+
+    Protocol instructions (compute limit -> compute price -> transfer -> optional
+    memo) must appear in that fixed relative order, identified by program ID +
+    discriminator rather than absolute index. Guard (Lighthouse) instructions may
+    appear anywhere in the sequence — before, after, or interspersed among the
+    protocol instructions — since they only assert/abort and never mutate
+    payment-relevant state. Any other unrecognized program anywhere is rejected.
+
+    Returns (partitioned, None) on success, or (None, error_reason) on failure.
+    """
+    result = _PartitionedInstructions()
+    for ix in instructions:
+        kind = _classify_protocol_instruction(static_accounts, ix)
+
+        if kind == "guard":
+            continue
+
+        if kind == "compute_limit":
+            if (
+                result.compute_limit_ix is not None
+                or result.compute_price_ix is not None
+                or result.transfer_ix is not None
+                or result.memo_ix is not None
+            ):
+                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
+            result.compute_limit_ix = ix
+        elif kind == "compute_price":
+            if (
+                result.compute_limit_ix is None
+                or result.compute_price_ix is not None
+                or result.transfer_ix is not None
+                or result.memo_ix is not None
+            ):
+                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
+            result.compute_price_ix = ix
+        elif kind == "transfer":
+            if (
+                result.compute_limit_ix is None
+                or result.compute_price_ix is None
+                or result.memo_ix is not None
+                or result.transfer_ix is not None
+            ):
+                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
+            result.transfer_ix = ix
+        elif kind == "memo":
+            if result.transfer_ix is None:
+                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
+            if result.memo_ix is not None:
+                return None, ERR_MEMO_COUNT
+            result.memo_ix = ix
+        else:
+            return None, ERR_UNKNOWN_INSTRUCTION
+
+    return result, None
 
 
 class ExactSvmScheme:
@@ -138,7 +243,10 @@ class ExactSvmScheme:
 
         Validates:
         - Scheme and network match
-        - Transaction structure (3-6 instructions)
+        - Transaction instructions: ComputeLimit, ComputePrice, TransferChecked, and an
+          optional Memo must appear in that fixed relative order, identified by program
+          ID + instruction discriminator rather than absolute position. Guard
+          instructions (currently only Lighthouse) may appear anywhere in the sequence.
         - Compute budget instructions are valid
         - TransferChecked instruction:
           - Token program is known (Token or Token-2022)
@@ -189,39 +297,36 @@ class ExactSvmScheme:
         instructions = message.instructions
         static_accounts = list(message.account_keys)
 
-        # 3-6 instructions: ComputeLimit + ComputePrice + TransferChecked + optional Lighthouse/Memo
-        if len(instructions) < 3 or len(instructions) > 6:
+        # Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and an
+        # optional Memo) are identified by program ID + instruction discriminator and
+        # MUST appear in that fixed relative order. Guard instructions (currently only
+        # Lighthouse -- Phantom/Solflare's wallet-protection assertions) may appear
+        # anywhere in the instruction list, since they only assert/abort and never
+        # mutate payment-relevant state.
+        # See: https://github.com/x402-foundation/x402/issues/828
+        #  and: https://github.com/x402-foundation/x402/issues/2097
+        partitioned, error_reason = _partition_protocol_instructions(static_accounts, instructions)
+        if error_reason is not None:
+            return VerifyResponse(is_valid=False, invalid_reason=error_reason, payer="")
+        assert partitioned is not None
+        if (
+            partitioned.compute_limit_ix is None
+            or partitioned.compute_price_ix is None
+            or partitioned.transfer_ix is None
+        ):
             return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INVALID_INSTRUCTION_COUNT, payer=""
+                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=""
             )
 
         # Step 3: Verify Compute Budget Instructions
-        compute_budget_program = Pubkey.from_string(COMPUTE_BUDGET_PROGRAM_ADDRESS)
-
-        # Verify compute unit limit instruction (index 0)
-        cu_limit_ix = instructions[0]
-        cu_limit_program = static_accounts[cu_limit_ix.program_id_index]
-        cu_limit_data = bytes(cu_limit_ix.data)
-
-        if cu_limit_program != compute_budget_program or len(cu_limit_data) < 1:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_LIMIT, payer=""
-            )
-        if cu_limit_data[0] != 2:  # SetComputeUnitLimit discriminator
+        cu_limit_data = bytes(partitioned.compute_limit_ix.data)
+        if len(cu_limit_data) < 1 or cu_limit_data[0] != 2:  # SetComputeUnitLimit discriminator
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_LIMIT, payer=""
             )
 
-        # Verify compute unit price instruction (index 1)
-        cu_price_ix = instructions[1]
-        cu_price_program = static_accounts[cu_price_ix.program_id_index]
-        cu_price_data = bytes(cu_price_ix.data)
-
-        if cu_price_program != compute_budget_program or len(cu_price_data) < 9:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_PRICE, payer=""
-            )
-        if cu_price_data[0] != 3:  # SetComputeUnitPrice discriminator
+        cu_price_data = bytes(partitioned.compute_price_ix.data)
+        if len(cu_price_data) < 9 or cu_price_data[0] != 3:  # SetComputeUnitPrice discriminator
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_PRICE, payer=""
             )
@@ -243,53 +348,18 @@ class ExactSvmScheme:
             )
 
         # Step 4: Verify Transfer Instruction
-        transfer_ix = instructions[2]
+        transfer_ix = partitioned.transfer_ix
         transfer_program = static_accounts[transfer_ix.program_id_index]
         transfer_program_str = str(transfer_program)
 
-        token_program = Pubkey.from_string(TOKEN_PROGRAM_ADDRESS)
-        token_2022_program = Pubkey.from_string(TOKEN_2022_PROGRAM_ADDRESS)
-
-        if transfer_program != token_program and transfer_program != token_2022_program:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer
-            )
-
-        # Step 5: Verify optional instructions (if present)
-        optional_instructions = instructions[3:]
-        if optional_instructions:
-            lighthouse_program = Pubkey.from_string(LIGHTHOUSE_PROGRAM_ADDRESS)
-            memo_program = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
-            invalid_reasons = [
-                ERR_UNKNOWN_FOURTH_INSTRUCTION,
-                ERR_UNKNOWN_FIFTH_INSTRUCTION,
-                ERR_UNKNOWN_SIXTH_INSTRUCTION,
-            ]
-
-            for idx, optional_ix in enumerate(optional_instructions):
-                optional_program = static_accounts[optional_ix.program_id_index]
-                if optional_program in (lighthouse_program, memo_program):
-                    continue
-
-                reason = (
-                    invalid_reasons[idx]
-                    if idx < len(invalid_reasons)
-                    else ERR_UNKNOWN_SIXTH_INSTRUCTION
-                )
-                return VerifyResponse(is_valid=False, invalid_reason=reason, payer=payer)
-
-        # Step 5b: Verify memo content matches extra.memo when present
+        # Step 5: Verify memo content matches extra.memo when present. Guard
+        # (Lighthouse) instructions and unknown programs were already rejected
+        # by _partition_protocol_instructions above.
         expected_memo = extra.get("memo")
         if expected_memo and isinstance(expected_memo, str):
-            memo_program = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
-            memo_ixs = [
-                ix
-                for ix in optional_instructions
-                if static_accounts[ix.program_id_index] == memo_program
-            ]
-            if len(memo_ixs) != 1:
+            if partitioned.memo_ix is None:
                 return VerifyResponse(is_valid=False, invalid_reason=ERR_MEMO_COUNT, payer=payer)
-            actual_memo = bytes(memo_ixs[0].data).decode("utf-8")
+            actual_memo = bytes(partitioned.memo_ix.data).decode("utf-8")
             if actual_memo != expected_memo:
                 return VerifyResponse(is_valid=False, invalid_reason=ERR_MEMO_MISMATCH, payer=payer)
 
