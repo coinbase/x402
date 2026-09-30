@@ -1,0 +1,7 @@
+{
+  "name": "Market Intelligence API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/market-intelligence-api.png",
+  "description": "Pay-per-call market intelligence for AI agents: on-chain order flow, trading decisions, new-token risk checks, swap quotes, perps and macro. 70+ x402 routes and an MCP server; free to try on Base Sepolia.",
+  "websiteUrl": "https://api.marketintelligenceapi.com"
+}
