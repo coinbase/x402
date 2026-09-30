@@ -1,0 +1,7 @@
+{
+  "name": "Aether x402 Audit",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/aether-x402-audit.svg",
+  "description": "Payability audit for x402 sellers: checks your 402 challenge (CAIP-2 network, canonical USDC, payTo checksum, price, EIP-712 domain, resource URL, Bazaar metadata) with a fix for every issue. Free check, GitHub Action for every deploy, full audit paid via x402, plus a daily public ecosystem health report.",
+  "websiteUrl": "https://aether-x402.vercel.app/health-report"
+}
