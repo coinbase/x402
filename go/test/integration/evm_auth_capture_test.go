@@ -218,12 +218,22 @@ func (p *authCapturePipeline) prepare(t *testing.T, transferMethod evm.AssetTran
 	}
 }
 
+// revokePermit2AfterTest leaves the payer without a Permit2 allowance, the state the other EVM
+// integration tests assume when they exercise the EIP-2612 gas-sponsoring path.
+func revokePermit2AfterTest(t *testing.T, keys *batchedTestKeys) {
+	t.Helper()
+	t.Cleanup(func() {
+		revokePermit2Approval(t, context.Background(), keys.clientPK, batchedTestUSDC, keys.rpcURL)
+	})
+}
+
 func authCaptureTransferMethods() []evm.AssetTransferMethod {
 	return []evm.AssetTransferMethod{evm.AssetTransferMethodEIP3009, evm.AssetTransferMethodPermit2}
 }
 
 func TestAuthCaptureIntegration_AuthorizeThenCapture(t *testing.T) {
 	keys := loadBatchedTestKeys(t)
+	revokePermit2AfterTest(t, keys)
 	if strings.EqualFold(keys.receiver, mustAddressOf(t, keys.clientPK)) {
 		t.Skip("EVM_RESOURCE_SERVER_ADDRESS must differ from the payer to observe the capture")
 	}
@@ -264,6 +274,7 @@ func TestAuthCaptureIntegration_AuthorizeThenCapture(t *testing.T) {
 
 func TestAuthCaptureIntegration_VoidOnHandlerFailure(t *testing.T) {
 	keys := loadBatchedTestKeys(t)
+	revokePermit2AfterTest(t, keys)
 	if strings.EqualFold(keys.receiver, mustAddressOf(t, keys.clientPK)) {
 		t.Skip("EVM_RESOURCE_SERVER_ADDRESS must differ from the payer to observe the void")
 	}
