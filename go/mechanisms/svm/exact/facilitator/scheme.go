@@ -17,21 +17,6 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// InstructionIdentity identifies a single instruction by program ID and
-// instruction discriminator. Discriminator is matched as a byte-for-byte
-// prefix of the instruction's data, so it supports both short (e.g.
-// single-byte) and long (e.g. 8-byte Anchor sighash) discriminators.
-type InstructionIdentity struct {
-	ProgramID     solana.PublicKey
-	Discriminator []byte
-}
-
-// InstructionTuple is an ordered sequence of instruction identities that may
-// appear together as a contiguous (guard instructions aside) block
-// immediately before or after the required protocol instructions. See
-// Config.PreflightInstructionAllowlist.
-type InstructionTuple []InstructionIdentity
-
 // Config is the optional configuration of the SVM exact facilitator.
 type Config struct {
 	SettlementCache                        *svm.SettlementCache
@@ -236,6 +221,11 @@ func (f *ExactSvmScheme) verify(
 		return nil, x402.NewVerifyError(ErrFeePayerNotManaged, "", fmt.Sprintf("feePayer not managed: %s", feePayerStr))
 	}
 
+	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
+	if err != nil {
+		return nil, x402.NewVerifyError(ErrInvalidFeePayer, "", err.Error())
+	}
+
 	// Parse payload
 	solanaPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
@@ -260,7 +250,7 @@ func (f *ExactSvmScheme) verify(
 		return nil, x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	staticErr := f.verifyStaticPath(ctx, tx, requirements, signerAddressStrs)
+	staticErr := f.verifyStaticPath(ctx, tx, requirements, feePayer, signerAddressStrs)
 	if staticErr == nil {
 		payer, _ := svm.GetTokenPayerFromTransaction(tx)
 		return &verifyResult{
@@ -272,10 +262,6 @@ func (f *ExactSvmScheme) verify(
 	if f.config.EnableSmartWalletVerification && isLayoutRecoverable(staticErr) {
 		if err := f.assertSmartWalletAllowlist(tx); err != nil {
 			return nil, err
-		}
-		feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
-		if err != nil {
-			return nil, x402.NewVerifyError(ErrInvalidFeePayer, "", err.Error())
 		}
 		caps := f.signer.(svm.SmartWalletRPCCapabilities)
 		maxCU := defaultSmartWalletMaxComputeUnits
@@ -319,111 +305,6 @@ func isLayoutRecoverable(err error) bool {
 	default:
 		return false
 	}
-}
-
-// protocolInstructionKind identifies the role a protocol/guard instruction
-// plays, by program ID and instruction discriminator rather than position.
-type protocolInstructionKind int
-
-const (
-	kindGuard protocolInstructionKind = iota
-	kindComputeLimit
-	kindComputePrice
-	kindTransfer
-	kindMemo
-	kindUnknown
-)
-
-// classifyProtocolInstruction identifies which protocol/guard role an
-// instruction plays. kindGuard covers wallet-injected assertion instructions
-// (currently only Lighthouse) that may appear anywhere in the instruction
-// list.
-func classifyProtocolInstruction(tx *solana.Transaction, inst solana.CompiledInstruction) protocolInstructionKind {
-	progID, err := tx.Message.Program(inst.ProgramIDIndex)
-	if err != nil {
-		return kindUnknown
-	}
-	if progID.Equals(solana.ComputeBudget) {
-		if len(inst.Data) >= 5 && inst.Data[0] == ixSetComputeUnitLimit {
-			return kindComputeLimit
-		}
-		if len(inst.Data) >= 9 && inst.Data[0] == ixSetComputeUnitPrice {
-			return kindComputePrice
-		}
-		return kindUnknown
-	}
-	if isTokenProgram(progID) {
-		if len(inst.Data) >= 10 && inst.Data[0] == ixTokenTransferChecked {
-			return kindTransfer
-		}
-		return kindUnknown
-	}
-	if progID.Equals(solana.MustPublicKeyFromBase58(svm.MemoProgramAddress)) {
-		return kindMemo
-	}
-	if progID.Equals(solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress)) {
-		return kindGuard
-	}
-	return kindUnknown
-}
-
-// partitionedInstructions holds the protocol instructions found by identity.
-// A nil pointer field means that instruction was not found.
-type partitionedInstructions struct {
-	computeLimitIx *solana.CompiledInstruction
-	computePriceIx *solana.CompiledInstruction
-	transferIx     *solana.CompiledInstruction
-	memoIx         *solana.CompiledInstruction
-}
-
-// partitionProtocolInstructions partitions a decoded instruction list into
-// the fixed-relative-order protocol instructions (ComputeLimit, then
-// ComputePrice, then TransferChecked, then optional Memo) found by identity
-// rather than position. Guard instructions (Lighthouse) may appear
-// anywhere — before, after, or interspersed among the protocol
-// instructions — since they only assert/abort and never mutate
-// payment-relevant state. Any other program, a duplicate protocol
-// instruction, or a protocol instruction out of its required relative order
-// returns an error. instructions is an explicit sub-range so a caller can
-// strip a matched preflight/postflight allowlist block before partitioning.
-func partitionProtocolInstructions(tx *solana.Transaction, instructions []solana.CompiledInstruction) (*partitionedInstructions, error) {
-	result := &partitionedInstructions{}
-	for i := range instructions {
-		inst := instructions[i]
-		switch classifyProtocolInstruction(tx, inst) {
-		case kindGuard:
-			// Allowed anywhere.
-		case kindComputeLimit:
-			if result.computeLimitIx != nil || result.computePriceIx != nil || result.transferIx != nil || result.memoIx != nil {
-				return nil, errors.New(ErrProtocolInstructionOrder)
-			}
-			result.computeLimitIx = &inst
-		case kindComputePrice:
-			if result.computeLimitIx == nil || result.computePriceIx != nil || result.transferIx != nil || result.memoIx != nil {
-				return nil, errors.New(ErrProtocolInstructionOrder)
-			}
-			result.computePriceIx = &inst
-		case kindTransfer:
-			if result.computeLimitIx == nil || result.computePriceIx == nil || result.memoIx != nil {
-				return nil, errors.New(ErrProtocolInstructionOrder)
-			}
-			if result.transferIx != nil {
-				return nil, errors.New(ErrProtocolInstructionOrder)
-			}
-			result.transferIx = &inst
-		case kindMemo:
-			if result.transferIx == nil {
-				return nil, errors.New(ErrProtocolInstructionOrder)
-			}
-			if result.memoIx != nil {
-				return nil, errors.New(ErrMemoCount)
-			}
-			result.memoIx = &inst
-		default:
-			return nil, errors.New(ErrUnknownInstruction)
-		}
-	}
-	return result, nil
 }
 
 func (f *ExactSvmScheme) assertSmartWalletAllowlist(tx *solana.Transaction) error {
@@ -483,58 +364,29 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	ctx context.Context,
 	tx *solana.Transaction,
 	requirements types.PaymentRequirements,
+	feePayer solana.PublicKey,
 	signerAddressStrs []string,
 ) error {
-	instructions := tx.Message.Instructions
-
-	// Preflight/postflight allowlist: a configured instruction tuple may
-	// appear as a contiguous block (guard instructions aside) immediately
-	// before/after the required protocol instructions. Empty/unset
-	// allowlists (the default) never match, so this is a no-op unless
-	// explicitly configured. See Config.PreflightInstructionAllowlist.
-	if len(f.config.PreflightInstructionAllowlist) > 0 {
-		if matched, rest := matchLeadingTuple(tx, instructions, f.config.PreflightInstructionAllowlist); matched != nil {
-			if feePayer, err := solana.PublicKeyFromBase58(requirements.Extra["feePayer"].(string)); err == nil {
-				if err := assertFeePayerIsolatedFromTuple(tx, matched, feePayer); err != nil {
-					return x402.NewVerifyError(err.Error(), "", err.Error())
-				}
-			}
-			instructions = rest
-		}
-	}
-	if len(f.config.PostflightInstructionAllowlist) > 0 {
-		if matched, rest := matchTrailingTuple(tx, instructions, f.config.PostflightInstructionAllowlist); matched != nil {
-			if feePayer, err := solana.PublicKeyFromBase58(requirements.Extra["feePayer"].(string)); err == nil {
-				if err := assertFeePayerIsolatedFromTuple(tx, matched, feePayer); err != nil {
-					return x402.NewVerifyError(err.Error(), "", err.Error())
-				}
-			}
-			instructions = rest
-		}
-	}
-
 	// Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
-	// an optional Memo) are identified by program ID + instruction
-	// discriminator and MUST appear in that fixed relative order. Guard
-	// instructions (currently only Lighthouse — Phantom/Solflare's
-	// wallet-protection assertions) may appear anywhere in the instruction
-	// list, since they only assert/abort and never mutate payment-relevant
-	// state. See: https://github.com/x402-foundation/x402/issues/828
+	// optional Memo) are identified by program ID + instruction discriminator
+	// and MUST appear in that fixed relative order. Guard instructions
+	// (currently only Lighthouse — Phantom/Solflare's wallet-protection
+	// assertions) may appear anywhere, since they only assert/abort and never
+	// mutate payment-relevant state. A configured preflight/postflight
+	// allowlist block is stripped (and fee-payer-isolation-checked) first.
+	// See: https://github.com/x402-foundation/x402/issues/828
 	//  and: https://github.com/x402-foundation/x402/issues/2097
-	partitioned, err := partitionProtocolInstructions(tx, instructions)
+	partitioned, err := f.resolveProtocolLayout(tx, feePayer)
 	if err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
-	if partitioned.computeLimitIx == nil || partitioned.computePriceIx == nil || partitioned.transferIx == nil {
-		return x402.NewVerifyError(ErrNoTransferInstruction, "", "missing required protocol instruction")
-	}
 
 	// Step 3: Verify Compute Budget Instructions
-	if err := f.verifyComputeLimitInstruction(tx, *partitioned.computeLimitIx); err != nil {
+	if err := f.verifyComputeLimitInstruction(partitioned.computeLimitIx); err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
-	if err := f.verifyComputePriceInstruction(tx, *partitioned.computePriceIx); err != nil {
+	if err := f.verifyComputePriceInstruction(partitioned.computePriceIx); err != nil {
 		return x402.NewVerifyError(err.Error(), "", err.Error())
 	}
 
@@ -558,15 +410,14 @@ func (f *ExactSvmScheme) verifyStaticPath(
 	}
 
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(tx, *partitioned.transferIx, reqStruct, signerAddressStrs); err != nil {
+	if err := f.verifyTransferInstruction(tx, partitioned.transferIx, reqStruct, signerAddressStrs); err != nil {
 		return x402.NewVerifyError(err.Error(), payer, err.Error())
 	}
 
-	// Step 5: Verify memo content matches extra.memo when present. Guard
-	// (Lighthouse) instructions and unknown programs were already rejected
-	// by partitionProtocolInstructions above.
+	// Step 5: Verify memo content matches extra.memo when present (exactly
+	// one Memo instruction is required in that case).
 	if expectedMemo, ok := requirements.Extra["memo"].(string); ok && expectedMemo != "" {
-		if partitioned.memoIx == nil {
+		if partitioned.memoCount != 1 {
 			return x402.NewVerifyError(ErrMemoCount, payer, "expected exactly one memo instruction when extra.memo is present")
 		}
 		if string(partitioned.memoIx.Data) != expectedMemo {
@@ -629,7 +480,15 @@ func (f *ExactSvmScheme) Settle(
 			// Best-effort payer for the response; a decode failure here doesn't
 			// block reconciliation (the payload already broadcast successfully).
 			payer, _ := svm.GetTokenPayerFromTransaction(tx)
-			isSmartWallet := f.config.EnableSmartWalletVerification && !hasStaticTransferLayout(tx)
+			isSmartWallet := false
+			if f.config.EnableSmartWalletVerification {
+				feePayerStr, _ := requirements.Extra["feePayer"].(string)
+				feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
+				if err != nil {
+					return nil, x402.NewSettleError(ErrInvalidFeePayer, payer, network, "", err.Error())
+				}
+				isSmartWallet = !f.hasStaticTransferLayout(tx, feePayer)
+			}
 			return f.reconcilePendingSettlement(ctx, txKey, sigStr, payer, network, string(requirements.Network), isSmartWallet, requirements)
 		}
 	}
@@ -762,105 +621,13 @@ func (f *ExactSvmScheme) postSettlementVerified(
 	return verifyPostSettlement(ctx, caps, signature, network, requirements, publicKeysToStrings(f.signer.GetAddresses(ctx, network)), balanceBefore, knownATA)
 }
 
-func hasStaticTransferLayout(tx *solana.Transaction) bool {
-	partitioned, err := partitionProtocolInstructions(tx, tx.Message.Instructions)
-	if err != nil {
-		return false
-	}
-	return partitioned.transferIx != nil
-}
-
-// matchesIdentity reports whether inst was issued against identity.ProgramID
-// with instruction data beginning with identity.Discriminator.
-func matchesIdentity(tx *solana.Transaction, inst solana.CompiledInstruction, identity InstructionIdentity) bool {
-	progID, err := tx.Message.Program(inst.ProgramIDIndex)
-	if err != nil || !progID.Equals(identity.ProgramID) {
-		return false
-	}
-	if len(inst.Data) < len(identity.Discriminator) {
-		return false
-	}
-	for i, b := range identity.Discriminator {
-		if inst.Data[i] != b {
-			return false
-		}
-	}
-	return true
-}
-
-// matchLeadingTuple scans forward from the start of instructions, skipping
-// any guard instructions encountered, and checks whether the non-guard
-// instructions match one of the allowlisted tuples exactly, in order. On the
-// first full match it returns the matched instructions (including any
-// interspersed guards) and the remaining instructions after the match. It
-// returns nil if no tuple fully matches.
-func matchLeadingTuple(
-	tx *solana.Transaction, instructions []solana.CompiledInstruction, allowlist []InstructionTuple,
-) (matched []solana.CompiledInstruction, rest []solana.CompiledInstruction) {
-	for _, tuple := range allowlist {
-		var m []solana.CompiledInstruction
-		identityIndex := 0
-		cursor := 0
-		for identityIndex < len(tuple) && cursor < len(instructions) {
-			inst := instructions[cursor]
-			if classifyProtocolInstruction(tx, inst) == kindGuard {
-				m = append(m, inst)
-				cursor++
-				continue
-			}
-			if !matchesIdentity(tx, inst, tuple[identityIndex]) {
-				break
-			}
-			m = append(m, inst)
-			cursor++
-			identityIndex++
-		}
-		if identityIndex == len(tuple) {
-			return m, instructions[cursor:]
-		}
-	}
-	return nil, nil
-}
-
-// matchTrailingTuple is matchLeadingTuple scanning backward from the end of
-// instructions instead of forward from the start. See matchLeadingTuple.
-func matchTrailingTuple(
-	tx *solana.Transaction, instructions []solana.CompiledInstruction, allowlist []InstructionTuple,
-) (matched []solana.CompiledInstruction, rest []solana.CompiledInstruction) {
-	for _, tuple := range allowlist {
-		var m []solana.CompiledInstruction
-		identityIndex := len(tuple) - 1
-		cursor := len(instructions) - 1
-		for identityIndex >= 0 && cursor >= 0 {
-			inst := instructions[cursor]
-			if classifyProtocolInstruction(tx, inst) == kindGuard {
-				m = append([]solana.CompiledInstruction{inst}, m...)
-				cursor--
-				continue
-			}
-			if !matchesIdentity(tx, inst, tuple[identityIndex]) {
-				break
-			}
-			m = append([]solana.CompiledInstruction{inst}, m...)
-			cursor--
-			identityIndex--
-		}
-		if identityIndex < 0 {
-			return m, instructions[:cursor+1]
-		}
-	}
-	return nil, nil
-}
-
-// assertFeePayerIsolatedFromTuple isolation-checks a matched
-// preflight/postflight instruction block. Unlike the fixed protocol/guard
-// instruction set, an allowlisted tuple is operator-configured arbitrary
-// code and is not otherwise known to be safe.
-func assertFeePayerIsolatedFromTuple(tx *solana.Transaction, matched []solana.CompiledInstruction, feePayer solana.PublicKey) error {
-	if err := assertFeePayerIsolatedFromInstructions(tx, matched, feePayer); err != nil {
-		return errors.New(ErrPreflightPostflightFeePayerNotIsolated)
-	}
-	return nil
+// hasStaticTransferLayout is a cheap, local structural check for whether a
+// transaction matches Path 1's static layout, including any configured
+// preflight/postflight allowlist blocks. Used to re-derive which verification
+// path a pending settlement originally used, without re-simulating.
+func (f *ExactSvmScheme) hasStaticTransferLayout(tx *solana.Transaction, feePayer solana.PublicKey) bool {
+	_, err := f.resolveProtocolLayout(tx, feePayer)
+	return err == nil
 }
 
 // reconcilePendingSettlement handles a PendingSettlementStore cache hit: a
@@ -907,15 +674,10 @@ func (f *ExactSvmScheme) reconcilePendingSettlement(
 	}, nil
 }
 
-// verifyComputeLimitInstruction verifies the compute unit limit instruction
-func (f *ExactSvmScheme) verifyComputeLimitInstruction(tx *solana.Transaction, inst solana.CompiledInstruction) error {
-	progID, err := tx.Message.Program(inst.ProgramIDIndex)
-	if err != nil || !progID.Equals(solana.ComputeBudget) {
-		return errors.New(ErrComputeLimitInstruction)
-	}
-
-	// Check discriminator (should be 2 for SetComputeUnitLimit)
-	if len(inst.Data) < 5 || inst.Data[0] != ixSetComputeUnitLimit {
+// verifyComputeLimitInstruction verifies the payload of the compute unit limit
+// instruction (its role was already established by classification).
+func (f *ExactSvmScheme) verifyComputeLimitInstruction(inst solana.CompiledInstruction) error {
+	if len(inst.Data) < 5 {
 		return errors.New(ErrComputeLimitInstruction)
 	}
 
@@ -927,15 +689,10 @@ func (f *ExactSvmScheme) verifyComputeLimitInstruction(tx *solana.Transaction, i
 	return nil
 }
 
-// verifyComputePriceInstruction verifies the compute unit price instruction
-func (f *ExactSvmScheme) verifyComputePriceInstruction(tx *solana.Transaction, inst solana.CompiledInstruction) error {
-	progID, err := tx.Message.Program(inst.ProgramIDIndex)
-	if err != nil || !progID.Equals(solana.ComputeBudget) {
-		return errors.New(ErrComputePriceInstruction)
-	}
-
-	// Check discriminator (should be 3 for SetComputeUnitPrice)
-	if len(inst.Data) < 9 || inst.Data[0] != ixSetComputeUnitPrice {
+// verifyComputePriceInstruction verifies the payload of the compute unit price
+// instruction (its role was already established by classification).
+func (f *ExactSvmScheme) verifyComputePriceInstruction(inst solana.CompiledInstruction) error {
+	if len(inst.Data) < 9 {
 		return errors.New(ErrComputePriceInstruction)
 	}
 

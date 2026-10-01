@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
 from typing import Any
 
 try:
@@ -22,7 +21,6 @@ from ....schemas import (
     VerifyResponse,
 )
 from ..constants import (
-    COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ERR_AMOUNT_INSUFFICIENT,
     ERR_DUPLICATE_SETTLEMENT,
     ERR_FEE_PAYER_MISSING,
@@ -35,21 +33,14 @@ from ..constants import (
     ERR_MINT_MISMATCH,
     ERR_NETWORK_MISMATCH,
     ERR_NO_TRANSFER_INSTRUCTION,
-    ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED,
-    ERR_PROTOCOL_INSTRUCTION_ORDER,
     ERR_RECIPIENT_MISMATCH,
     ERR_SETTLEMENT_PENDING,
     ERR_SIMULATION_FAILED,
     ERR_TRANSACTION_DECODE_FAILED,
     ERR_TRANSACTION_FAILED,
-    ERR_UNKNOWN_INSTRUCTION,
     ERR_UNSUPPORTED_SCHEME,
-    LIGHTHOUSE_PROGRAM_ADDRESS,
     MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
-    MEMO_PROGRAM_ADDRESS,
     SCHEME_EXACT,
-    TOKEN_2022_PROGRAM_ADDRESS,
-    TOKEN_PROGRAM_ADDRESS,
 )
 from ..settlement_cache import SettlementCache
 from ..signer import FacilitatorSvmSigner
@@ -60,214 +51,7 @@ from ..utils import (
     get_token_payer_from_transaction,
     transaction_message_hash,
 )
-
-_COMPUTE_BUDGET_PUBKEY = Pubkey.from_string(COMPUTE_BUDGET_PROGRAM_ADDRESS)
-_TOKEN_PUBKEY = Pubkey.from_string(TOKEN_PROGRAM_ADDRESS)
-_TOKEN_2022_PUBKEY = Pubkey.from_string(TOKEN_2022_PROGRAM_ADDRESS)
-_MEMO_PUBKEY = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
-_LIGHTHOUSE_PUBKEY = Pubkey.from_string(LIGHTHOUSE_PROGRAM_ADDRESS)
-
-
-class _PartitionedInstructions:
-    """Result of classifying a transaction's instructions by identity (program ID +
-    instruction discriminator), not position.
-    """
-
-    def __init__(self) -> None:
-        self.compute_limit_ix: Any = None
-        self.compute_price_ix: Any = None
-        self.transfer_ix: Any = None
-        self.memo_ix: Any = None
-
-
-def _classify_protocol_instruction(static_accounts: list, ix: Any) -> str:
-    """Classify an instruction by program ID + discriminator into one of:
-    "compute_limit", "compute_price", "transfer", "memo", "guard" (Lighthouse,
-    allowed anywhere), or "unknown" (rejected).
-    """
-    program_address = static_accounts[ix.program_id_index]
-    data = bytes(ix.data)
-
-    if program_address == _COMPUTE_BUDGET_PUBKEY:
-        if len(data) >= 5 and data[0] == 2:  # SetComputeUnitLimit
-            return "compute_limit"
-        if len(data) >= 9 and data[0] == 3:  # SetComputeUnitPrice
-            return "compute_price"
-        return "unknown"
-
-    if program_address == _TOKEN_PUBKEY or program_address == _TOKEN_2022_PUBKEY:
-        if len(data) >= 10 and data[0] == 12:  # TransferChecked
-            return "transfer"
-        return "unknown"
-
-    if program_address == _MEMO_PUBKEY:
-        return "memo"
-
-    if program_address == _LIGHTHOUSE_PUBKEY:
-        return "guard"
-
-    return "unknown"
-
-
-@dataclass
-class InstructionIdentity:
-    """Identifies a single instruction by program address and instruction
-    discriminator. discriminator is matched as a byte-for-byte prefix of the
-    instruction's data, so it supports both short (e.g. single-byte) and long
-    (e.g. 8-byte Anchor sighash) discriminators.
-    """
-
-    program_address: Pubkey
-    discriminator: bytes
-
-
-# An InstructionTuple is an ordered sequence of InstructionIdentity that may
-# appear together as a contiguous (guard instructions aside) block
-# immediately before or after the required protocol instructions.
-InstructionTuple = list[InstructionIdentity]
-
-
-def _matches_identity(static_accounts: list, ix: Any, identity: InstructionIdentity) -> bool:
-    """Report whether ix was issued against identity.program_address with
-    instruction data beginning with identity.discriminator.
-    """
-    program_address = static_accounts[ix.program_id_index]
-    if program_address != identity.program_address:
-        return False
-    data = bytes(ix.data)
-    return data[: len(identity.discriminator)] == identity.discriminator
-
-
-def _match_leading_tuple(
-    static_accounts: list, instructions: list, allowlist: list[InstructionTuple]
-) -> tuple[list, list] | None:
-    """Scan forward from the start of instructions, skipping any guard
-    instructions encountered, and check whether the non-guard instructions
-    match one of the allowlisted tuples exactly, in order. Returns
-    (matched, rest) on the first full match (matched includes any
-    interspersed guards), or None if no tuple fully matches.
-    """
-    for tuple_ in allowlist:
-        matched: list = []
-        identity_index = 0
-        cursor = 0
-        while identity_index < len(tuple_) and cursor < len(instructions):
-            ix = instructions[cursor]
-            if _classify_protocol_instruction(static_accounts, ix) == "guard":
-                matched.append(ix)
-                cursor += 1
-                continue
-            if not _matches_identity(static_accounts, ix, tuple_[identity_index]):
-                break
-            matched.append(ix)
-            cursor += 1
-            identity_index += 1
-        if identity_index == len(tuple_):
-            return matched, instructions[cursor:]
-    return None
-
-
-def _match_trailing_tuple(
-    static_accounts: list, instructions: list, allowlist: list[InstructionTuple]
-) -> tuple[list, list] | None:
-    """Scan backward from the end of instructions. See _match_leading_tuple."""
-    for tuple_ in allowlist:
-        matched: list = []
-        identity_index = len(tuple_) - 1
-        cursor = len(instructions) - 1
-        while identity_index >= 0 and cursor >= 0:
-            ix = instructions[cursor]
-            if _classify_protocol_instruction(static_accounts, ix) == "guard":
-                matched.insert(0, ix)
-                cursor -= 1
-                continue
-            if not _matches_identity(static_accounts, ix, tuple_[identity_index]):
-                break
-            matched.insert(0, ix)
-            cursor -= 1
-            identity_index -= 1
-        if identity_index < 0:
-            return matched, instructions[: cursor + 1]
-    return None
-
-
-def _assert_fee_payer_isolated_from_tuple(
-    static_accounts: list, matched: list, fee_payer: Pubkey
-) -> str | None:
-    """Isolation-check a matched preflight/postflight instruction block.
-    Unlike the fixed protocol/guard instruction set, an allowlisted tuple is
-    operator-configured arbitrary code and is not otherwise known to be safe.
-
-    Returns an error reason string on failure, or None on success.
-    """
-    for ix in matched:
-        program_address = static_accounts[ix.program_id_index]
-        if program_address == fee_payer:
-            return ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
-        for account_index in ix.accounts:
-            if static_accounts[account_index] == fee_payer:
-                return ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED
-    return None
-
-
-def _partition_protocol_instructions(
-    static_accounts: list, instructions: list
-) -> tuple[_PartitionedInstructions | None, str | None]:
-    """Partition a transaction's instructions into their protocol roles.
-
-    Protocol instructions (compute limit -> compute price -> transfer -> optional
-    memo) must appear in that fixed relative order, identified by program ID +
-    discriminator rather than absolute index. Guard (Lighthouse) instructions may
-    appear anywhere in the sequence — before, after, or interspersed among the
-    protocol instructions — since they only assert/abort and never mutate
-    payment-relevant state. Any other unrecognized program anywhere is rejected.
-
-    Returns (partitioned, None) on success, or (None, error_reason) on failure.
-    """
-    result = _PartitionedInstructions()
-    for ix in instructions:
-        kind = _classify_protocol_instruction(static_accounts, ix)
-
-        if kind == "guard":
-            continue
-
-        if kind == "compute_limit":
-            if (
-                result.compute_limit_ix is not None
-                or result.compute_price_ix is not None
-                or result.transfer_ix is not None
-                or result.memo_ix is not None
-            ):
-                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
-            result.compute_limit_ix = ix
-        elif kind == "compute_price":
-            if (
-                result.compute_limit_ix is None
-                or result.compute_price_ix is not None
-                or result.transfer_ix is not None
-                or result.memo_ix is not None
-            ):
-                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
-            result.compute_price_ix = ix
-        elif kind == "transfer":
-            if (
-                result.compute_limit_ix is None
-                or result.compute_price_ix is None
-                or result.memo_ix is not None
-                or result.transfer_ix is not None
-            ):
-                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
-            result.transfer_ix = ix
-        elif kind == "memo":
-            if result.transfer_ix is None:
-                return None, ERR_PROTOCOL_INSTRUCTION_ORDER
-            if result.memo_ix is not None:
-                return None, ERR_MEMO_COUNT
-            result.memo_ix = ix
-        else:
-            return None, ERR_UNKNOWN_INSTRUCTION
-
-    return result, None
+from .instruction_layout import InstructionTuple, LayoutError, resolve_protocol_layout
 
 
 class ExactSvmScheme:
@@ -413,69 +197,38 @@ class ExactSvmScheme:
             )
 
         message = tx.message
-        instructions = message.instructions
         static_accounts = list(message.account_keys)
 
-        # Preflight/postflight allowlist: a configured instruction tuple may
-        # appear as a contiguous block (guard instructions aside) immediately
-        # before/after the required protocol instructions. Empty allowlists
-        # (the default) never match, so this is a no-op unless explicitly
-        # configured.
-        if self._preflight_instruction_allowlist:
-            leading_match = _match_leading_tuple(
-                static_accounts, instructions, self._preflight_instruction_allowlist
-            )
-            if leading_match is not None:
-                matched, instructions = leading_match
-                fee_payer_pubkey = Pubkey.from_string(fee_payer_str)
-                isolation_error = _assert_fee_payer_isolated_from_tuple(
-                    static_accounts, matched, fee_payer_pubkey
-                )
-                if isolation_error is not None:
-                    return VerifyResponse(is_valid=False, invalid_reason=isolation_error, payer="")
-        if self._postflight_instruction_allowlist:
-            trailing_match = _match_trailing_tuple(
-                static_accounts, instructions, self._postflight_instruction_allowlist
-            )
-            if trailing_match is not None:
-                matched, instructions = trailing_match
-                fee_payer_pubkey = Pubkey.from_string(fee_payer_str)
-                isolation_error = _assert_fee_payer_isolated_from_tuple(
-                    static_accounts, matched, fee_payer_pubkey
-                )
-                if isolation_error is not None:
-                    return VerifyResponse(is_valid=False, invalid_reason=isolation_error, payer="")
-
-        # Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and an
+        # Protocol instructions (ComputeLimit, ComputePrice, TransferChecked, and
         # optional Memo) are identified by program ID + instruction discriminator and
         # MUST appear in that fixed relative order. Guard instructions (currently only
         # Lighthouse -- Phantom/Solflare's wallet-protection assertions) may appear
-        # anywhere in the instruction list, since they only assert/abort and never
-        # mutate payment-relevant state.
+        # anywhere, since they only assert/abort and never mutate payment-relevant
+        # state. A configured preflight/postflight allowlist block is stripped (and
+        # fee-payer-isolation-checked) first.
         # See: https://github.com/x402-foundation/x402/issues/828
         #  and: https://github.com/x402-foundation/x402/issues/2097
-        partitioned, error_reason = _partition_protocol_instructions(static_accounts, instructions)
-        if error_reason is not None:
-            return VerifyResponse(is_valid=False, invalid_reason=error_reason, payer="")
-        assert partitioned is not None
-        if (
-            partitioned.compute_limit_ix is None
-            or partitioned.compute_price_ix is None
-            or partitioned.transfer_ix is None
-        ):
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=""
+        try:
+            partitioned = resolve_protocol_layout(
+                static_accounts,
+                message.instructions,
+                self._preflight_instruction_allowlist,
+                self._postflight_instruction_allowlist,
+                Pubkey.from_string(fee_payer_str),
             )
+        except LayoutError as e:
+            return VerifyResponse(is_valid=False, invalid_reason=e.reason, payer="")
 
         # Step 3: Verify Compute Budget Instructions
+        # Roles (discriminators) were established by classification; check payloads.
         cu_limit_data = bytes(partitioned.compute_limit_ix.data)
-        if len(cu_limit_data) < 1 or cu_limit_data[0] != 2:  # SetComputeUnitLimit discriminator
+        if len(cu_limit_data) < 5:  # discriminator + u32 units
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_LIMIT, payer=""
             )
 
         cu_price_data = bytes(partitioned.compute_price_ix.data)
-        if len(cu_price_data) < 9 or cu_price_data[0] != 3:  # SetComputeUnitPrice discriminator
+        if len(cu_price_data) < 9:  # discriminator + u64 microLamports
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_PRICE, payer=""
             )
@@ -501,12 +254,11 @@ class ExactSvmScheme:
         transfer_program = static_accounts[transfer_ix.program_id_index]
         transfer_program_str = str(transfer_program)
 
-        # Step 5: Verify memo content matches extra.memo when present. Guard
-        # (Lighthouse) instructions and unknown programs were already rejected
-        # by _partition_protocol_instructions above.
+        # Step 5: Verify memo content matches extra.memo when present (exactly one
+        # Memo instruction is required in that case).
         expected_memo = extra.get("memo")
         if expected_memo and isinstance(expected_memo, str):
-            if partitioned.memo_ix is None:
+            if partitioned.memo_ix is None or partitioned.memo_count != 1:
                 return VerifyResponse(is_valid=False, invalid_reason=ERR_MEMO_COUNT, payer=payer)
             actual_memo = bytes(partitioned.memo_ix.data).decode("utf-8")
             if actual_memo != expected_memo:
@@ -517,11 +269,7 @@ class ExactSvmScheme:
         transfer_data = bytes(transfer_ix.data)
 
         # TransferChecked data: [12 (discriminator), u64 amount, u8 decimals]
-        if len(transfer_data) < 10 or transfer_data[0] != 12:
-            return VerifyResponse(
-                is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer
-            )
-
+        # (discriminator and length were established by classification)
         # TransferChecked accounts: [source, mint, destination, owner]
         if len(transfer_accounts) < 4:
             return VerifyResponse(

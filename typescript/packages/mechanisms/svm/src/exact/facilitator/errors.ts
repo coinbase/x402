@@ -17,27 +17,29 @@ export const ErrTransactionCouldNotBeDecoded =
 export const ErrSignatureInvalid = "invalid_exact_svm_payload_signature_invalid";
 export const ErrExcessiveSigners = "invalid_exact_svm_payload_excessive_signers";
 
-// Legacy: superseded by identity-based classification (ErrUnknownInstruction /
-// ErrProtocolInstructionOrder below), which no longer relies on a fixed
-// instruction count or fixed positional indices. Kept for backward
-// compatibility with any code importing/matching on these constants.
+/** @deprecated Positional instruction-count checks were replaced by identity-based classification; no longer returned. */
 export const ErrTransactionInstructionsLength =
   "invalid_exact_svm_payload_transaction_instructions_length";
+/** @deprecated See {@link ErrUnknownInstruction}; no longer returned. */
 export const ErrUnknownFourthInstruction = "invalid_exact_svm_payload_unknown_fourth_instruction";
+/** @deprecated See {@link ErrUnknownInstruction}; no longer returned. */
 export const ErrUnknownFifthInstruction = "invalid_exact_svm_payload_unknown_fifth_instruction";
+/** @deprecated See {@link ErrUnknownInstruction}; no longer returned. */
 export const ErrUnknownSixthInstruction = "invalid_exact_svm_payload_unknown_sixth_instruction";
+/** @deprecated See {@link ErrUnknownInstruction}; no longer returned. */
 export const ErrUnknownSeventhInstruction = "invalid_exact_svm_payload_unknown_seventh_instruction";
+/** @deprecated See {@link ErrUnknownInstruction}; no longer returned. */
 export const ErrUnknownOptionalInstruction =
   "invalid_exact_svm_payload_unknown_optional_instruction";
 
 export const ErrComputeLimitInstructionTooHigh =
   "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction_too_high";
-// Identity-based instruction classification (program ID + discriminator)
-// replaces the positional/count checks above. ErrUnknownInstruction covers
-// any unrecognized program anywhere in the sequence; ErrProtocolInstructionOrder
-// covers protocol instructions (compute limit/price, transfer, memo) found out
-// of relative order or duplicated. Guard (Lighthouse) instructions are exempt
-// from ordering and may appear anywhere.
+// Identity-based instruction classification (program ID + discriminator).
+// ErrUnknownInstruction covers any unrecognized program anywhere in the
+// sequence; ErrProtocolInstructionOrder covers protocol instructions (compute
+// limit/price, transfer) found out of relative order or duplicated, or a memo
+// before the transfer. Guard (Lighthouse) instructions are exempt from
+// ordering and may appear anywhere.
 export const ErrUnknownInstruction = "invalid_exact_svm_payload_unknown_instruction";
 export const ErrProtocolInstructionOrder =
   "invalid_exact_svm_payload_transaction_instructions_order";

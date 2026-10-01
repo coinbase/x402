@@ -170,67 +170,6 @@ func TestExactSvmScheme_LookupTableRejectedWithoutCapabilities(t *testing.T) {
 	assert.Contains(t, ve.InvalidReason, ErrSmartWalletAltResolutionUnavailable)
 }
 
-func TestExactSvmScheme_Path1AcceptsSevenLighthouseInstructions(t *testing.T) {
-	f := buildExactFixtureWithOptional(t,
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-	)
-	require.Equal(t, 7, len(f.tx.Message.Instructions))
-
-	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{f.facilitatorAddr}}
-	scheme := NewExactSvmScheme(signer)
-	resp, err := scheme.Verify(context.Background(), f.payload, f.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-}
-
-func TestExactSvmScheme_Path1AcceptsManyLighthouseInstructions(t *testing.T) {
-	// Guard (Lighthouse) instructions are allowed anywhere, with no hard cap:
-	// they only assert/abort and never mutate payment-relevant state.
-	f := buildExactFixtureWithOptional(t,
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-		lighthouseInstruction(),
-	)
-	require.Equal(t, 8, len(f.tx.Message.Instructions))
-
-	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{f.facilitatorAddr}}
-	scheme := NewExactSvmScheme(signer)
-	resp, err := scheme.Verify(context.Background(), f.payload, f.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-}
-
-func TestExactSvmScheme_Path1AcceptsLighthouseBeforeTransfer(t *testing.T) {
-	// Reproduces the real-world Phantom bug: Lighthouse assertion
-	// instructions injected BEFORE the ComputeBudget/TransferChecked
-	// sequence, not just after it.
-	f := buildExactFixtureWithInstructions(t, []solana.Instruction{lighthouseInstruction()}, nil)
-
-	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{f.facilitatorAddr}}
-	scheme := NewExactSvmScheme(signer)
-	resp, err := scheme.Verify(context.Background(), f.payload, f.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-}
-
-func TestExactSvmScheme_Path1AcceptsLighthouseBeforeAndAfterTransfer(t *testing.T) {
-	f := buildExactFixtureWithInstructions(t,
-		[]solana.Instruction{lighthouseInstruction(), lighthouseInstruction()},
-		[]solana.Instruction{lighthouseInstruction()},
-	)
-
-	signer := &mockExactSvmSigner{addresses: []solana.PublicKey{f.facilitatorAddr}}
-	scheme := NewExactSvmScheme(signer)
-	resp, err := scheme.Verify(context.Background(), f.payload, f.requirements, nil)
-	require.NoError(t, err)
-	assert.True(t, resp.IsValid)
-}
-
 func TestExactSvmScheme_Path1RejectsDuplicateTransferInstruction(t *testing.T) {
 	f := buildExactFixture(t)
 	dup := f.tx.Message.Instructions[2]

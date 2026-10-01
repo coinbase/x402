@@ -14,24 +14,28 @@ const (
 	ErrSignatureInvalid             = "invalid_exact_solana_payload_signature_invalid"
 	ErrExcessiveSigners             = "invalid_exact_solana_payload_excessive_signers"
 
-	// Legacy: superseded by identity-based classification (ErrUnknownInstruction /
-	// ErrProtocolInstructionOrder below), which no longer relies on a fixed
-	// instruction count or fixed positional indices. Kept for backward
-	// compatibility with any code importing/matching on these constants.
+	// Deprecated: positional instruction-count checks were replaced by
+	// identity-based classification (see ErrUnknownInstruction and
+	// ErrProtocolInstructionOrder); these are no longer returned.
 	ErrTransactionInstructionsLength = "invalid_exact_solana_payload_transaction_instructions_length"
-	ErrUnknownFourthInstruction      = "invalid_exact_solana_payload_unknown_fourth_instruction"
-	ErrUnknownFifthInstruction       = "invalid_exact_solana_payload_unknown_fifth_instruction"
-	ErrUnknownSixthInstruction       = "invalid_exact_solana_payload_unknown_sixth_instruction"
-	ErrUnknownSeventhInstruction     = "invalid_exact_solana_payload_unknown_seventh_instruction"
-	ErrUnknownOptionalInstruction    = "invalid_exact_solana_payload_unknown_optional_instruction"
+	// Deprecated: see ErrUnknownInstruction; no longer returned.
+	ErrUnknownFourthInstruction = "invalid_exact_solana_payload_unknown_fourth_instruction"
+	// Deprecated: see ErrUnknownInstruction; no longer returned.
+	ErrUnknownFifthInstruction = "invalid_exact_solana_payload_unknown_fifth_instruction"
+	// Deprecated: see ErrUnknownInstruction; no longer returned.
+	ErrUnknownSixthInstruction = "invalid_exact_solana_payload_unknown_sixth_instruction"
+	// Deprecated: see ErrUnknownInstruction; no longer returned.
+	ErrUnknownSeventhInstruction = "invalid_exact_solana_payload_unknown_seventh_instruction"
+	// Deprecated: see ErrUnknownInstruction; no longer returned.
+	ErrUnknownOptionalInstruction = "invalid_exact_solana_payload_unknown_optional_instruction"
 
 	ErrComputeLimitInstructionTooHigh = "invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction_too_high"
-	// Identity-based instruction classification (program ID + discriminator)
-	// replaces the positional/count checks above. ErrUnknownInstruction covers
-	// any unrecognized program anywhere in the sequence; ErrProtocolInstructionOrder
-	// covers protocol instructions (compute limit/price, transfer, memo) found out
-	// of relative order or duplicated. Guard (Lighthouse) instructions are exempt
-	// from ordering and may appear anywhere.
+	// Identity-based instruction classification (program ID + discriminator).
+	// ErrUnknownInstruction covers any unrecognized program anywhere in the
+	// sequence; ErrProtocolInstructionOrder covers protocol instructions
+	// (compute limit/price, transfer) found out of relative order or
+	// duplicated, or a memo before the transfer. Guard (Lighthouse)
+	// instructions are exempt from ordering and may appear anywhere.
 	ErrUnknownInstruction             = "invalid_exact_solana_payload_unknown_instruction"
 	ErrProtocolInstructionOrder       = "invalid_exact_solana_payload_transaction_instructions_order"
 	ErrComputeLimitInstruction        = "invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction"
