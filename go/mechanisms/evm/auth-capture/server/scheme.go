@@ -252,9 +252,13 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 		return requirements, fmt.Errorf("%s: maxTimeoutSeconds %d exceeds the capture deadline of %s",
 			ErrTimeoutExceedsCaptureDeadline, requirements.MaxTimeoutSeconds, captureDeadline)
 	}
+	if refundDeadline < captureDeadline {
+		return requirements, fmt.Errorf("%s: refund deadline %s is before the capture deadline %s",
+			ErrRefundBeforeCaptureDeadline, refundDeadline, captureDeadline)
+	}
 	now := time.Now()
 	extra["captureDeadline"] = uint64(now.Add(captureDeadline).Unix())
-	extra["refundDeadline"] = uint64(now.Add(captureDeadline + refundDeadline).Unix())
+	extra["refundDeadline"] = uint64(now.Add(refundDeadline).Unix())
 
 	extra["paymentFlow"] = "escrow"
 	extra["captureMode"] = "sync"

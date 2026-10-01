@@ -9,6 +9,7 @@ const (
 	ErrMissingFeeRecipient             = "invalid_auth_capture_evm_server_missing_fee_recipient"
 	ErrInvalidFeeTerms                 = "invalid_auth_capture_evm_server_invalid_fee_terms"
 	ErrTimeoutExceedsCaptureDeadline   = "invalid_auth_capture_evm_server_timeout_exceeds_capture_deadline"
+	ErrRefundBeforeCaptureDeadline     = "invalid_auth_capture_evm_server_refund_before_capture_deadline"
 	ErrMissingReceiverAuthorizerSigner = "invalid_auth_capture_evm_server_missing_receiver_authorizer_signer"
 	ErrInvalidCollectPayload           = "invalid_auth_capture_evm_server_invalid_collect_payload"
 	ErrFailedToSignCapture             = "invalid_auth_capture_evm_server_failed_to_sign_capture"

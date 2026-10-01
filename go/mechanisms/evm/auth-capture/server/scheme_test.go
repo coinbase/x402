@@ -537,3 +537,25 @@ func TestParsePrice(t *testing.T) {
 		assert.Equal(t, *custom, got)
 	})
 }
+
+func TestEnhancePaymentRequirements_DeadlinesAreRelativeToIssueTime(t *testing.T) {
+	newScheme := func(capture, refund time.Duration) *AuthCaptureEvmScheme {
+		return NewAuthCaptureEvmScheme(&Config{
+			ReceiverAuthorizerSigner: &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+			CaptureAuthorizer:        testCaptureAuthorizer,
+			CaptureDeadline:          capture,
+			RefundDeadline:           refund,
+		})
+	}
+	requirements := mockRequirements(nil)
+	requirements.Extra = map[string]interface{}{}
+
+	before := time.Now()
+	enhanced, err := newScheme(0, 0).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+	require.NoError(t, err)
+	assert.InDelta(t, before.Add(DefaultCaptureDeadline).Unix(), enhanced.Extra["captureDeadline"], 5)
+	assert.InDelta(t, before.Add(DefaultRefundDeadline).Unix(), enhanced.Extra["refundDeadline"], 5)
+
+	_, err = newScheme(time.Hour, time.Minute).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
+	require.ErrorContains(t, err, ErrRefundBeforeCaptureDeadline)
+}
