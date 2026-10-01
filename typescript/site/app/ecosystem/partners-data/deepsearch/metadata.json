@@ -1,0 +1,7 @@
+{
+  "name": "DeepSearch Korea Stock Intelligence",
+  "description": "Korean (KRX) and US stock data for AI agents: financials, prices, analyst consensus, investor flows, market pulse and knowledge-graph signals, pay-per-call in USDC on Base via x402.",
+  "logoUrl": "/logos/deepsearch.png",
+  "websiteUrl": "https://x402.deepsearch.com",
+  "category": "Services/Endpoints"
+}
