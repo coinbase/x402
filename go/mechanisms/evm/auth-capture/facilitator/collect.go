@@ -212,8 +212,9 @@ func checkSalt(extra authcapture.AuthCaptureExtra, auth *collectAuth) error {
 	return nil
 }
 
-// verifyPayerSignature checks the client signature. A counterfactual smart-wallet payer
-// passes when its factory is allowlisted; the deploy simulation then vouches for it.
+// verifyPayerSignature checks the client signature. Only a counterfactual smart-wallet payer
+// passes on an allowlisted factory, with the deploy simulation vouching for it. A deployed
+// wallet must always present a signature its own ERC-1271 check accepts, wrapped or not.
 func (f *AuthCaptureEvmScheme) verifyPayerSignature(ctx context.Context, auth *collectAuth) (*evm.ERC6492SignatureData, error) {
 	signatureBytes, err := evm.HexToBytes(auth.signature)
 	if err != nil {
@@ -230,12 +231,14 @@ func (f *AuthCaptureEvmScheme) verifyPayerSignature(ctx context.Context, auth *c
 		return sigData, nil
 	}
 	switch {
+	case sigData.CodeDeployed:
+		return nil, x402.NewVerifyError(ErrSignature, auth.payer, "deployed wallet signature failed ERC-1271 verification")
 	case evm.HasEIP6492Deployment(sigData):
 		if !evm.IsFactoryAllowed(sigData.Factory, f.config.EIP6492AllowedFactories) {
 			return nil, x402.NewVerifyError(ErrErc6492FactoryNotAllowed, auth.payer, "factory not in EIP6492AllowedFactories allowlist")
 		}
 		return sigData, nil
-	case sigData.CodeDeployed || len(sigData.InnerSignature) != 65:
+	case len(sigData.InnerSignature) != 65:
 		return nil, x402.NewVerifyError(ErrUndeployedSmartWallet, auth.payer, "smart wallet signature could not be verified")
 	default:
 		return nil, x402.NewVerifyError(ErrSignature, auth.payer, "invalid signature")
@@ -325,7 +328,7 @@ func simulateAuthorize(ctx context.Context, signer evm.FacilitatorEvmSigner, pre
 	if err != nil {
 		return err
 	}
-	return simulateEscrowCall(ctx, signer, &pre.deployment, pre.payer, "authorize", args...)
+	return simulateEscrowCall(ctx, signer, &pre.deployment, pre.paymentInfo.Operator, pre.payer, "authorize", args...)
 }
 
 // verifyCollect validates an EIP-3009 or Permit2 collect payload and simulates the authorize.

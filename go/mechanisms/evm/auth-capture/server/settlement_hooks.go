@@ -26,7 +26,8 @@ func (s *AuthCaptureEvmScheme) SettleOnCancel(ctx x402.VerifiedPaymentCanceledCo
 }
 
 // EnrichSettlementPayload adds the receiver-authorizer signature the facilitator needs:
-// none for authorize, a full Capture after the handler, and a Void on cancel.
+// none for authorize, a Capture after the handler (plus a Void of the remainder on a partial
+// capture), and a Void on cancel.
 func (s *AuthCaptureEvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (map[string]interface{}, error) {
 	if ctx.Phase == x402.SettlePhaseBeforeHandler {
 		return nil, nil
@@ -41,12 +42,15 @@ func (s *AuthCaptureEvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (
 	if err != nil {
 		return nil, err
 	}
-	payer, preApprovalExpiry, salt, err := collectPayloadFields(ctx.Payload.GetPayload())
+	collect, err := collectPayloadFields(ctx.Payload.GetPayload())
 	if err != nil {
 		return nil, fmt.Errorf(ErrInvalidCollectPayload+": %w", err)
 	}
+	payer := collect.payer
 
-	paymentInfo := authcapture.ReconstructPaymentInfo(payer, preApprovalExpiry, salt, requirements, extra)
+	authorized := requirements
+	authorized.Amount = collect.authorizedAmount
+	paymentInfo := authcapture.ReconstructPaymentInfo(payer, collect.preApprovalExpiry, collect.salt, authorized, extra)
 	paymentInfoHash, err := authcapture.ComputePaymentInfoHash(chainID, paymentInfo, payer, deployment.Escrow)
 	if err != nil {
 		return nil, err
@@ -68,10 +72,14 @@ func (s *AuthCaptureEvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (
 		}, nil
 	}
 
-	// The escrow still holds exactly the authorized amount: the capture follows authorize directly.
-	amount, ok := new(big.Int).SetString(requirements.Amount, 10)
+	maxAmount, ok := new(big.Int).SetString(collect.authorizedAmount, 10)
 	if !ok {
-		return nil, fmt.Errorf(ErrInvalidCollectPayload+": invalid requirements amount %s", requirements.Amount)
+		return nil, fmt.Errorf(ErrInvalidCollectPayload+": invalid authorized amount %s", collect.authorizedAmount)
+	}
+	amount, ok := new(big.Int).SetString(requirements.Amount, 10)
+	if !ok || amount.Sign() <= 0 || amount.Cmp(maxAmount) > 0 {
+		return nil, fmt.Errorf(ErrInvalidCaptureAmount+": capture amount %s must be > 0 and <= authorized amount %s",
+			requirements.Amount, collect.authorizedAmount)
 	}
 	fee := authcapture.DefaultCaptureFee(&deployment, amount, extra.MinFeeBps)
 	signature, err := authcapture.SignCapture(ctx.Ctx, s.config.ReceiverAuthorizerSigner, &deployment, extra.CaptureAuthorizer, chainID,
@@ -80,7 +88,7 @@ func (s *AuthCaptureEvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (
 			Amount:             amount,
 			Fee:                fee,
 			FeeReceiver:        extra.FeeRecipient,
-			ExpectedCapturable: amount,
+			ExpectedCapturable: maxAmount,
 			ExpectedRefundable: big.NewInt(0),
 		})
 	if err != nil {
@@ -92,40 +100,56 @@ func (s *AuthCaptureEvmScheme) EnrichSettlementPayload(ctx x402.SettleContext) (
 		"paymentInfo":              paymentInfoMap,
 		"amount":                   amount.String(),
 		"feeReceiver":              extra.FeeRecipient,
-		"expectedCapturableAmount": amount.String(),
+		"expectedCapturableAmount": maxAmount.String(),
 		"expectedRefundableAmount": "0",
 		"authorizerSignature":      evm.BytesToHex(signature),
 	}
 	fee.AddToWire(result)
+
+	if amount.Cmp(maxAmount) < 0 {
+		voidSignature, err := authcapture.SignVoid(ctx.Ctx, s.config.ReceiverAuthorizerSigner, extra.CaptureAuthorizer, chainID, paymentInfoHash)
+		if err != nil {
+			return nil, fmt.Errorf(ErrFailedToSignVoid+": %w", err)
+		}
+		result["voidAuthorizerSignature"] = evm.BytesToHex(voidSignature)
+	}
 	return result, nil
 }
 
-// collectPayloadFields reads the payer, expiry and salt from the client's EIP-3009 or
-// Permit2 collect payload, the only shape the server ever receives.
-func collectPayloadFields(payload map[string]interface{}) (payer string, preApprovalExpiry uint64, salt string, err error) {
+type collectFields struct {
+	payer             string
+	preApprovalExpiry uint64
+	salt              string
+	authorizedAmount  string
+}
+
+// collectPayloadFields reads the payer, expiry, salt and authorized hold from the client's
+// EIP-3009 or Permit2 collect payload, the only shape the server ever receives. The signed
+// amount is the escrow's maxAmount, which the settlement amount override may undercut.
+func collectPayloadFields(payload map[string]interface{}) (collectFields, error) {
 	switch {
 	case authcapture.IsEip3009Payload(payload):
 		p, err := authcapture.Eip3009CollectPayloadFromMap(payload)
 		if err != nil {
-			return "", 0, "", err
+			return collectFields{}, err
 		}
 		expiry, err := strconv.ParseUint(p.Authorization.ValidBefore, 10, 64)
 		if err != nil {
-			return "", 0, "", fmt.Errorf("invalid authorization.validBefore: %s", p.Authorization.ValidBefore)
+			return collectFields{}, fmt.Errorf("invalid authorization.validBefore: %s", p.Authorization.ValidBefore)
 		}
-		return p.Authorization.From, expiry, p.Salt, nil
+		return collectFields{p.Authorization.From, expiry, p.Salt, p.Authorization.Value}, nil
 	case authcapture.IsPermit2Payload(payload):
 		p, err := authcapture.Permit2CollectPayloadFromMap(payload)
 		if err != nil {
-			return "", 0, "", err
+			return collectFields{}, err
 		}
 		expiry, err := strconv.ParseUint(p.Permit2Authorization.Deadline, 10, 64)
 		if err != nil {
-			return "", 0, "", fmt.Errorf("invalid permit2Authorization.deadline: %s", p.Permit2Authorization.Deadline)
+			return collectFields{}, fmt.Errorf("invalid permit2Authorization.deadline: %s", p.Permit2Authorization.Deadline)
 		}
-		return p.Permit2Authorization.From, expiry, p.Salt, nil
+		return collectFields{p.Permit2Authorization.From, expiry, p.Salt, p.Permit2Authorization.Permitted.Amount}, nil
 	default:
-		return "", 0, "", fmt.Errorf("payload is neither an EIP-3009 nor a Permit2 auth-capture collect payload")
+		return collectFields{}, fmt.Errorf("payload is neither an EIP-3009 nor a Permit2 auth-capture collect payload")
 	}
 }
 

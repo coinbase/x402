@@ -12,6 +12,7 @@ const (
 	ErrRefundBeforeCaptureDeadline     = "invalid_auth_capture_evm_server_refund_before_capture_deadline"
 	ErrMissingReceiverAuthorizerSigner = "invalid_auth_capture_evm_server_missing_receiver_authorizer_signer"
 	ErrInvalidCollectPayload           = "invalid_auth_capture_evm_server_invalid_collect_payload"
+	ErrInvalidCaptureAmount            = "invalid_auth_capture_evm_server_invalid_capture_amount"
 	ErrFailedToSignCapture             = "invalid_auth_capture_evm_server_failed_to_sign_capture"
 	ErrFailedToSignVoid                = "invalid_auth_capture_evm_server_failed_to_sign_void"
 )

@@ -24,9 +24,18 @@ type AuthCaptureEvmSchemeConfig struct {
 	SimulateInSettle bool
 }
 
+// SenderReader is an optional capability of a FacilitatorEvmSigner: ReadContract with an
+// explicit eth_call sender. The scheme uses it to simulate every escrow call as the operator,
+// because the escrow gates authorize, capture and void on msg.sender. A signer without it
+// must make ReadContract itself call from the operator, which only works when the signer
+// holds a single address.
+type SenderReader interface {
+	ReadContractFrom(ctx context.Context, from, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
+}
+
 // AuthCaptureEvmScheme implements SchemeNetworkFacilitator for the auth-capture EVM scheme.
-// The signer's ReadContract must eth_call from the operator address, since the escrow
-// gates authorize, capture and void on msg.sender.
+// Simulations call as the operator through SenderReader when the signer implements it, else
+// the signer's ReadContract must eth_call from the operator address.
 type AuthCaptureEvmScheme struct {
 	signer       evm.FacilitatorEvmSigner
 	config       AuthCaptureEvmSchemeConfig

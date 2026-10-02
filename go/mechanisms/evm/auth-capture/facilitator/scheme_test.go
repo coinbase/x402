@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -356,4 +357,62 @@ func TestSimulateFactoryDeploy(t *testing.T) {
 
 	signer.multicallSuccess = false
 	assertVerifyReason(t, simulateFactoryDeploy(context.Background(), signer, sigData, "0xpayer"), ErrSimulationFailed)
+}
+
+func TestVerifyCollect_ERC6492WrappedSignature(t *testing.T) {
+	factory := common.HexToAddress("0x" + strings.Repeat("aa", 20))
+	wrap := func(t *testing.T, payload types.PaymentPayload) {
+		t.Helper()
+		inner, err := evm.HexToBytes(payload.Payload["signature"].(string))
+		require.NoError(t, err)
+		payload.Payload["signature"] = evm.BytesToHex(wrapERC6492ForTest(t, factory, []byte{0x01}, inner))
+	}
+	config := AuthCaptureEvmSchemeConfig{EIP6492AllowedFactories: []string{factory.Hex()}}
+	requirements := facBaseRequirements(facCaptureAuthorizer, nil)
+
+	t.Run("counterfactual wallet on an allowlisted factory passes", func(t *testing.T) {
+		payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
+		wrap(t, payload)
+
+		resp, err := newScheme(newMockFacSigner(facCaptureAuthorizer), config).Verify(context.Background(), payload, requirements, nil)
+		require.NoError(t, err)
+		assert.True(t, resp.IsValid)
+	})
+
+	t.Run("deployed wallet must pass its own ERC-1271 check", func(t *testing.T) {
+		payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
+		wrap(t, payload)
+		signer := newMockFacSigner(facCaptureAuthorizer)
+		signer.code = []byte{0x60}
+		signer.isValidSignatureResult = [4]byte{0xff, 0xff, 0xff, 0xff}
+
+		_, err := newScheme(signer, config).Verify(context.Background(), payload, requirements, nil)
+		assertVerifyReason(t, err, ErrSignature)
+		assert.Empty(t, signer.readFroms, "the authorize simulation must not be reached")
+	})
+
+	t.Run("deployed wallet whose ERC-1271 check accepts passes", func(t *testing.T) {
+		payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
+		wrap(t, payload)
+		signer := newMockFacSigner(facCaptureAuthorizer)
+		signer.code = []byte{0x60}
+		signer.isValidSignatureResult = [4]byte{0x16, 0x26, 0xba, 0x7e}
+
+		resp, err := newScheme(signer, config).Verify(context.Background(), payload, requirements, nil)
+		require.NoError(t, err)
+		assert.True(t, resp.IsValid)
+	})
+}
+
+func wrapERC6492ForTest(t *testing.T, factory common.Address, factoryData, inner []byte) []byte {
+	t.Helper()
+	addressType, err := abi.NewType("address", "", nil)
+	require.NoError(t, err)
+	bytesType, err := abi.NewType("bytes", "", nil)
+	require.NoError(t, err)
+	packed, err := abi.Arguments{{Type: addressType}, {Type: bytesType}, {Type: bytesType}}.Pack(factory, factoryData, inner)
+	require.NoError(t, err)
+	magic, err := evm.HexToBytes(evm.ERC6492MagicValue)
+	require.NoError(t, err)
+	return append(packed, magic...)
 }

@@ -380,6 +380,7 @@ func TestEnrichSettlementPayload_AfterHandlerSignsCapture(t *testing.T) {
 	assert.Equal(t, requirements.Amount, fields["expectedCapturableAmount"])
 	assert.Equal(t, "0", fields["expectedRefundableAmount"])
 	assert.Equal(t, "0xdeadbeef", fields["authorizerSignature"])
+	assert.NotContains(t, fields, "voidAuthorizerSignature")
 
 	// v1.1 is the default deployment: feeAmount (absolute), not feeBps.
 	assert.Contains(t, fields, "feeAmount")
@@ -558,4 +559,169 @@ func TestEnhancePaymentRequirements_DeadlinesAreRelativeToIssueTime(t *testing.T
 
 	_, err = newScheme(time.Hour, time.Minute).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
 	require.ErrorContains(t, err, ErrRefundBeforeCaptureDeadline)
+}
+
+func TestEnrichSettlementPayload_PartialCaptureVoidsRemainder(t *testing.T) {
+	signer := &mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+	scheme := newTestScheme(signer)
+	payload := eip3009CollectPayload(nil)
+	override := mockRequirements(nil)
+	override.Amount = "400000"
+
+	fields, err := scheme.EnrichSettlementPayload(x402.SettleContext{
+		Ctx:          context.Background(),
+		Payload:      payload,
+		Requirements: override,
+		Phase:        x402.SettlePhaseAfterHandler,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, authcapture.IsCapturePayload(mergeEnrichment(t, payload, fields)))
+	assert.Equal(t, "400000", fields["amount"])
+	assert.Equal(t, "1000000", fields["expectedCapturableAmount"])
+	assert.Equal(t, "0", fields["expectedRefundableAmount"])
+	assert.Equal(t, "0xdeadbeef", fields["voidAuthorizerSignature"])
+	assert.Equal(t, "1000000", fields["paymentInfo"].(map[string]interface{})["maxAmount"])
+	assert.Equal(t, "Void", signer.lastPrimaryType)
+}
+
+func TestEnrichSettlementPayload_PartialCaptureFeeFollowsCaptureAmount(t *testing.T) {
+	scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	override := mockRequirements(map[string]interface{}{"minFeeBps": float64(100)})
+	override.Amount = "400000"
+
+	fields, err := scheme.EnrichSettlementPayload(x402.SettleContext{
+		Ctx:          context.Background(),
+		Payload:      eip3009CollectPayload(nil),
+		Requirements: override,
+		Phase:        x402.SettlePhaseAfterHandler,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "4000", fields["feeAmount"])
+}
+
+func TestEnrichSettlementPayload_CaptureAmountMustFitAuthorizedHold(t *testing.T) {
+	for _, amount := range []string{"1000001", "0", "abc"} {
+		t.Run(amount, func(t *testing.T) {
+			scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+			override := mockRequirements(nil)
+			override.Amount = amount
+
+			_, err := scheme.EnrichSettlementPayload(x402.SettleContext{
+				Ctx:          context.Background(),
+				Payload:      eip3009CollectPayload(nil),
+				Requirements: override,
+				Phase:        x402.SettlePhaseAfterHandler,
+			})
+			require.ErrorContains(t, err, ErrInvalidCaptureAmount)
+		})
+	}
+}
+
+func TestEnrichSettlementPayload_CancelAfterAmountOverrideUsesAuthorizedHold(t *testing.T) {
+	scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	override := mockRequirements(nil)
+	override.Amount = "400000"
+
+	fields, err := scheme.EnrichSettlementPayload(x402.SettleContext{
+		Ctx:          context.Background(),
+		Payload:      eip3009CollectPayload(nil),
+		Requirements: override,
+		Phase:        x402.SettlePhaseCancel,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "1000000", fields["paymentInfo"].(map[string]interface{})["maxAmount"])
+}
+
+func TestCollectPayloadFields_Permit2UsesPermittedAmount(t *testing.T) {
+	fields, err := collectPayloadFields(map[string]interface{}{
+		"permit2Authorization": map[string]interface{}{
+			"from":      testPayer,
+			"spender":   authcapture.Permit2TokenCollectorAddress,
+			"nonce":     "1",
+			"deadline":  "1700003600",
+			"permitted": map[string]interface{}{"token": testAsset, "amount": "750000"},
+		},
+		"signature": "0xdeadbeef",
+		"salt":      "0x22",
+		"saltNonce": "0x01",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "750000", fields.authorizedAmount)
+	assert.Equal(t, uint64(1700003600), fields.preApprovalExpiry)
+	assert.Equal(t, testPayer, fields.payer)
+}
+
+func TestEnhancePaymentRequirements_MerchantExtraWinsOverFacilitatorKind(t *testing.T) {
+	scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	requirements := mockRequirements(map[string]interface{}{"minFeeBps": float64(3), "maxFeeBps": float64(30)})
+	supportedKind := types.SupportedKind{Extra: map[string]interface{}{
+		"captureAuthorizer": "0xffffffffffffffffffffffffffffffffffffffff",
+		"feeRecipient":      "0xffffffffffffffffffffffffffffffffffffffff",
+		"minFeeBps":         float64(1),
+		"maxFeeBps":         float64(1),
+		"name":              "Facilitator Name",
+	}}
+
+	enhanced, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, evm.NormalizeAddress(testCaptureAuthorizer), enhanced.Extra["captureAuthorizer"])
+	assert.Equal(t, evm.NormalizeAddress(testFeeRecipient), enhanced.Extra["feeRecipient"])
+	assert.Equal(t, uint16(3), enhanced.Extra["minFeeBps"])
+	assert.Equal(t, uint16(30), enhanced.Extra["maxFeeBps"])
+	assert.Equal(t, "USDC", enhanced.Extra["name"])
+}
+
+func TestAssetDerivedExtra(t *testing.T) {
+	scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	const (
+		permit2Only  = x402.Network("eip155:38833")
+		permit2With  = x402.Network("eip155:4326")
+		eip3009Asset = x402.Network("eip155:84532")
+	)
+
+	t.Run("eip3009 default asset carries the domain only", func(t *testing.T) {
+		got, err := scheme.ParsePrice("$1", eip3009Asset)
+		require.NoError(t, err)
+		assert.Contains(t, got.Extra, "name")
+		assert.Contains(t, got.Extra, "version")
+		assert.NotContains(t, got.Extra, "assetTransferMethod")
+	})
+
+	t.Run("permit2 asset without eip2612 publishes the method and no domain", func(t *testing.T) {
+		got, err := scheme.ParsePrice("$1", permit2Only)
+		require.NoError(t, err)
+		assert.Equal(t, "permit2", got.Extra["assetTransferMethod"])
+		assert.NotContains(t, got.Extra, "name")
+		assert.NotContains(t, got.Extra, "version")
+	})
+
+	t.Run("permit2 asset with eip2612 publishes the method and the domain", func(t *testing.T) {
+		got, err := scheme.ParsePrice("$1", permit2With)
+		require.NoError(t, err)
+		assert.Equal(t, "permit2", got.Extra["assetTransferMethod"])
+		assert.Contains(t, got.Extra, "name")
+		assert.Contains(t, got.Extra, "version")
+	})
+
+	t.Run("enhance leaves the domain off a permit2-only asset", func(t *testing.T) {
+		requirements := mockRequirements(nil)
+		requirements.Network = string(permit2Only)
+		requirements.Asset = ""
+		requirements.Extra = map[string]interface{}{"assetTransferMethod": "permit2"}
+		supportedKind := types.SupportedKind{Extra: map[string]interface{}{
+			"captureAuthorizer": testCaptureAuthorizer,
+			"feeRecipient":      testFeeRecipient,
+			"minFeeBps":         float64(0),
+			"maxFeeBps":         float64(100),
+		}}
+
+		enhanced, err := scheme.EnhancePaymentRequirements(context.Background(), requirements, supportedKind, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "permit2", enhanced.Extra["assetTransferMethod"])
+		assert.NotContains(t, enhanced.Extra, "name")
+		assert.NotContains(t, enhanced.Extra, "version")
+	})
 }

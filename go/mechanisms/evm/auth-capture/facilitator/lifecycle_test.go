@@ -14,6 +14,7 @@ import (
 	x402 "github.com/x402-foundation/x402/go/v2"
 	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	authcapture "github.com/x402-foundation/x402/go/v2/mechanisms/evm/auth-capture"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 func TestVerifyCapture_HappyPath(t *testing.T) {
@@ -442,4 +443,105 @@ func TestRevertReason(t *testing.T) {
 
 	assert.Nil(t, errorRevertData(assert.AnError))
 	assert.Nil(t, errorRevertData(revertError{data: "not hex"}))
+}
+
+func TestLifecycle_PartialCaptureAmountOverride(t *testing.T) {
+	override := func(fx lifecycleFixture, amount string) types.PaymentRequirements {
+		requirements := fx.requirements
+		requirements.Amount = amount
+		return requirements
+	}
+
+	t.Run("verify and settle accept a requirements amount below the signed hold", func(t *testing.T) {
+		fx := newLifecycleFixture(t, nil)
+		wire := fx.buildCapture(t, captureOpts{amount: "600000", withVoid: true})
+		requirements := override(fx, "600000")
+
+		verified, err := newScheme(fx.signer(), AuthCaptureEvmSchemeConfig{}).Verify(context.Background(), fx.payload(wire), requirements, nil)
+		require.NoError(t, err)
+		assert.True(t, verified.IsValid)
+
+		settled, err := newScheme(fx.signer(), AuthCaptureEvmSchemeConfig{}).Settle(context.Background(), fx.payload(wire), requirements, nil)
+		require.NoError(t, err)
+		assert.True(t, settled.Success)
+	})
+
+	t.Run("maxAmount must equal the accepted amount, not the override", func(t *testing.T) {
+		fx := newLifecycleFixture(t, nil)
+		payload := fx.payload(fx.buildCapture(t, captureOpts{}))
+		payload.Accepted.Amount = "600000"
+
+		_, err := newScheme(fx.signer(), AuthCaptureEvmSchemeConfig{}).Verify(context.Background(), payload, override(fx, "1000000"), nil)
+		assertVerifyReason(t, err, ErrPaymentInfoMismatch)
+	})
+}
+
+func TestLifecycle_SignaturesAreVerifiedBeforeChainState(t *testing.T) {
+	tests := []struct {
+		name   string
+		build  func(t *testing.T, fx lifecycleFixture) map[string]interface{}
+		reason string
+	}{
+		{
+			name: "capture signature over a different amount",
+			build: func(t *testing.T, fx lifecycleFixture) map[string]interface{} {
+				wire := fx.buildCapture(t, captureOpts{})
+				wire["amount"] = "999999"
+				return wire
+			},
+			reason: ErrAuthorizerSignature,
+		},
+		{
+			name: "void leg signed by another key",
+			build: func(t *testing.T, fx lifecycleFixture) map[string]interface{} {
+				wire := fx.buildCapture(t, captureOpts{amount: "600000", withVoid: true})
+				voidSignature, err := authcapture.SignVoid(context.Background(), newKeySigner(t), fx.extra.CaptureAuthorizer, fx.chainID, fx.paymentHash)
+				require.NoError(t, err)
+				wire["voidAuthorizerSignature"] = evm.BytesToHex(voidSignature)
+				return wire
+			},
+			reason: ErrVoidAuthorizerSignature,
+		},
+		{
+			name: "void payload signed by another key",
+			build: func(t *testing.T, fx lifecycleFixture) map[string]interface{} {
+				wire := fx.buildVoid(t)
+				voidSignature, err := authcapture.SignVoid(context.Background(), newKeySigner(t), fx.extra.CaptureAuthorizer, fx.chainID, fx.paymentHash)
+				require.NoError(t, err)
+				wire["authorizerSignature"] = evm.BytesToHex(voidSignature)
+				return wire
+			},
+			reason: ErrAuthorizerSignature,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fx := newLifecycleFixture(t, nil)
+			signer := fx.signer()
+
+			_, err := newScheme(signer, AuthCaptureEvmSchemeConfig{}).Verify(context.Background(), fx.payload(test.build(t, fx)), fx.requirements, nil)
+			assertVerifyReason(t, err, test.reason)
+			assert.Zero(t, signer.stateReads, "no chain state may be read for an unauthenticated payload")
+		})
+	}
+}
+
+func TestLifecycle_SimulationsRunAsTheOperator(t *testing.T) {
+	fx := newLifecycleFixture(t, nil)
+	wire := fx.buildCapture(t, captureOpts{amount: "600000", withVoid: true})
+
+	signer := fx.signer()
+	_, err := newScheme(signer, AuthCaptureEvmSchemeConfig{}).Verify(context.Background(), fx.payload(wire), fx.requirements, nil)
+	require.NoError(t, err)
+	require.Len(t, signer.readFroms, 2, "capture and void are both simulated")
+	for _, from := range signer.readFroms {
+		assert.True(t, strings.EqualFold(fx.paymentInfo.Operator, from), "simulated from %s, want the operator %s", from, fx.paymentInfo.Operator)
+	}
+
+	t.Run("a signer without SenderReader still simulates", func(t *testing.T) {
+		plain := struct{ evm.FacilitatorEvmSigner }{fx.signer()}
+		_, err := NewAuthCaptureEvmScheme(plain, AuthCaptureEvmSchemeConfig{CaptureAuthorizer: facCaptureAuthorizer}).
+			Verify(context.Background(), fx.payload(wire), fx.requirements, nil)
+		require.NoError(t, err)
+	})
 }

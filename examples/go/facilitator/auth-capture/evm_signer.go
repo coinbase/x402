@@ -101,6 +101,19 @@ func (s *facilitatorEvmSigner) ReadContract(
 	method string,
 	args ...interface{},
 ) (interface{}, error) {
+	return s.ReadContractFrom(ctx, s.address.Hex(), contractAddress, abiJSON, method, args...)
+}
+
+// ReadContractFrom implements the auth-capture facilitator's SenderReader: the escrow gates
+// capture and void on msg.sender, so simulations must call as the operator.
+func (s *facilitatorEvmSigner) ReadContractFrom(
+	ctx context.Context,
+	from string,
+	contractAddress string,
+	abiJSON []byte,
+	method string,
+	args ...interface{},
+) (interface{}, error) {
 	parsedABI, err := abi.JSON(strings.NewReader(string(abiJSON)))
 	if err != nil {
 		return nil, fmt.Errorf("parse ABI: %w", err)
@@ -114,8 +127,7 @@ func (s *facilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("pack call: %w", err)
 	}
 	to := common.HexToAddress(contractAddress)
-	// The escrow gates capture and void on msg.sender, so simulations must call as the operator.
-	out, err := s.client.CallContract(ctx, ethereum.CallMsg{From: s.address, To: &to, Data: data}, nil)
+	out, err := s.client.CallContract(ctx, ethereum.CallMsg{From: common.HexToAddress(from), To: &to, Data: data}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("call contract: %w", err)
 	}

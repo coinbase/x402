@@ -45,6 +45,11 @@ type mockFacSigner struct {
 	receiptErr error
 
 	multicallSuccess bool
+
+	code                   []byte
+	isValidSignatureResult interface{}
+	stateReads             int
+	readFroms              []string
 }
 
 func newMockFacSigner(addresses ...string) *mockFacSigner {
@@ -61,7 +66,7 @@ func newMockFacSigner(addresses ...string) *mockFacSigner {
 
 func (m *mockFacSigner) GetAddresses() []string { return m.addresses }
 
-func (m *mockFacSigner) GetCode(_ context.Context, _ string) ([]byte, error) { return nil, nil }
+func (m *mockFacSigner) GetCode(_ context.Context, _ string) ([]byte, error) { return m.code, nil }
 
 func init() { collectedReadDelay = time.Millisecond }
 
@@ -84,10 +89,19 @@ func (m *mockFacSigner) ReadContract(_ context.Context, _ string, abiJSON []byte
 	if functionName == "tryAggregate" {
 		return m.tryAggregate(args)
 	}
+	if functionName == "isValidSignature" {
+		return m.isValidSignatureResult, nil
+	}
 	if err := m.simulateErr[functionName]; err != nil {
 		return nil, err
 	}
 	return nil, nil
+}
+
+// ReadContractFrom records the simulated sender so tests can assert it is the operator.
+func (m *mockFacSigner) ReadContractFrom(ctx context.Context, from, address string, abiJSON []byte, functionName string, args ...interface{}) (interface{}, error) {
+	m.readFroms = append(m.readFroms, from)
+	return m.ReadContract(ctx, address, abiJSON, functionName, args...)
 }
 
 func (m *mockFacSigner) VerifyTypedData(context.Context, string, evm.TypedDataDomain, map[string][]evm.TypedDataField, string, map[string]interface{}, []byte) (bool, error) {
@@ -133,6 +147,7 @@ type aggregateResult = struct {
 // tryAggregate answers a Multicall3 batch: paymentState calls return the encoded state,
 // any other call (a factory deploy) succeeds or fails per multicallSuccess.
 func (m *mockFacSigner) tryAggregate(args []interface{}) (interface{}, error) {
+	m.stateReads++
 	if m.paymentStateErr != nil {
 		return nil, m.paymentStateErr
 	}

@@ -247,6 +247,19 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 	method string,
 	args ...interface{},
 ) (interface{}, error) {
+	return s.ReadContractFrom(ctx, s.address.Hex(), contractAddress, abiJSON, method, args...)
+}
+
+// ReadContractFrom reads as an explicit sender, which the auth-capture escrow requires
+// because it gates authorize, capture and void on msg.sender.
+func (s *realFacilitatorEvmSigner) ReadContractFrom(
+	ctx context.Context,
+	from string,
+	contractAddress string,
+	abiJSON []byte,
+	method string,
+	args ...interface{},
+) (interface{}, error) {
 	// Parse ABI
 	contractABI, err := abi.JSON(strings.NewReader(string(abiJSON)))
 	if err != nil {
@@ -268,7 +281,7 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 	// msg.sender == witness.facilitator in settle().
 	to := common.HexToAddress(contractAddress)
 	msg := ethereum.CallMsg{
-		From: s.address,
+		From: common.HexToAddress(from),
 		To:   &to,
 		Data: data,
 	}

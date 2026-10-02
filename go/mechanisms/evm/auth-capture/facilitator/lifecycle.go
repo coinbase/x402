@@ -26,10 +26,11 @@ type lifecyclePreconditions struct {
 	refundableAmount *big.Int
 }
 
-// checkLifecycleCommon validates what capture and void share: the request, the relay
-// gates, the paymentInfo against the requirements, the salt binding and the payment state.
+// checkLifecycleCommon validates what capture and void share without touching the chain: the
+// request, the relay gates, the paymentInfo against the originally accepted requirements and
+// the salt binding. The on-chain payment state is read separately, after the authorizer
+// signature checks, so a forged payload cannot cost any RPC reads.
 func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
-	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
 	paymentInfo authcapture.PaymentInfoStruct,
@@ -69,7 +70,7 @@ func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
 	if !strings.EqualFold(expectedSalt, paymentInfo.Salt) {
 		return nil, x402.NewVerifyError(ErrSaltBindingMismatch, payer, "salt does not match derived bound salt")
 	}
-	if mismatch := paymentInfoMismatch(paymentInfo, requirements, extra); mismatch != "" {
+	if mismatch := paymentInfoMismatch(paymentInfo, payload.Accepted.Amount, requirements, extra); mismatch != "" {
 		return nil, x402.NewVerifyError(ErrPaymentInfoMismatch, payer, mismatch)
 	}
 
@@ -77,35 +78,48 @@ func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, payer, err.Error())
 	}
-	hasCollected, capturable, refundable, err := readCollectedState(ctx, f.signer, &rc.deployment, paymentInfoHash)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, err.Error())
-	}
-	if !hasCollected {
-		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "payment has not been collected on-chain")
-	}
 
 	return &lifecyclePreconditions{
-		deployment:       rc.deployment,
-		extra:            extra,
-		chainID:          rc.chainID,
-		paymentInfo:      paymentInfo,
-		paymentInfoHash:  paymentInfoHash,
-		capturableAmount: capturable,
-		refundableAmount: refundable,
+		deployment:      rc.deployment,
+		extra:           extra,
+		chainID:         rc.chainID,
+		paymentInfo:     paymentInfo,
+		paymentInfoHash: paymentInfoHash,
 	}, nil
 }
 
+// loadCollectedState fills the on-chain balances and requires the payment to be collected.
+func (f *AuthCaptureEvmScheme) loadCollectedState(ctx context.Context, lc *lifecyclePreconditions) error {
+	payer := lc.paymentInfo.Payer
+	hasCollected, capturable, refundable, err := readCollectedState(ctx, f.signer, &lc.deployment, lc.paymentInfoHash)
+	if err != nil {
+		return x402.NewVerifyError(ErrUnexpectedPaymentState, payer, err.Error())
+	}
+	if !hasCollected {
+		return x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "payment has not been collected on-chain")
+	}
+	lc.capturableAmount = capturable
+	lc.refundableAmount = refundable
+	return nil
+}
+
 // paymentInfoMismatch returns a description of the first paymentInfo field that differs
-// from what the requirements dictate, or "" when they all match.
-func paymentInfoMismatch(info authcapture.PaymentInfoStruct, requirements types.PaymentRequirements, extra authcapture.AuthCaptureExtra) string {
+// from what the requirements dictate, or "" when they all match. maxAmount is the amount
+// the payer authorized, so it is compared with the accepted amount: on the settle path
+// requirements.Amount carries the capture amount, which may be a partial one.
+func paymentInfoMismatch(
+	info authcapture.PaymentInfoStruct,
+	acceptedAmount string,
+	requirements types.PaymentRequirements,
+	extra authcapture.AuthCaptureExtra,
+) string {
 	switch {
 	case !strings.EqualFold(info.Receiver, requirements.PayTo):
 		return "paymentInfo.receiver does not match requirements.payTo"
 	case !strings.EqualFold(info.Token, requirements.Asset):
 		return "paymentInfo.token does not match requirements.asset"
-	case info.MaxAmount != requirements.Amount:
-		return "paymentInfo.maxAmount does not match requirements.amount"
+	case info.MaxAmount != acceptedAmount:
+		return "paymentInfo.maxAmount does not match the accepted amount"
 	case !strings.EqualFold(info.FeeReceiver, extra.FeeRecipient):
 		return "paymentInfo.feeReceiver does not match extra.feeRecipient"
 	case info.MinFeeBps != extra.MinFeeBps || info.MaxFeeBps != extra.MaxFeeBps:
@@ -131,7 +145,7 @@ func (f *AuthCaptureEvmScheme) simulateLifecycle(ctx context.Context, lc *lifecy
 	if err != nil {
 		return err
 	}
-	return simulateEscrowCall(ctx, f.signer, &lc.deployment, lc.paymentInfo.Payer, function, append([]interface{}{tuple}, args...)...)
+	return simulateEscrowCall(ctx, f.signer, &lc.deployment, lc.paymentInfo.Operator, lc.paymentInfo.Payer, function, append([]interface{}{tuple}, args...)...)
 }
 
 // writeLifecycle submits an operator-gated escrow call taking the paymentInfo first.
@@ -186,6 +200,8 @@ func parseUint(value string) (*big.Int, bool) {
 }
 
 // checkCapturePreconditions validates a capture payload per the spec's Lifecycle payloads checklist.
+// Every check that needs no chain read, including both authorizer signatures, runs before the
+// payment state is read.
 func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	ctx context.Context,
 	payload types.PaymentPayload,
@@ -197,7 +213,7 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	}
 	payer := p.PaymentInfo.Payer
 
-	lc, err := f.checkLifecycleCommon(ctx, payload, requirements, p.PaymentInfo, p.SaltNonce)
+	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce)
 	if err != nil {
 		return nil, err
 	}
@@ -212,13 +228,10 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	if !amountOK || !capturableOK || !refundableOK {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, payer, "amount, expectedCapturableAmount and expectedRefundableAmount must be unsigned integers")
 	}
-	if expectedCapturable.Cmp(lc.capturableAmount) != 0 || expectedRefundable.Cmp(lc.refundableAmount) != 0 {
-		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "expected capturable/refundable amount is stale")
-	}
 	if uint64(time.Now().Unix()) >= p.PaymentInfo.AuthorizationExpiry {
 		return nil, x402.NewVerifyError(ErrCaptureDeadlineExpired, payer, "authorizationExpiry has passed")
 	}
-	if amount.Sign() <= 0 || amount.Cmp(lc.capturableAmount) > 0 {
+	if amount.Sign() <= 0 {
 		return nil, x402.NewVerifyError(ErrInsufficientAuthorization, payer, "amount must be > 0 and <= capturableAmount")
 	}
 	if !strings.EqualFold(p.FeeReceiver, lc.extra.FeeRecipient) {
@@ -247,11 +260,23 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	if !valid {
 		return nil, x402.NewVerifyError(ErrAuthorizerSignature, payer, "authorizer signature invalid")
 	}
-
 	if p.VoidAuthorizerSignature != "" {
-		if err := f.checkVoidLeg(ctx, lc, amount, p.VoidAuthorizerSignature); err != nil {
+		if err := f.checkVoidSignature(ctx, lc, p.VoidAuthorizerSignature, ErrVoidAuthorizerSignature); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := f.loadCollectedState(ctx, lc); err != nil {
+		return nil, err
+	}
+	if expectedCapturable.Cmp(lc.capturableAmount) != 0 || expectedRefundable.Cmp(lc.refundableAmount) != 0 {
+		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "expected capturable/refundable amount is stale")
+	}
+	if amount.Cmp(lc.capturableAmount) > 0 {
+		return nil, x402.NewVerifyError(ErrInsufficientAuthorization, payer, "amount must be > 0 and <= capturableAmount")
+	}
+	if p.VoidAuthorizerSignature != "" && amount.Cmp(lc.capturableAmount) >= 0 {
+		return nil, x402.NewVerifyError(ErrVoidRemainderFullCapture, payer, "voidAuthorizerSignature present but amount leaves no remainder to void")
 	}
 
 	return &capturePreconditions{
@@ -263,22 +288,20 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	}, nil
 }
 
-// checkVoidLeg validates the voidAuthorizerSignature of a capture-and-void payload.
-func (f *AuthCaptureEvmScheme) checkVoidLeg(ctx context.Context, lc *lifecyclePreconditions, amount *big.Int, voidSignature string) error {
+// checkVoidSignature verifies the receiverAuthorizer's Void signature over the paymentInfoHash.
+// invalidReason names the failure for a signature that does not verify.
+func (f *AuthCaptureEvmScheme) checkVoidSignature(ctx context.Context, lc *lifecyclePreconditions, voidSignature, invalidReason string) error {
 	payer := lc.paymentInfo.Payer
-	if amount.Cmp(lc.capturableAmount) >= 0 {
-		return x402.NewVerifyError(ErrVoidRemainderFullCapture, payer, "voidAuthorizerSignature present but amount leaves no remainder to void")
-	}
 	sig, err := evm.HexToBytes(voidSignature)
 	if err != nil {
-		return x402.NewVerifyError(ErrVoidAuthorizerSignature, payer, err.Error())
+		return x402.NewVerifyError(invalidReason, payer, err.Error())
 	}
 	valid, err := authcapture.VerifyVoid(ctx, f.signer, lc.extra.ReceiverAuthorizer, lc.extra.CaptureAuthorizer, lc.chainID, lc.paymentInfoHash, sig)
 	if err != nil {
-		return x402.NewVerifyError(ErrVoidAuthorizerSignature, payer, err.Error())
+		return x402.NewVerifyError(invalidReason, payer, err.Error())
 	}
 	if !valid {
-		return x402.NewVerifyError(ErrVoidAuthorizerSignature, payer, "void authorizer signature invalid")
+		return x402.NewVerifyError(invalidReason, payer, "void authorizer signature invalid")
 	}
 	return nil
 }
@@ -402,24 +425,19 @@ func (f *AuthCaptureEvmScheme) checkVoidPreconditions(
 		return nil, x402.NewVerifyError(ErrVoidAuthorizerSignature, payer, "voidAuthorizerSignature must not appear on a void payload")
 	}
 
-	lc, err := f.checkLifecycleCommon(ctx, payload, requirements, p.PaymentInfo, p.SaltNonce)
+	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce)
 	if err != nil {
+		return nil, err
+	}
+	if err := f.checkVoidSignature(ctx, lc, p.AuthorizerSignature, ErrAuthorizerSignature); err != nil {
+		return nil, err
+	}
+
+	if err := f.loadCollectedState(ctx, lc); err != nil {
 		return nil, err
 	}
 	if lc.capturableAmount.Sign() <= 0 {
 		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "no capturable balance to void")
-	}
-
-	sig, err := evm.HexToBytes(p.AuthorizerSignature)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrSignature, payer, err.Error())
-	}
-	valid, err := authcapture.VerifyVoid(ctx, f.signer, lc.extra.ReceiverAuthorizer, lc.extra.CaptureAuthorizer, lc.chainID, lc.paymentInfoHash, sig)
-	if err != nil {
-		return nil, x402.NewVerifyError(ErrAuthorizerSignature, payer, err.Error())
-	}
-	if !valid {
-		return nil, x402.NewVerifyError(ErrAuthorizerSignature, payer, "authorizer signature invalid")
 	}
 	return lc, nil
 }

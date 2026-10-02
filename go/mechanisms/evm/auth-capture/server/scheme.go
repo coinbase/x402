@@ -171,8 +171,26 @@ func (s *AuthCaptureEvmScheme) defaultMoneyConversion(amount string, network x40
 	return x402.AssetAmount{
 		Asset:  assetInfo.Asset,
 		Amount: tokenAmount,
-		Extra:  map[string]interface{}{},
+		Extra:  assetExtra(assetInfo.Name, assetInfo.Version, assetInfo.AssetTransferMethod, assetInfo.SupportsEip2612),
 	}, nil
+}
+
+// assetExtra returns the asset-derived extra fields. Permit2-only tokens omit the EIP-712
+// domain because they never sign an EIP-3009 authorization.
+func assetExtra(name, version string, method evm.AssetTransferMethod, supportsEip2612 bool) map[string]interface{} {
+	extra := map[string]interface{}{}
+	if includesEip712Domain(method, supportsEip2612) {
+		extra["name"] = name
+		extra["version"] = version
+	}
+	if method != "" {
+		extra["assetTransferMethod"] = string(method)
+	}
+	return extra
+}
+
+func includesEip712Domain(method evm.AssetTransferMethod, supportsEip2612 bool) bool {
+	return method == "" || supportsEip2612
 }
 
 // EnhancePaymentRequirements resolves the asset and amount and fills in the auth-capture
@@ -211,10 +229,10 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 	}
 
 	extra := make(map[string]interface{}, len(requirements.Extra)+len(supportedKind.Extra)+12)
-	for key, value := range requirements.Extra {
+	for key, value := range supportedKind.Extra {
 		extra[key] = value
 	}
-	for key, value := range supportedKind.Extra {
+	for key, value := range requirements.Extra {
 		extra[key] = value
 	}
 
@@ -264,11 +282,13 @@ func (s *AuthCaptureEvmScheme) EnhancePaymentRequirements(
 	extra["captureMode"] = "sync"
 	extra["operatorType"] = "delegated"
 
-	if _, ok := extra["name"]; !ok {
-		extra["name"] = assetInfo.Name
-	}
-	if _, ok := extra["version"]; !ok {
-		extra["version"] = assetInfo.Version
+	if includesEip712Domain(assetInfo.AssetTransferMethod, assetInfo.SupportsEip2612) {
+		if _, ok := extra["name"]; !ok {
+			extra["name"] = assetInfo.Name
+		}
+		if _, ok := extra["version"]; !ok {
+			extra["version"] = assetInfo.Version
+		}
 	}
 
 	deployment := authcapture.ResolveAuthCaptureDeployment(s.config.AuthCaptureEscrow)

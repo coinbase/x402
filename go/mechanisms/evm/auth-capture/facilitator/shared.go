@@ -142,18 +142,26 @@ func errorRevertData(err error) []byte {
 	return data
 }
 
-// simulateEscrowCall eth_calls an AuthCaptureEscrow function and returns a typed
-// VerifyError when it reverts. The signer's ReadContract must call from the operator
-// address, because the escrow gates authorize, capture and void on msg.sender.
+// simulateEscrowCall eth_calls an AuthCaptureEscrow function as the operator and returns a typed
+// VerifyError when it reverts. The escrow gates authorize, capture and void on msg.sender, so
+// the call goes through SenderReader when the signer has it, else through ReadContract, which
+// then has to call from the operator itself.
 func simulateEscrowCall(
 	ctx context.Context,
 	signer evm.FacilitatorEvmSigner,
 	deployment *authcapture.AuthCaptureDeployment,
+	operator string,
 	payer string,
 	function string,
 	args ...interface{},
 ) error {
-	_, err := signer.ReadContract(ctx, deployment.Escrow, authcapture.EscrowABIForDeployment(deployment), function, args...)
+	escrowABI := authcapture.EscrowABIForDeployment(deployment)
+	var err error
+	if sender, ok := signer.(SenderReader); ok {
+		_, err = sender.ReadContractFrom(ctx, operator, deployment.Escrow, escrowABI, function, args...)
+	} else {
+		_, err = signer.ReadContract(ctx, deployment.Escrow, escrowABI, function, args...)
+	}
 	if err != nil {
 		return x402.NewVerifyError(revertReason(deployment, errorRevertData(err)), payer, err.Error())
 	}
