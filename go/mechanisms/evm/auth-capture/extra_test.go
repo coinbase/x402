@@ -45,6 +45,21 @@ func TestParseAuthCaptureExtra(t *testing.T) {
 	assert.Equal(t, "0x5555555555555555555555555555555555555555", extra.ReceiverAuthorizer)
 }
 
+func TestParseAuthCaptureExtra_Permit2DoesNotNeedTokenDomain(t *testing.T) {
+	extra := validExtra()
+	delete(extra, "name")
+	delete(extra, "version")
+
+	_, _, err := ParseAuthCaptureExtra(types.PaymentRequirements{Extra: extra})
+	require.Error(t, err, "an EIP-3009 requirement still needs the domain")
+
+	extra["assetTransferMethod"] = "permit2"
+	parsed, _, err := ParseAuthCaptureExtra(types.PaymentRequirements{Extra: extra})
+	require.NoError(t, err)
+	assert.Equal(t, "permit2", parsed.AssetTransferMethod)
+	assert.Empty(t, parsed.Name)
+}
+
 func TestParseAuthCaptureExtra_Rejects(t *testing.T) {
 	tests := []struct {
 		name   string

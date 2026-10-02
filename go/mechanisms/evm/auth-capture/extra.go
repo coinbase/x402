@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
@@ -16,13 +17,17 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("'captureAuthorizer' is required in payment requirements extra")
 	}
 
+	assetTransferMethod := stringFromExtra(ex, "assetTransferMethod")
 	name, _ := ex["name"].(string)
-	if name == "" {
-		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'name' is required in payment requirements for asset %s", requirements.Asset)
-	}
 	version, _ := ex["version"].(string)
-	if version == "" {
-		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'version' is required in payment requirements for asset %s", requirements.Asset)
+	// Only the EIP-3009 signature is bound to the token's EIP-712 domain.
+	if assetTransferMethod != string(evm.AssetTransferMethodPermit2) {
+		if name == "" {
+			return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'name' is required in payment requirements for asset %s", requirements.Asset)
+		}
+		if version == "" {
+			return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("EIP-712 domain parameter 'version' is required in payment requirements for asset %s", requirements.Asset)
+		}
 	}
 
 	captureAuthorizer, _ := ex["captureAuthorizer"].(string)
@@ -71,7 +76,7 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		PaymentFlow:         stringFromExtra(ex, "paymentFlow"),
 		AutoCapture:         autoCapture,
 		OperatorType:        stringFromExtra(ex, "operatorType"),
-		AssetTransferMethod: stringFromExtra(ex, "assetTransferMethod"),
+		AssetTransferMethod: assetTransferMethod,
 		AuthCaptureEscrow:   deployment.Escrow,
 	}, *deployment, nil
 }

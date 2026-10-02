@@ -725,3 +725,30 @@ func TestAssetDerivedExtra(t *testing.T) {
 		assert.NotContains(t, enhanced.Extra, "version")
 	})
 }
+
+func TestPermit2OnlyAsset_WithoutTokenDomain(t *testing.T) {
+	scheme := newTestScheme(&mockSigner{address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	requirements := mockRequirements(map[string]interface{}{"assetTransferMethod": "permit2"})
+	delete(requirements.Extra, "name")
+	delete(requirements.Extra, "version")
+
+	fields, err := scheme.EnrichSettlementPayload(x402.SettleContext{
+		Ctx: context.Background(),
+		Payload: types.PaymentPayload{X402Version: 2, Accepted: requirements, Payload: map[string]interface{}{
+			"permit2Authorization": map[string]interface{}{
+				"from":      testPayer,
+				"spender":   authcapture.Permit2TokenCollectorAddress,
+				"nonce":     "1",
+				"deadline":  "1700003600",
+				"permitted": map[string]interface{}{"token": testAsset, "amount": requirements.Amount},
+			},
+			"signature": "0xdeadbeef",
+			"salt":      "0x2222222222222222222222222222222222222222222222222222222222222222",
+			"saltNonce": "0x01",
+		}},
+		Requirements: requirements,
+		Phase:        x402.SettlePhaseAfterHandler,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "capture", fields["type"])
+}

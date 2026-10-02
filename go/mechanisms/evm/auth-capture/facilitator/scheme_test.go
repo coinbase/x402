@@ -416,3 +416,14 @@ func wrapERC6492ForTest(t *testing.T, factory common.Address, factoryData, inner
 	require.NoError(t, err)
 	return append(packed, magic...)
 }
+
+func TestVerifyCollect_Permit2OnlyAssetWithoutTokenDomain(t *testing.T) {
+	requirements := facBaseRequirements(facCaptureAuthorizer, map[string]interface{}{"assetTransferMethod": "permit2"})
+	delete(requirements.Extra, "name")
+	delete(requirements.Extra, "version")
+	payload := buildCollectPayload(t, requirements, newKeySigner(t), collectOpts{})
+
+	resp, err := newScheme(newMockFacSigner(facCaptureAuthorizer), AuthCaptureEvmSchemeConfig{}).Verify(context.Background(), payload, requirements, nil)
+	require.NoError(t, err)
+	assert.True(t, resp.IsValid)
+}
