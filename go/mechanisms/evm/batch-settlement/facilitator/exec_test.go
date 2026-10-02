@@ -713,6 +713,59 @@ func TestSettleDeposit_Erc20ApprovalSingleHashWithReadErrorReturnsSettlementPend
 // reports the current onchain balance, not balance+deposit. Projecting here
 // lets AfterVerifyHook cache unmined escrow and approve later vouchers against it.
 func TestVerifyDeposit_ExtraBalanceIsOnchainNotProjected(t *testing.T) {
+	resp, err := verifyDepositWithOnchainState(t, big.NewInt(100), big.NewInt(0), "150", "100")
+	if err != nil {
+		t.Fatalf("VerifyDeposit: %v", err)
+	}
+	if resp == nil || !resp.IsValid {
+		t.Fatalf("expected valid verify, got %+v", resp)
+	}
+	got, _ := resp.Extra["balance"].(string)
+	if got != "100" {
+		t.Fatalf("extra.balance = %q, want %q (onchain, not projected 200)", got, "100")
+	}
+}
+
+// TestVerifyDeposit_MaxClaimableMustAdvanceByPrice pins that a deposit voucher must
+// advance at least one route price above onchain totalClaimed.
+func TestVerifyDeposit_MaxClaimableMustAdvanceByPrice(t *testing.T) {
+	cases := []struct {
+		name         string
+		totalClaimed int64
+		maxClaimable string
+		wantOK       bool
+	}{
+		{"shortfall of one atom", 500, "501", false},
+		{"equals totalClaimed", 500, "500", false},
+		{"exactly totalClaimed plus price", 500, "600", true},
+		{"above totalClaimed plus price", 500, "650", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// price (reqsFor amount) = 100; deposit 100 on top of onchain balance 1000.
+			resp, err := verifyDepositWithOnchainState(t, big.NewInt(1000), big.NewInt(tc.totalClaimed), tc.maxClaimable, "100")
+			if tc.wantOK {
+				if err != nil || resp == nil || !resp.IsValid {
+					t.Fatalf("expected valid, got resp=%+v err=%v", resp, err)
+				}
+				return
+			}
+			var ve *x402.VerifyError
+			if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
+				t.Fatalf("expected ErrMaxClaimableTooLow, got resp=%+v err=%v", resp, err)
+			}
+		})
+	}
+}
+
+// verifyDepositWithOnchainState runs VerifyDeposit against a fake signer reporting the given
+// onchain balance and totalClaimed. The requirements amount (route price) is 100.
+func verifyDepositWithOnchainState(
+	t *testing.T,
+	onchainBalance, onchainTotalClaimed *big.Int,
+	maxClaimable, depositAmountStr string,
+) (*x402.VerifyResponse, error) {
+	t.Helper()
 	privKey, err := crypto.GenerateKey()
 	if err != nil {
 		t.Fatalf("GenerateKey: %v", err)
@@ -731,9 +784,7 @@ func TestVerifyDeposit_ExtraBalanceIsOnchainNotProjected(t *testing.T) {
 		t.Fatalf("ComputeChannelId: %v", err)
 	}
 
-	onchainBalance := big.NewInt(100)
-	depositAmount := big.NewInt(100)
-	maxClaimable := "150" // within onchain+deposit (200), above onchain (100)
+	depositAmount, _ := new(big.Int).SetString(depositAmountStr, 10)
 	tokenName, tokenVersion := "USD Coin", "2"
 	now := time.Now().Unix()
 	salt := "0x" + strings.Repeat("aa", 32)
@@ -789,7 +840,7 @@ func TestVerifyDeposit_ExtraBalanceIsOnchainNotProjected(t *testing.T) {
 		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
 			switch functionName {
 			case evm.FunctionTryAggregate:
-				return multicallChannelStateResult(t, onchainBalance, big.NewInt(0), 0, big.NewInt(0)), nil
+				return multicallChannelStateResult(t, onchainBalance, onchainTotalClaimed, 0, big.NewInt(0)), nil
 			case "deposit":
 				return nil, nil // simulation ok
 			default:
@@ -821,17 +872,7 @@ func TestVerifyDeposit_ExtraBalanceIsOnchainNotProjected(t *testing.T) {
 		"version":             tokenVersion,
 	}
 
-	resp, err := VerifyDeposit(context.Background(), facSigner, payload, reqs, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("VerifyDeposit: %v", err)
-	}
-	if resp == nil || !resp.IsValid {
-		t.Fatalf("expected valid verify, got %+v", resp)
-	}
-	got, _ := resp.Extra["balance"].(string)
-	if got != "100" {
-		t.Fatalf("extra.balance = %q, want %q (onchain, not projected 200)", got, "100")
-	}
+	return VerifyDeposit(context.Background(), facSigner, payload, reqs, nil, nil, nil)
 }
 
 // ----- VerifyDeposit pre-RPC paths -----
@@ -993,6 +1034,102 @@ func TestVerifyVoucher_ChannelConfigInvalid(t *testing.T) {
 	var ve *x402.VerifyError
 	if !errors.As(err, &ve) || ve.InvalidReason != ErrChannelIdMismatch {
 		t.Fatalf("got err = %v", err)
+	}
+}
+
+func voucherStateSigner(t *testing.T, balance, totalClaimed int64) *fakeFacilitatorSigner {
+	t.Helper()
+	return &fakeFacilitatorSigner{
+		addresses:       []string{"0xfacilitator"},
+		verifyTypedData: func(string) (bool, error) { return true, nil },
+		readContract: func(functionName string, _ ...interface{}) (interface{}, error) {
+			if functionName == evm.FunctionTryAggregate {
+				return multicallChannelStateResult(t, big.NewInt(balance), big.NewInt(totalClaimed), 0, big.NewInt(0)), nil
+			}
+			return nil, fmt.Errorf("unexpected rpc: %s", functionName)
+		},
+	}
+}
+
+// signedVoucherFields builds a channel config whose payer and payerAuthorizer are a fresh EOA and
+// signs a real voucher, so the facilitator's ECDSA voucher check passes.
+func signedVoucherFields(t *testing.T, maxClaimable string) (batchsettlement.ChannelConfig, batchsettlement.BatchSettlementVoucherFields) {
+	t.Helper()
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	addr := crypto.PubkeyToAddress(privKey.PublicKey).Hex()
+	signer, err := evmsigners.NewClientSignerFromPrivateKey(hex.EncodeToString(crypto.FromECDSA(privKey)))
+	if err != nil {
+		t.Fatalf("NewClientSignerFromPrivateKey: %v", err)
+	}
+	cfg := validConfig()
+	cfg.Payer = addr
+	cfg.PayerAuthorizer = addr
+	id, err := batchsettlement.ComputeChannelId(cfg, testNetwork)
+	if err != nil {
+		t.Fatalf("ComputeChannelId: %v", err)
+	}
+	v, err := bsclient.SignVoucher(context.Background(), signer, id, maxClaimable, testNetwork)
+	if err != nil {
+		t.Fatalf("SignVoucher: %v", err)
+	}
+	return cfg, *v
+}
+
+// TestVerifyVoucher_MaxClaimableMustAdvanceByPrice pins that a non-refund voucher must
+// advance at least one route price (reqsFor amount = 100) above onchain totalClaimed.
+func TestVerifyVoucher_MaxClaimableMustAdvanceByPrice(t *testing.T) {
+	cases := []struct {
+		name         string
+		maxClaimable string
+		wantOK       bool
+	}{
+		{"shortfall of one atom", "501", false},
+		{"equals totalClaimed", "500", false},
+		{"exactly totalClaimed plus price", "600", true},
+		{"above totalClaimed plus price", "650", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, voucher := signedVoucherFields(t, tc.maxClaimable)
+			payload := &batchsettlement.BatchSettlementVoucherPayload{Type: "voucher", ChannelConfig: cfg, Voucher: voucher}
+			resp, err := VerifyVoucher(context.Background(), voucherStateSigner(t, 1000, 500), payload, reqsFor(testNetwork), cfg)
+			if tc.wantOK {
+				if err != nil || resp == nil || !resp.IsValid {
+					t.Fatalf("expected valid, got resp=%+v err=%v", resp, err)
+				}
+				return
+			}
+			var ve *x402.VerifyError
+			if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
+				t.Fatalf("expected ErrMaxClaimableTooLow, got resp=%+v err=%v", resp, err)
+			}
+		})
+	}
+}
+
+// TestVerifyRefundVoucher_AllowsMaxClaimableEqualToTotalClaimed pins that refunds stay
+// exempt from the price-advance rule (zero-charge) but may not go below totalClaimed.
+func TestVerifyRefundVoucher_AllowsMaxClaimableEqualToTotalClaimed(t *testing.T) {
+	for _, tc := range []struct {
+		maxClaimable string
+		wantOK       bool
+	}{{"500", true}, {"499", false}} {
+		cfg, voucher := signedVoucherFields(t, tc.maxClaimable)
+		payload := &batchsettlement.BatchSettlementRefundPayload{Type: "refund", ChannelConfig: cfg, Voucher: voucher}
+		resp, err := VerifyRefundVoucher(context.Background(), voucherStateSigner(t, 1000, 500), payload, reqsFor(testNetwork), cfg)
+		if tc.wantOK {
+			if err != nil || resp == nil || !resp.IsValid {
+				t.Fatalf("M=%s: expected valid, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+			}
+			continue
+		}
+		var ve *x402.VerifyError
+		if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
+			t.Fatalf("M=%s: expected ErrMaxClaimableTooLow, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+		}
 	}
 }
 

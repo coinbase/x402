@@ -78,7 +78,7 @@ def verify_voucher(
     if is_refund:
         below_claimed = max_claimable_amount < state.total_claimed
     else:
-        below_claimed = max_claimable_amount <= state.total_claimed
+        below_claimed = max_claimable_amount < state.total_claimed + int(requirements.amount)
     if below_claimed:
         return VerifyResponse(
             is_valid=False,

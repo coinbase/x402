@@ -473,6 +473,35 @@ describe("BatchSettlementEvmScheme (Facilitator) — verifyVoucher", () => {
     expect(result.invalidReason).toBe(Errors.ErrCumulativeAmountBelowClaimed);
   });
 
+  it("returns CumulativeAmountBelowClaimed when maxClaimable advances totalClaimed by less than the price", async () => {
+    const signer = buildSigner();
+    mockedMulticall.mockResolvedValue([
+      { status: "success", result: [10000n, 500n] },
+      { status: "success", result: [0n, 0n] },
+      { status: "success", result: 0n },
+    ]);
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const { payload } = makeVoucherPayload({ voucher: { maxClaimableAmount: "1000" } });
+
+    const result = await scheme.verify(payload, makeRequirements({ amount: "1000" }));
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe(Errors.ErrCumulativeAmountBelowClaimed);
+  });
+
+  it("accepts a voucher that advances totalClaimed by exactly the price", async () => {
+    const signer = buildSigner();
+    mockedMulticall.mockResolvedValue([
+      { status: "success", result: [10000n, 500n] },
+      { status: "success", result: [0n, 0n] },
+      { status: "success", result: 0n },
+    ]);
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const { payload } = makeVoucherPayload({ voucher: { maxClaimableAmount: "1500" } });
+
+    const result = await scheme.verify(payload, makeRequirements({ amount: "1000" }));
+    expect(result.isValid).toBe(true);
+  });
+
   it("accepts a refund payload whose maxClaimable equals totalClaimed", async () => {
     const signer = buildSigner();
     mockedMulticall.mockResolvedValue([
@@ -546,7 +575,10 @@ describe("BatchSettlementEvmScheme (Facilitator) — verifyVoucher", () => {
 describe("BatchSettlementEvmScheme (Facilitator) — verifyDeposit", () => {
   const authorizer = buildAuthorizerSigner();
 
-  function buildDeposit(overrides: Partial<BatchSettlementDepositPayload["deposit"]> = {}): {
+  function buildDeposit(
+    overrides: Partial<BatchSettlementDepositPayload["deposit"]> = {},
+    maxClaimableAmount = "1000",
+  ): {
     payload: PaymentPayload;
     channelId: `0x${string}`;
   } {
@@ -558,7 +590,7 @@ describe("BatchSettlementEvmScheme (Facilitator) — verifyDeposit", () => {
       channelConfig: config,
       voucher: {
         channelId,
-        maxClaimableAmount: "1000",
+        maxClaimableAmount,
         signature: "0xcafebabe",
       },
       deposit: {
@@ -592,6 +624,22 @@ describe("BatchSettlementEvmScheme (Facilitator) — verifyDeposit", () => {
     expect(result.isValid).toBe(true);
     expect(result.payer).toBe(PAYER);
     expect(result.extra?.channelId).toBe(channelId);
+  });
+
+  it("returns CumulativeAmountBelowClaimed when the voucher advances totalClaimed by less than the price", async () => {
+    const signer = buildSigner();
+    mockedMulticall.mockResolvedValue([
+      { status: "success", result: [1000n, 500n] },
+      { status: "success", result: 1_000_000n },
+      { status: "success", result: [0n, 0n] },
+      { status: "success", result: 0n },
+    ]);
+    const scheme = new BatchSettlementEvmScheme(signer, authorizer);
+    const { payload } = buildDeposit({}, "1000");
+
+    const result = await scheme.verify(payload, makeRequirements({ amount: "1000" }));
+    expect(result.isValid).toBe(false);
+    expect(result.invalidReason).toBe(Errors.ErrCumulativeAmountBelowClaimed);
   });
 
   it("returns InsufficientBalance when payer balance < deposit amount", async () => {

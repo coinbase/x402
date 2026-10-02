@@ -1893,7 +1893,7 @@ describe("BatchSettlementEvmScheme — onAfterVerify", () => {
     const result: VerifyResponse = {
       isValid: true,
       payer: PAYER,
-      extra: { balance: "10000", totalClaimed: "1000", refundNonce: "0" },
+      extra: { balance: "10000", totalClaimed: "0", refundNonce: "0" },
     } as VerifyResponse;
 
     const directive = await server.schemeHooks.onAfterVerify!({
@@ -1903,6 +1903,123 @@ describe("BatchSettlementEvmScheme — onAfterVerify", () => {
     } as never);
 
     expect(directive).toBeUndefined();
+  });
+
+  describe("charge baseline when no local channel record exists", () => {
+    const afterVerify = (
+      paymentPayload: PaymentPayload,
+      requirements: PaymentRequirements,
+      extra: Record<string, unknown>,
+    ) =>
+      server.schemeHooks.onAfterVerify!({
+        paymentPayload,
+        requirements,
+        result: { isValid: true, payer: PAYER, extra } as VerifyResponse,
+      } as never) as Promise<{ abort?: true; reason?: string } | undefined>;
+
+    it("uses the onchain totalClaimed as the charged baseline", async () => {
+      const config = buildChannelConfig();
+      const channelId = computeChannelId(config);
+      const payload = buildVoucherPayload(channelId, "6000", config);
+      const requirements = makeRequirements({ amount: "1000" });
+      await runBeforeVerify(server, payload, requirements);
+
+      const result = await afterVerify(payload, requirements, {
+        balance: "10000",
+        totalClaimed: "5000",
+        refundNonce: "0",
+      });
+
+      expect(result).toBeUndefined();
+      expect((await storage.get(channelId))?.chargedCumulativeAmount).toBe("5000");
+    });
+
+    it("rejects a voucher advancing by less than the price above the onchain totalClaimed", async () => {
+      const config = buildChannelConfig();
+      const channelId = computeChannelId(config);
+      const payload = buildVoucherPayload(channelId, "5001", config);
+      const requirements = makeRequirements({ amount: "1000" });
+      expect(await runBeforeVerifyResult(payload, requirements)).toBeUndefined();
+
+      const result = await afterVerify(payload, requirements, {
+        balance: "10000",
+        totalClaimed: "5000",
+        withdrawRequestedAt: 0,
+        refundNonce: "2",
+      });
+
+      expect(result).toMatchObject({ abort: true, reason: Errors.ErrCumulativeAmountMismatch });
+      expect(await storage.get(channelId)).toBeUndefined();
+
+      const corrective = server.takeChannelSnapshot(payload);
+      expect(corrective?.chargedCumulativeAmount).toBe("5000");
+      expect(corrective?.totalClaimed).toBe("5000");
+      expect(corrective?.balance).toBe("10000");
+      expect(corrective?.refundNonce).toBe(2);
+    });
+
+    it("rejects a deposit advancing by less than the price above the onchain totalClaimed", async () => {
+      const config = buildChannelConfig();
+      const channelId = computeChannelId(config);
+      const payload = buildDepositPayload(channelId, config, "2", "5001");
+      const requirements = makeRequirements({ amount: "1000" });
+      await runBeforeVerify(server, payload, requirements);
+
+      const result = await afterVerify(payload, requirements, {
+        balance: "10000",
+        totalClaimed: "5000",
+        refundNonce: "0",
+      });
+
+      expect(result).toMatchObject({ abort: true, reason: Errors.ErrCumulativeAmountMismatch });
+      expect(await storage.get(channelId)).toBeUndefined();
+    });
+
+    it("recovers a refund voucher baseline from the onchain totalClaimed", async () => {
+      const config = buildChannelConfig();
+      const channelId = computeChannelId(config);
+      const payload = buildRefundPayload(channelId, "5000", config);
+      const requirements = makeRequirements({ amount: "0" });
+      await runBeforeVerify(server, payload, requirements);
+
+      const result = await afterVerify(payload, requirements, {
+        balance: "10000",
+        totalClaimed: "5000",
+        refundNonce: "0",
+      });
+
+      expect(result).toMatchObject({ skipHandler: true });
+      expect((await storage.get(channelId))?.chargedCumulativeAmount).toBe("5000");
+    });
+
+    it.each([
+      ["absent", undefined],
+      ["non-numeric", "abc"],
+      ["negative", "-1"],
+    ])("fails closed when the facilitator totalClaimed is %s", async (_label, totalClaimed) => {
+      const config = buildChannelConfig();
+      const channelId = computeChannelId(config);
+      const payload = buildVoucherPayload(channelId, "1000", config);
+      const requirements = makeRequirements({ amount: "1000" });
+      await runBeforeVerify(server, payload, requirements);
+
+      const result = await afterVerify(payload, requirements, {
+        balance: "10000",
+        ...(totalClaimed === undefined ? {} : { totalClaimed }),
+        refundNonce: "0",
+      });
+
+      expect(result).toMatchObject({ abort: true, reason: Errors.ErrVerificationStateUnavailable });
+      expect(await storage.get(channelId)).toBeUndefined();
+    });
+
+    /** Runs onBeforeVerify and returns its directive. */
+    async function runBeforeVerifyResult(
+      paymentPayload: PaymentPayload,
+      requirements: PaymentRequirements,
+    ): Promise<unknown> {
+      return server.schemeHooks.onBeforeVerify!({ paymentPayload, requirements } as never);
+    }
   });
 });
 

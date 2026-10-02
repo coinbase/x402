@@ -72,10 +72,13 @@ export async function verifyVoucher(
     };
   }
 
+  // Refunds are zero-charge, so the ceiling only has to cover what is already claimed; any other
+  // payload must advance the claimed total by at least the price of this request.
   const belowClaimed =
     payload.type === "refund"
       ? maxClaimableAmount < state.totalClaimed
-      : maxClaimableAmount <= state.totalClaimed;
+      : maxClaimableAmount < state.totalClaimed + BigInt(requirements.amount) ||
+        maxClaimableAmount <= state.totalClaimed;
   if (belowClaimed) {
     return {
       isValid: false,

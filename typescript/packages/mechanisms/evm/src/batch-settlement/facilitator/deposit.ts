@@ -297,7 +297,11 @@ async function verifySharedDepositState(
     };
   }
 
-  if (maxClaimableAmount <= chTotalClaimed) {
+  // The voucher must advance the claimed total by at least this request's price.
+  if (
+    maxClaimableAmount < chTotalClaimed + BigInt(requirements.amount) ||
+    maxClaimableAmount <= chTotalClaimed
+  ) {
     return {
       ok: false,
       response: { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer },

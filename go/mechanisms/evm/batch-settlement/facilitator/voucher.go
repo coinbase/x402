@@ -90,16 +90,20 @@ func verifyVoucherFields(
 	}
 
 	// Refund vouchers are zero-charge and may equal totalClaimed; non-refund
-	// vouchers must strictly increase claimable above totalClaimed.
-	belowClaimed := false
-	if isRefund {
-		belowClaimed = maxClaimable.Cmp(state.TotalClaimed) < 0
-	} else {
-		belowClaimed = maxClaimable.Cmp(state.TotalClaimed) <= 0
+	// vouchers must advance claimable by at least the route price above totalClaimed.
+	minMaxClaimable := new(big.Int).Set(state.TotalClaimed)
+	if !isRefund {
+		price, ok := new(big.Int).SetString(requirements.Amount, 10)
+		if !ok || price.Sign() < 0 {
+			return nil, x402.NewVerifyError(ErrInvalidVoucherPayload, channelConfig.Payer,
+				"invalid requirements amount")
+		}
+		minMaxClaimable.Add(minMaxClaimable, price)
 	}
-	if belowClaimed {
+	if maxClaimable.Cmp(minMaxClaimable) < 0 {
 		return nil, x402.NewVerifyError(ErrMaxClaimableTooLow, channelConfig.Payer,
-			fmt.Sprintf("maxClaimableAmount %s is below totalClaimed %s", maxClaimable.String(), state.TotalClaimed.String()))
+			fmt.Sprintf("maxClaimableAmount %s is below the required minimum %s (totalClaimed %s)",
+				maxClaimable.String(), minMaxClaimable.String(), state.TotalClaimed.String()))
 	}
 
 	if maxClaimable.Cmp(state.Balance) > 0 {

@@ -738,7 +738,7 @@ def _verify_shared_deposit_state(
         return VerifyResponse(
             is_valid=False, invalid_reason=ERR_CUMULATIVE_EXCEEDS_BALANCE, payer=payer
         )
-    if max_claimable <= ch_total_claimed:
+    if max_claimable < ch_total_claimed + int(requirements.amount):
         return VerifyResponse(
             is_valid=False,
             invalid_reason=ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED,

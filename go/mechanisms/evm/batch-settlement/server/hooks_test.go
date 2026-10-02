@@ -513,15 +513,101 @@ func TestAfterVerifyHook_VoucherStoresSession(t *testing.T) {
 	if got == nil || got.Balance != "1000" || got.SignedMaxClaimable != "10" {
 		t.Fatalf("session = %+v", got)
 	}
+	if got.ChargedCumulativeAmount != "0" {
+		t.Fatalf("expected baseline from onchain totalClaimed=0, got charged=%s", got.ChargedCumulativeAmount)
+	}
 	if got.PendingRequest == nil {
 		t.Fatal("expected pending reservation after AfterVerify")
+	}
+}
+
+func verifyResultWithTotalClaimed(totalClaimed string) *x402.VerifyResponse {
+	return &x402.VerifyResponse{
+		IsValid: true, Payer: "0xpayer",
+		Extra: map[string]interface{}{"balance": "1000", "totalClaimed": totalClaimed},
+	}
+}
+
+func TestAfterVerifyHook_NoRecordUsesOnchainTotalClaimedAsBaseline(t *testing.T) {
+	s := NewBatchSettlementEvmScheme("0xreceiver", nil)
+	id := testChannelId(t)
+	// price=10, onchain totalClaimed=500: honest voucher is exactly 510.
+	stub := &stubPayload{data: voucherPayload(id, "510", "0xsig")}
+	if res := runBeforeVerify(t, s, stub); res != nil {
+		t.Fatalf("BeforeVerify: %+v", res)
+	}
+	if res := runAfterVerify(t, s, stub, verifyResultWithTotalClaimed("500")); res != nil {
+		t.Fatalf("AfterVerify: %+v", res)
+	}
+	got, _ := s.GetSession(id)
+	if got == nil || got.ChargedCumulativeAmount != "500" || got.TotalClaimed != "500" {
+		t.Fatalf("session = %+v", got)
+	}
+}
+
+func TestAfterVerifyHook_NoRecordRejectsVoucherAdvancingByLessThanPrice(t *testing.T) {
+	s := NewBatchSettlementEvmScheme("0xreceiver", nil)
+	id := testChannelId(t)
+	stub := &stubPayload{data: voucherPayload(id, "501", "0xsig")}
+	if res := runBeforeVerify(t, s, stub); res != nil {
+		t.Fatalf("BeforeVerify must defer the check without a local record: %+v", res)
+	}
+	res := runAfterVerify(t, s, stub, verifyResultWithTotalClaimed("500"))
+	if res == nil || !res.Abort || res.Reason != batchsettlement.ErrCumulativeAmountMismatch {
+		t.Fatalf("expected cumulative mismatch abort, got %+v", res)
+	}
+	if got, _ := s.GetSession(id); got != nil {
+		t.Fatalf("no session should be stored on mismatch, got %+v", got)
+	}
+	snap := s.TakeChannelSnapshot(stub)
+	if snap == nil || snap.ChargedCumulativeAmount != "500" || snap.TotalClaimed != "500" || snap.Balance != "1000" {
+		t.Fatalf("corrective snapshot must carry onchain state, got %+v", snap)
+	}
+}
+
+func TestAfterVerifyHook_NoRecordRefundVoucherBaselineIsOnchainTotalClaimed(t *testing.T) {
+	s := NewBatchSettlementEvmScheme("0xreceiver", nil)
+	id := testChannelId(t)
+	stub := &stubPayload{data: refundPayload(id, "500", "0xsig")}
+	if res := runBeforeVerify(t, s, stub); res != nil {
+		t.Fatalf("BeforeVerify: %+v", res)
+	}
+	res := runAfterVerify(t, s, stub, verifyResultWithTotalClaimed("500"))
+	if res == nil || !res.SkipHandler {
+		t.Fatalf("expected SkipHandler, got %+v", res)
+	}
+	got, _ := s.GetSession(id)
+	if got == nil || got.ChargedCumulativeAmount != "500" {
+		t.Fatalf("session = %+v", got)
+	}
+}
+
+func TestAfterVerifyHook_NoRecordMissingOrMalformedTotalClaimedFailsClosed(t *testing.T) {
+	cases := map[string]map[string]interface{}{
+		"missing":   {"balance": "1000"},
+		"malformed": {"balance": "1000", "totalClaimed": "abc"},
+		"negative":  {"balance": "1000", "totalClaimed": "-5"},
+	}
+	for name, extra := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := NewBatchSettlementEvmScheme("0xreceiver", nil)
+			id := testChannelId(t)
+			stub := &stubPayload{data: voucherPayload(id, "10", "0xsig")}
+			if res := runBeforeVerify(t, s, stub); res != nil {
+				t.Fatalf("BeforeVerify: %+v", res)
+			}
+			res := runAfterVerify(t, s, stub, &x402.VerifyResponse{IsValid: true, Payer: "0xpayer", Extra: extra})
+			if res == nil || !res.Abort || res.Reason != batchsettlement.ErrVerificationStateUnavailable {
+				t.Fatalf("expected verification_state_unavailable, got %+v", res)
+			}
+		})
 	}
 }
 
 func TestAfterVerifyHook_DepositStoresSession(t *testing.T) {
 	s := NewBatchSettlementEvmScheme("0xreceiver", nil)
 	id := testChannelId(t)
-	stub := &stubPayload{data: depositPayloadFor(id, "100", "0xsig")}
+	stub := &stubPayload{data: depositPayloadFor(id, "10", "0xsig")}
 	if res := runBeforeVerify(t, s, stub); res != nil {
 		t.Fatalf("BeforeVerify: %+v", res)
 	}
@@ -529,7 +615,7 @@ func TestAfterVerifyHook_DepositStoresSession(t *testing.T) {
 		t.Fatalf("AfterVerify: %+v", res)
 	}
 	got, _ := s.GetSession(id)
-	if got == nil || got.SignedMaxClaimable != "100" {
+	if got == nil || got.SignedMaxClaimable != "10" {
 		t.Fatalf("session = %+v", got)
 	}
 }

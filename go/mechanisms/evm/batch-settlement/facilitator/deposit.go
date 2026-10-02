@@ -193,10 +193,16 @@ func VerifyDeposit(
 			fmt.Sprintf("maxClaimableAmount %s exceeds effective balance %s", maxClaimable.String(), effectiveBalance.String()))
 	}
 
-	// Validate maxClaimableAmount > totalClaimed (monotonic increase)
-	if maxClaimable.Cmp(state.TotalClaimed) < 0 {
+	// Validate maxClaimableAmount >= totalClaimed + price (each paid request advances by at least the price)
+	price, ok := new(big.Int).SetString(requirements.Amount, 10)
+	if !ok || price.Sign() < 0 {
+		return nil, x402.NewVerifyError(ErrInvalidDepositPayload, config.Payer, "invalid requirements amount")
+	}
+	minMaxClaimable := new(big.Int).Add(state.TotalClaimed, price)
+	if maxClaimable.Cmp(minMaxClaimable) < 0 {
 		return nil, x402.NewVerifyError(ErrMaxClaimableTooLow, config.Payer,
-			fmt.Sprintf("maxClaimableAmount %s is below totalClaimed %s", maxClaimable.String(), state.TotalClaimed.String()))
+			fmt.Sprintf("maxClaimableAmount %s is below the required minimum %s (totalClaimed %s)",
+				maxClaimable.String(), minMaxClaimable.String(), state.TotalClaimed.String()))
 	}
 
 	// Simulate the deposit transaction to catch onchain errors early.

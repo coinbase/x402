@@ -345,7 +345,79 @@ class TestHandleAfterVerify:
         ch = scheme.get_storage().get(_channel_id())
         assert ch is not None
         assert ch.pending_request is not None
+        assert ch.charged_cumulative_amount == "0"
         assert scheme.read_request_context(payload).reservation_committed is True
+
+    def _after_verify_no_record(self, max_claimable: str, extra: dict, *, deposit: bool = False):
+        scheme = _scheme()
+        payload = (
+            _deposit_payload("500", max_claimable)
+            if deposit
+            else _voucher_payload(max_claimable=max_claimable)
+        )
+        requirements = _requirements(amount="100")
+        assert (
+            handle_before_verify(
+                scheme, VerifyContext(payment_payload=payload, requirements=requirements)
+            )
+            is None
+        )
+        out = handle_after_verify(
+            scheme,
+            VerifyResultContext(
+                payment_payload=payload,
+                requirements=requirements,
+                result=VerifyResponse(is_valid=True, payer="0xpayer", extra=extra),
+            ),
+        )
+        return scheme, payload, out
+
+    def test_no_record_baseline_is_onchain_total_claimed(self):
+        scheme, _, out = self._after_verify_no_record(
+            "1100", {"balance": "5000", "totalClaimed": "1000"}
+        )
+        assert out is None
+        ch = scheme.get_storage().get(_channel_id())
+        assert ch is not None
+        assert ch.charged_cumulative_amount == "1000"
+        assert ch.total_claimed == "1000"
+
+    def test_no_record_shortfall_voucher_aborts_with_onchain_baseline_snapshot(self):
+        scheme, payload, out = self._after_verify_no_record(
+            "1001", {"balance": "5000", "totalClaimed": "1000", "refundNonce": 2}
+        )
+        assert isinstance(out, AbortResult)
+        assert out.reason == ERR_CUMULATIVE_AMOUNT_MISMATCH
+        assert scheme.get_storage().get(_channel_id()) is None
+        snapshot = scheme.read_request_context(payload).channel_snapshot
+        assert snapshot is not None
+        assert snapshot.charged_cumulative_amount == "1000"
+        assert snapshot.balance == "5000"
+        assert snapshot.total_claimed == "1000"
+        assert snapshot.refund_nonce == 2
+
+    def test_no_record_shortfall_deposit_aborts(self):
+        _, _, out = self._after_verify_no_record(
+            "1001", {"balance": "5000", "totalClaimed": "1000"}, deposit=True
+        )
+        assert isinstance(out, AbortResult)
+        assert out.reason == ERR_CUMULATIVE_AMOUNT_MISMATCH
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {"balance": "5000"},
+            {"balance": "5000", "totalClaimed": None},
+            {"balance": "5000", "totalClaimed": "abc"},
+            {"balance": "5000", "totalClaimed": "-1"},
+            {"balance": "5000", "totalClaimed": True},
+        ],
+    )
+    def test_no_record_missing_or_invalid_total_claimed_fails_closed(self, extra):
+        scheme, _, out = self._after_verify_no_record("1100", extra)
+        assert isinstance(out, AbortResult)
+        assert out.reason == ERR_VERIFICATION_STATE_UNAVAILABLE
+        assert scheme.get_storage().get(_channel_id()) is None
 
     def test_invalid_result_does_not_create_channel(self):
         scheme = _scheme()

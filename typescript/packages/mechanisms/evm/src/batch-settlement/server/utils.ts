@@ -55,6 +55,23 @@ export function readExtraNumber(
   return fallback;
 }
 
+/**
+ * Strictly reads a non-negative integer (as a decimal string) from optional payment `extra`.
+ *
+ * @param extra - Optional payment extra record.
+ * @param key - Key on `BatchSettlementChannelStateExtra` to read.
+ * @returns Digits-only decimal string, or `undefined` when absent or not a non-negative integer.
+ */
+export function readExtraUintString(
+  extra: Partial<Record<keyof BatchSettlementChannelStateExtra, unknown>> | undefined,
+  key: keyof BatchSettlementChannelStateExtra,
+): string | undefined {
+  const value = extra?.[key];
+  if (typeof value === "string" && /^\d+$/.test(value)) return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
+  return undefined;
+}
+
 export type RefundSettlementSnapshot = {
   balance: string;
   totalClaimed: string;
