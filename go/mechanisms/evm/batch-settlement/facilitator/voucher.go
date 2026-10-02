@@ -48,6 +48,17 @@ func verifyVoucherFields(
 		return nil, err
 	}
 
+	// Refunds are zero-charge and never consult the price; every other payload is floored by it.
+	price := new(big.Int)
+	if !isRefund {
+		var ok bool
+		price, ok = parseRequirementsAmount(requirements.Amount)
+		if !ok {
+			return nil, x402.NewVerifyError(ErrInvalidVoucherPayload, channelConfig.Payer,
+				"invalid requirements amount")
+		}
+	}
+
 	chainId, err := signer.GetChainID(ctx)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrChannelStateReadFailed, "", fmt.Sprintf("failed to get chain ID: %s", err))
@@ -90,17 +101,13 @@ func verifyVoucherFields(
 	}
 
 	// Refund vouchers are zero-charge and may equal totalClaimed; non-refund
-	// vouchers must advance claimable by at least the route price above totalClaimed.
+	// vouchers must advance claimable by at least the route price above totalClaimed,
+	// and always strictly above it (even when the price is zero).
 	minMaxClaimable := new(big.Int).Set(state.TotalClaimed)
 	if !isRefund {
-		price, ok := new(big.Int).SetString(requirements.Amount, 10)
-		if !ok || price.Sign() < 0 {
-			return nil, x402.NewVerifyError(ErrInvalidVoucherPayload, channelConfig.Payer,
-				"invalid requirements amount")
-		}
 		minMaxClaimable.Add(minMaxClaimable, price)
 	}
-	if maxClaimable.Cmp(minMaxClaimable) < 0 {
+	if maxClaimable.Cmp(minMaxClaimable) < 0 || (!isRefund && maxClaimable.Cmp(state.TotalClaimed) <= 0) {
 		return nil, x402.NewVerifyError(ErrMaxClaimableTooLow, channelConfig.Payer,
 			fmt.Sprintf("maxClaimableAmount %s is below the required minimum %s (totalClaimed %s)",
 				maxClaimable.String(), minMaxClaimable.String(), state.TotalClaimed.String()))

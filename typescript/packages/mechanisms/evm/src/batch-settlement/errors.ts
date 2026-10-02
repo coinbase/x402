@@ -25,6 +25,8 @@ export const ErrErc3009AuthorizationRequired =
   "invalid_batch_settlement_evm_erc3009_authorization_required";
 export const ErrRefundTransactionFailed = "invalid_batch_settlement_evm_refund_transaction_failed";
 export const ErrInvalidPayloadType = "invalid_batch_settlement_evm_payload_type";
+export const ErrInvalidVoucherPayload = "invalid_batch_settlement_evm_voucher_payload";
+export const ErrInvalidDepositPayload = "invalid_batch_settlement_evm_deposit_payload";
 export const ErrWithdrawDelayOutOfRange =
   "invalid_batch_settlement_evm_withdraw_delay_out_of_range";
 export const ErrChannelIdMismatch = "invalid_batch_settlement_evm_channel_id_mismatch";

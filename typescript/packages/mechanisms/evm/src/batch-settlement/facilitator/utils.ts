@@ -194,6 +194,19 @@ export function validateChannelConfig(
 }
 
 /**
+ * Parses the server-supplied `requirements.amount` as a non-negative base-10 integer.
+ *
+ * The amount comes from the resource server, so the facilitator must not trust it: malformed or
+ * negative values (which would lower the minimum-advance floor) are rejected instead of throwing.
+ *
+ * @param amount - The raw `requirements.amount` value.
+ * @returns The parsed amount, or `undefined` when it is not a digits-only decimal string.
+ */
+export function parseRequirementsAmount(amount: unknown): bigint | undefined {
+  return typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : undefined;
+}
+
+/**
  * Reads onchain channel state via a 3-call multicall:
  * `channels(channelId)`, `pendingWithdrawals(channelId)`, `refundNonce(channelId)`.
  *

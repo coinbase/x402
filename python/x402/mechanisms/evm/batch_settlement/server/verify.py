@@ -45,6 +45,10 @@ if TYPE_CHECKING:
 _MIN_PENDING_TTL_MS = 5_000
 _MAX_PENDING_TTL_MS = 10 * 60 * 1000
 
+# Largest integer a JSON number can carry losslessly (2^53 - 1); bounds the numeric fallback when
+# reading facilitator-reported uint values so every SDK applies the same rule.
+_MAX_SAFE_INTEGER = 2**53 - 1
+
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
@@ -70,12 +74,22 @@ def _verification_state_unavailable() -> AbortResult:
 
 
 def _read_required_uint_extra(extra: dict, key: str) -> str | None:
+    """Strictly read a non-negative integer (as a decimal string) from facilitator ``extra``.
+
+    Canonical rule shared across SDKs: a plain decimal string with no leading zeros (``"0"`` is
+    the only string starting with ``0``), or a JSON number that is a non-negative safe integer.
+    """
     value = extra.get(key)
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
-        return str(value) if value >= 0 else None
-    if isinstance(value, str) and value.isascii() and value.isdigit():
+        return str(value) if 0 <= value <= _MAX_SAFE_INTEGER else None
+    if (
+        isinstance(value, str)
+        and value.isascii()
+        and value.isdigit()
+        and (value == "0" or not value.startswith("0"))
+    ):
         return value
     return None
 

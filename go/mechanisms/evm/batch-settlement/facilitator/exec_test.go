@@ -759,11 +759,12 @@ func TestVerifyDeposit_MaxClaimableMustAdvanceByPrice(t *testing.T) {
 }
 
 // verifyDepositWithOnchainState runs VerifyDeposit against a fake signer reporting the given
-// onchain balance and totalClaimed. The requirements amount (route price) is 100.
+// onchain balance and totalClaimed. The requirements amount (route price) defaults to 100.
 func verifyDepositWithOnchainState(
 	t *testing.T,
 	onchainBalance, onchainTotalClaimed *big.Int,
 	maxClaimable, depositAmountStr string,
+	requirementsAmount ...string,
 ) (*x402.VerifyResponse, error) {
 	t.Helper()
 	privKey, err := crypto.GenerateKey()
@@ -865,6 +866,9 @@ func verifyDepositWithOnchainState(
 		Voucher: *voucher,
 	}
 	reqs := reqsFor(testNetwork)
+	if len(requirementsAmount) > 0 {
+		reqs.Amount = requirementsAmount[0]
+	}
 	reqs.Extra = map[string]interface{}{
 		"receiverAuthorizer":  cfg.ReceiverAuthorizer,
 		"assetTransferMethod": "eip3009",
@@ -1130,6 +1134,88 @@ func TestVerifyRefundVoucher_AllowsMaxClaimableEqualToTotalClaimed(t *testing.T)
 		if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
 			t.Fatalf("M=%s: expected ErrMaxClaimableTooLow, got resp=%+v err=%v", tc.maxClaimable, resp, err)
 		}
+	}
+}
+
+// TestVerifyVoucher_ZeroPriceMustStillAdvanceTotalClaimed pins that a zero-price route cannot be
+// satisfied by a voucher equal to totalClaimed: non-refund vouchers must always be strictly above it.
+func TestVerifyVoucher_ZeroPriceMustStillAdvanceTotalClaimed(t *testing.T) {
+	reqs := reqsFor(testNetwork)
+	reqs.Amount = "0"
+	for _, tc := range []struct {
+		maxClaimable string
+		wantOK       bool
+	}{{"500", false}, {"499", false}, {"501", true}} {
+		cfg, voucher := signedVoucherFields(t, tc.maxClaimable)
+		payload := &batchsettlement.BatchSettlementVoucherPayload{Type: "voucher", ChannelConfig: cfg, Voucher: voucher}
+		resp, err := VerifyVoucher(context.Background(), voucherStateSigner(t, 1000, 500), payload, reqs, cfg)
+		if tc.wantOK {
+			if err != nil || resp == nil || !resp.IsValid {
+				t.Fatalf("M=%s: expected valid, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+			}
+			continue
+		}
+		var ve *x402.VerifyError
+		if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
+			t.Fatalf("M=%s: expected ErrMaxClaimableTooLow, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+		}
+	}
+}
+
+// TestVerifyDeposit_ZeroPriceMustStillAdvanceTotalClaimed is the deposit-path twin of the voucher test.
+func TestVerifyDeposit_ZeroPriceMustStillAdvanceTotalClaimed(t *testing.T) {
+	for _, tc := range []struct {
+		maxClaimable string
+		wantOK       bool
+	}{{"500", false}, {"501", true}} {
+		resp, err := verifyDepositWithOnchainState(t, big.NewInt(1000), big.NewInt(500), tc.maxClaimable, "100", "0")
+		if tc.wantOK {
+			if err != nil || resp == nil || !resp.IsValid {
+				t.Fatalf("M=%s: expected valid, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+			}
+			continue
+		}
+		var ve *x402.VerifyError
+		if !errors.As(err, &ve) || ve.InvalidReason != ErrMaxClaimableTooLow {
+			t.Fatalf("M=%s: expected ErrMaxClaimableTooLow, got resp=%+v err=%v", tc.maxClaimable, resp, err)
+		}
+	}
+}
+
+// TestVerify_MalformedRequirementsAmountRejected pins that a malformed or negative server-supplied
+// requirements.amount yields a typed invalid response (never a lowered floor) on voucher and deposit.
+func TestVerify_MalformedRequirementsAmountRejected(t *testing.T) {
+	for _, amount := range []string{"", "abc", "-1", "+5", " 5", "5 ", "1.5", "0x10", "1_0"} {
+		t.Run("voucher/"+amount, func(t *testing.T) {
+			reqs := reqsFor(testNetwork)
+			reqs.Amount = amount
+			cfg, voucher := signedVoucherFields(t, "650")
+			payload := &batchsettlement.BatchSettlementVoucherPayload{Type: "voucher", ChannelConfig: cfg, Voucher: voucher}
+			_, err := VerifyVoucher(context.Background(), voucherStateSigner(t, 1000, 500), payload, reqs, cfg)
+			var ve *x402.VerifyError
+			if !errors.As(err, &ve) || ve.InvalidReason != ErrInvalidVoucherPayload {
+				t.Fatalf("expected ErrInvalidVoucherPayload, got err=%v", err)
+			}
+		})
+		t.Run("deposit/"+amount, func(t *testing.T) {
+			_, err := verifyDepositWithOnchainState(t, big.NewInt(1000), big.NewInt(500), "650", "100", amount)
+			var ve *x402.VerifyError
+			if !errors.As(err, &ve) || ve.InvalidReason != ErrInvalidDepositPayload {
+				t.Fatalf("expected ErrInvalidDepositPayload, got err=%v", err)
+			}
+		})
+	}
+}
+
+// Refunds never consult the price, so a malformed requirements.amount must not block them.
+func TestVerifyRefundVoucher_IgnoresRequirementsAmount(t *testing.T) {
+	reqs := reqsFor(testNetwork)
+	reqs.Amount = "not-a-number"
+	cfg, voucher := signedVoucherFields(t, "500")
+	payload := &batchsettlement.BatchSettlementRefundPayload{Type: "refund", ChannelConfig: cfg, Voucher: voucher}
+	resp, err := VerifyRefundVoucher(context.Background(), voucherStateSigner(t, 1000, 500), payload, reqs, cfg)
+	if err != nil || resp == nil || !resp.IsValid {
+		t.Fatalf("expected valid refund, got resp=%+v err=%v", resp, err)
 	}
 }
 

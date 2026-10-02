@@ -34,6 +34,7 @@ import {
   readChannelStateExtra,
   readExtraNumber,
   readExtraString,
+  readExtraUintString,
 } from "../../../src/batch-settlement/server/utils";
 import { MIN_WITHDRAW_DELAY, MAX_WITHDRAW_DELAY } from "../../../src/batch-settlement/constants";
 import type { ChannelConfig } from "../../../src/batch-settlement/types";
@@ -492,5 +493,47 @@ describe("server extra parsers", () => {
         },
       }),
     ).toThrow(ErrRefundPayload);
+  });
+});
+
+describe("readExtraUintString", () => {
+  const read = (value: unknown) => readExtraUintString({ totalClaimed: value }, "totalClaimed");
+
+  it.each([
+    ["0", "0"],
+    ["500", "500"],
+    ["340282366920938463463374607431768211455", "340282366920938463463374607431768211455"],
+    [500, "500"],
+    [Number.MAX_SAFE_INTEGER, String(Number.MAX_SAFE_INTEGER)],
+  ])("accepts canonical value %j", (input, expected) => {
+    expect(read(input)).toBe(expected);
+  });
+
+  it.each([
+    "007",
+    "00",
+    "+5",
+    "-1",
+    "-0",
+    "",
+    " 5",
+    "5\n",
+    "1.5",
+    Number.MAX_SAFE_INTEGER + 1,
+    1e30,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    true,
+    null,
+    undefined,
+  ])("rejects non-canonical value %j", input => {
+    expect(read(input)).toBeUndefined();
+  });
+
+  it("returns undefined when the key is absent", () => {
+    expect(readExtraUintString(undefined, "totalClaimed")).toBeUndefined();
+    expect(readExtraUintString({}, "totalClaimed")).toBeUndefined();
   });
 });

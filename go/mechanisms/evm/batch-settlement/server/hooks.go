@@ -1100,7 +1100,13 @@ func mapStringField(m map[string]interface{}, key string, defaultVal string) str
 	return defaultVal
 }
 
+// maxSafeJSONInteger is the largest integer a JSON number carries losslessly (2^53 - 1). It bounds
+// the numeric fallback in mapUintStringField so every SDK applies the same rule.
+const maxSafeJSONInteger = float64(1<<53 - 1)
+
 // mapUintStringField extracts a non-negative integer field as a decimal string.
+// Canonical rule shared across SDKs: a plain decimal string with no leading zeros ("0" is the only
+// string starting with 0), or a JSON number that is a non-negative safe integer.
 // Unlike mapStringField it has no default: absent or malformed values report ok=false.
 func mapUintStringField(m map[string]interface{}, key string) (string, bool) {
 	if m == nil {
@@ -1114,7 +1120,9 @@ func mapUintStringField(m map[string]interface{}, key string) (string, bool) {
 		}
 		return v, true
 	case float64:
-		if v < 0 || v != math.Trunc(v) {
+		// JSON numbers are bounded to the safe-integer range (2^53 - 1) so the uint64
+		// conversion below can neither overflow nor lose precision; NaN fails the Trunc check.
+		if v < 0 || v > maxSafeJSONInteger || v != math.Trunc(v) {
 			return "", false
 		}
 		return new(big.Int).SetUint64(uint64(v)).String(), true

@@ -66,6 +66,12 @@ func VerifyDeposit(
 		return nil, err
 	}
 
+	// The server-supplied price floors the voucher; reject malformed values up front.
+	price, ok := parseRequirementsAmount(requirements.Amount)
+	if !ok {
+		return nil, x402.NewVerifyError(ErrInvalidDepositPayload, config.Payer, "invalid requirements amount")
+	}
+
 	// Validate deposit amount
 	depositAmount, ok := new(big.Int).SetString(payload.Deposit.Amount, 10)
 	if !ok || depositAmount.Sign() <= 0 {
@@ -194,12 +200,9 @@ func VerifyDeposit(
 	}
 
 	// Validate maxClaimableAmount >= totalClaimed + price (each paid request advances by at least the price)
-	price, ok := new(big.Int).SetString(requirements.Amount, 10)
-	if !ok || price.Sign() < 0 {
-		return nil, x402.NewVerifyError(ErrInvalidDepositPayload, config.Payer, "invalid requirements amount")
-	}
+	// The voucher must also be strictly above totalClaimed, even when the price is zero.
 	minMaxClaimable := new(big.Int).Add(state.TotalClaimed, price)
-	if maxClaimable.Cmp(minMaxClaimable) < 0 {
+	if maxClaimable.Cmp(minMaxClaimable) < 0 || maxClaimable.Cmp(state.TotalClaimed) <= 0 {
 		return nil, x402.NewVerifyError(ErrMaxClaimableTooLow, config.Payer,
 			fmt.Sprintf("maxClaimableAmount %s is below the required minimum %s (totalClaimed %s)",
 				maxClaimable.String(), minMaxClaimable.String(), state.TotalClaimed.String()))

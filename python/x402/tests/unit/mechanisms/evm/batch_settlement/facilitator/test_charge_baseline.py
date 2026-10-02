@@ -9,6 +9,8 @@ import pytest
 try:
     from x402.mechanisms.evm.batch_settlement.errors import (
         ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED,
+        ERR_DEPOSIT_PAYLOAD,
+        ERR_VOUCHER_PAYLOAD,
     )
     from x402.mechanisms.evm.batch_settlement.facilitator import deposit as deposit_mod
     from x402.mechanisms.evm.batch_settlement.facilitator import voucher as voucher_mod
@@ -87,11 +89,14 @@ def voucher_env(monkeypatch):
     return set_state
 
 
-def _verify_voucher(max_claimable: int, payload_type: str = "voucher"):
+MALFORMED_AMOUNTS = ["", "abc", "-1", "+5", " 5", "5 ", "1.5", "0x10", "1_0", "٣"]
+
+
+def _verify_voucher(max_claimable: int, payload_type: str = "voucher", amount: str = str(PRICE)):
     return voucher_mod.verify_voucher(
         SimpleNamespace(),  # type: ignore[arg-type]
         _voucher_payload(max_claimable, payload_type),
-        _requirements(),
+        _requirements(amount),
         _config(),
     )
 
@@ -125,6 +130,29 @@ class TestVoucherAdvancesByPrice:
         out = _verify_voucher(499, payload_type="refund")
         assert out.is_valid is False
         assert out.invalid_reason == ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED
+
+    def test_zero_price_voucher_at_total_claimed_is_rejected(self, voucher_env):
+        voucher_env(balance=10_000, total_claimed=500)
+        out = _verify_voucher(500, amount="0")
+        assert out.is_valid is False
+        assert out.invalid_reason == ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED
+
+    def test_zero_price_voucher_above_total_claimed_is_accepted(self, voucher_env):
+        voucher_env(balance=10_000, total_claimed=500)
+        out = _verify_voucher(501, amount="0")
+        assert out.is_valid is True
+
+    @pytest.mark.parametrize("amount", MALFORMED_AMOUNTS)
+    def test_malformed_requirements_amount_is_rejected(self, voucher_env, amount):
+        voucher_env(balance=10_000, total_claimed=500)
+        out = _verify_voucher(1_500, amount=amount)
+        assert out.is_valid is False
+        assert out.invalid_reason == ERR_VOUCHER_PAYLOAD
+
+    def test_refund_ignores_requirements_amount(self, voucher_env):
+        voucher_env(balance=10_000, total_claimed=500)
+        out = _verify_voucher(500, payload_type="refund", amount="not-a-number")
+        assert out.is_valid is True
 
 
 class _Result:
@@ -188,3 +216,24 @@ class TestDepositAdvancesByPrice:
         )
         assert isinstance(out, deposit_mod._SharedDepositState)
         assert out.ch_total_claimed == 500
+
+    def test_zero_price_deposit_at_total_claimed_is_rejected(self, deposit_env):
+        deposit_env(channel_balance=1_000, total_claimed=500)
+        out = deposit_mod._verify_shared_deposit_state(
+            SimpleNamespace(),
+            _deposit_payload(500),
+            _requirements("0"),  # type: ignore[arg-type]
+        )
+        assert getattr(out, "is_valid", True) is False
+        assert out.invalid_reason == ERR_CUMULATIVE_AMOUNT_BELOW_CLAIMED
+
+    @pytest.mark.parametrize("amount", MALFORMED_AMOUNTS)
+    def test_malformed_requirements_amount_is_rejected(self, deposit_env, amount):
+        deposit_env(channel_balance=1_000, total_claimed=500)
+        out = deposit_mod._verify_shared_deposit_state(
+            SimpleNamespace(),
+            _deposit_payload(1_500),
+            _requirements(amount),  # type: ignore[arg-type]
+        )
+        assert getattr(out, "is_valid", True) is False
+        assert out.invalid_reason == ERR_DEPOSIT_PAYLOAD
