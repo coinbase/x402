@@ -24,7 +24,7 @@ import {
   PaymentRequirements,
 } from "@x402/core/types";
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { FastifyAdapter, getRequestPath } from "./adapter";
+import { FastifyAdapter } from "./adapter";
 
 /**
  * Sets settlement overrides on a Fastify reply for partial settlement (upto scheme).
@@ -345,7 +345,14 @@ export function paymentMiddlewareFromHTTPServer(
   }
 
   app.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
-    const path = getRequestPath(request.url);
+    // find-my-way 9.5-9.8 and 9.9+ (both allowed by fastify ^5) resolve absolute-form and other
+    // non-origin-form request-targets to different paths, so the gate cannot mirror the router.
+    // Reject them before route matching instead.
+    if (request.url.charCodeAt(0) !== 47 /* "/" */) {
+      return reply.status(400).send({ error: "Bad Request" });
+    }
+
+    const path = request.url.split("?")[0];
     const adapter = new FastifyAdapter(request);
     const context: HTTPRequestContext = {
       adapter,

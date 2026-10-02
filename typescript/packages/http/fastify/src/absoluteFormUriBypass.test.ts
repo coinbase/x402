@@ -82,6 +82,7 @@ async function statusForRawTarget(port: number, requestTarget: string): Promise<
 describe("fastify end-to-end: absolute-form request-target bypass", () => {
   let app: FastifyInstance;
   let port: number;
+  let protectedHandlerRuns = 0;
 
   beforeAll(async () => {
     app = Fastify();
@@ -104,7 +105,11 @@ describe("fastify end-to-end: absolute-form request-target bypass", () => {
       // syncFacilitatorOnStart=false so the test does not try to call a real facilitator
       false,
     );
-    app.get("/protected-route", async () => "paid content");
+    app.get("/protected-route", async () => {
+      protectedHandlerRuns++;
+      return "paid content";
+    });
+    app.get("/open-route", async () => "free content");
     await app.listen({ port: 0, host: "127.0.0.1" });
     port = (app.server.address() as AddressInfo).port;
   });
@@ -117,19 +122,33 @@ describe("fastify end-to-end: absolute-form request-target bypass", () => {
     expect(await statusForRawTarget(port, "/protected-route")).toBe(402);
   });
 
-  it("returns 402 for an absolute-form https:// request-target", async () => {
-    expect(await statusForRawTarget(port, "https://attacker.com/protected-route")).toBe(402);
+  // find-my-way 9.5-9.8 and 9.9+ (both allowed by fastify ^5) route these differently, so the
+  // gate rejects every non-origin-form request-target instead of mirroring either router.
+  describe("rejects every request-target that does not start with '/'", () => {
+    const targets = [
+      "https://attacker.com/protected-route",
+      "http://attacker.com/protected-route",
+      "HTTPS://attacker.com/protected-route",
+      "Http://attacker.com/protected-route",
+      "https://attacker.com:1337/protected-route?x=1",
+      "https://attacker.com?foo=/protected-route",
+      "https://attacker.com#/protected-route",
+      "https://attacker.com",
+      "https://attacker.com/open-route",
+      "ftp://attacker.com/protected-route",
+      "protected-route",
+    ];
+
+    for (const target of targets) {
+      it(`returns 400 and never runs the handler for ${target}`, async () => {
+        const before = protectedHandlerRuns;
+        expect(await statusForRawTarget(port, target)).toBe(400);
+        expect(protectedHandlerRuns).toBe(before);
+      });
+    }
   });
 
-  it("returns 402 for an absolute-form http:// request-target", async () => {
-    expect(await statusForRawTarget(port, "http://attacker.com/protected-route")).toBe(402);
-  });
-
-  it("returns 402 for an absolute-form request-target with a different port", async () => {
-    expect(await statusForRawTarget(port, "https://attacker.com:1337/protected-route")).toBe(402);
-  });
-
-  it("returns 402 for an absolute-form request-target carrying a query string", async () => {
-    expect(await statusForRawTarget(port, "https://attacker.com/protected-route?x=1")).toBe(402);
+  it("still serves unprotected origin-form routes", async () => {
+    expect(await statusForRawTarget(port, "/open-route")).toBe(200);
   });
 });
