@@ -1,0 +1,7 @@
+{
+  "name": "AIMarket",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/aimarket.png",
+  "description": "Signed real-world data and verifiable computation per call over x402 (USDC on Base, CDP facilitator): current weather, air quality, nearest live sensors, ECVRF fair randomness, and MCP security checks (HISTOR transparency log, WARDEN tool scan). Every result carries a signed receipt.",
+  "websiteUrl": "https://modelmarket.dev"
+}
