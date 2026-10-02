@@ -1,10 +1,12 @@
 package authcapture
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -105,4 +107,79 @@ func TestVoidSignatureRoundTrip(t *testing.T) {
 	ok, err = evm.VerifyEOATypedData(signer.Address(), OperatorDomain(testCaptureAuthorizer, chainID), VoidTypes, "Void", other, signature)
 	require.NoError(t, err)
 	assert.False(t, ok)
+}
+
+func TestChargeSignatureRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	chainID := big.NewInt(84532)
+
+	for _, escrow := range []string{AuthCaptureEscrowV1_0Address, AuthCaptureEscrowV1_1Address} {
+		t.Run(escrow, func(t *testing.T) {
+			deployment := ResolveAuthCaptureDeployment(escrow)
+			signer := testSigner(t)
+			params := ChargeParams{
+				PaymentInfoHash: testPaymentInfoHash,
+				Amount:          big.NewInt(750000),
+				TokenCollector:  deployment.EIP3009Collector,
+				CollectorData:   []byte{0x01, 0x02, 0x03},
+				Fee:             DefaultCaptureFee(deployment, big.NewInt(750000), 100),
+				FeeReceiver:     "0x4444444444444444444444444444444444444444",
+			}
+
+			signature, err := SignCharge(ctx, signer, deployment, testCaptureAuthorizer, chainID, params)
+			require.NoError(t, err)
+
+			verify := func(p ChargeParams) bool {
+				ok, err := evm.VerifyEOATypedData(signer.Address(), OperatorDomain(testCaptureAuthorizer, chainID), ChargeTypesForDeployment(deployment), "Charge", p.message(), signature)
+				require.NoError(t, err)
+				return ok
+			}
+			assert.True(t, verify(params))
+
+			tampered := params
+			tampered.CollectorData = []byte{0x01, 0x02, 0x04}
+			assert.False(t, verify(tampered), "the signature is bound to the collector data")
+			tampered = params
+			tampered.Amount = big.NewInt(750001)
+			assert.False(t, verify(tampered), "the signature is bound to the amount")
+		})
+	}
+}
+
+func TestRefundSignatureRoundTrip(t *testing.T) {
+	signer := testSigner(t)
+	chainID := big.NewInt(84532)
+	params := RefundParams{
+		PaymentInfoHash:    testPaymentInfoHash,
+		Amount:             big.NewInt(250000),
+		TokenCollector:     OperatorRefundCollectorAddress,
+		ExpectedCapturable: big.NewInt(0),
+		ExpectedRefundable: big.NewInt(750000),
+	}
+
+	signature, err := SignRefund(context.Background(), signer, testCaptureAuthorizer, chainID, params)
+	require.NoError(t, err)
+
+	verify := func(p RefundParams) bool {
+		ok, err := evm.VerifyEOATypedData(signer.Address(), OperatorDomain(testCaptureAuthorizer, chainID), RefundTypes, "Refund", p.message(), signature)
+		require.NoError(t, err)
+		return ok
+	}
+	assert.True(t, verify(params))
+
+	tampered := params
+	tampered.ExpectedRefundable = big.NewInt(500000)
+	assert.False(t, verify(tampered), "the signature is bound to the refundable balance")
+}
+
+func TestEscrowABIsDeclareChargeRefundAndEvents(t *testing.T) {
+	for _, escrow := range []string{AuthCaptureEscrowV1_0Address, AuthCaptureEscrowV1_1Address} {
+		parsed, err := abi.JSON(bytes.NewReader(EscrowABIForDeployment(ResolveAuthCaptureDeployment(escrow))))
+		require.NoError(t, err)
+		for _, method := range []string{"authorize", "charge", "capture", "void", "refund", "paymentState", "getTokenStore"} {
+			assert.Contains(t, parsed.Methods, method, escrow)
+		}
+		assert.Contains(t, parsed.Events, "PaymentAuthorized")
+		assert.Contains(t, parsed.Events, "PaymentCharged")
+	}
 }

@@ -75,6 +75,7 @@ func TestParseAuthCaptureExtra_Rejects(t *testing.T) {
 		{"oversized minFeeBps", func(e map[string]interface{}) { e["minFeeBps"] = float64(70000) }, "minFeeBps"},
 		{"missing maxFeeBps", func(e map[string]interface{}) { delete(e, "maxFeeBps") }, "maxFeeBps"},
 		{"unknown escrow", func(e map[string]interface{}) { e["authCaptureEscrow"] = "0x9999999999999999999999999999999999999999" }, "authCaptureEscrow"},
+		{"unknown captureMode", func(e map[string]interface{}) { e["captureMode"] = "lazy" }, "captureMode"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -148,4 +149,16 @@ func TestJSONNumberToUint16(t *testing.T) {
 
 	_, ok = JSONNumberToUint16(float64(65536))
 	assert.False(t, ok)
+}
+
+func TestParseAuthCaptureExtra_CaptureMode(t *testing.T) {
+	for _, mode := range []string{"", CaptureModeSync, CaptureModeDeferred} {
+		extra := validExtra()
+		if mode != "" {
+			extra["captureMode"] = mode
+		}
+		parsed, _, err := ParseAuthCaptureExtra(types.PaymentRequirements{Extra: extra})
+		require.NoError(t, err)
+		assert.Equal(t, mode, parsed.CaptureMode)
+	}
 }

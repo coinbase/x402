@@ -14,7 +14,7 @@ import (
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// lifecyclePreconditions is the state common to capture and void: the resolved request,
+// lifecyclePreconditions is the state common to capture, void and refund: the resolved request,
 // the escrow's paymentInfoHash, and the on-chain paymentState balances.
 type lifecyclePreconditions struct {
 	deployment       authcapture.AuthCaptureDeployment
@@ -26,8 +26,15 @@ type lifecyclePreconditions struct {
 	refundableAmount *big.Int
 }
 
-// checkLifecycleCommon validates what capture and void share without touching the chain: the
-// request, the relay gates, the paymentInfo against the originally accepted requirements and
+// Lifecycle operations a payload.type names.
+const (
+	opCapture = "capture"
+	opVoid    = "void"
+	opRefund  = "refund"
+)
+
+// checkLifecycleCommon validates what capture, void and refund share without touching the chain:
+// the request, the relay gates, the paymentInfo against the originally accepted requirements and
 // the salt binding. The on-chain payment state is read separately, after the authorizer
 // signature checks, so a forged payload cannot cost any RPC reads.
 func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
@@ -35,6 +42,7 @@ func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
 	requirements types.PaymentRequirements,
 	paymentInfo authcapture.PaymentInfoStruct,
 	saltNonce string,
+	operation string,
 ) (*lifecyclePreconditions, error) {
 	payer := paymentInfo.Payer
 	rc, err := checkRequest(payload, requirements, payer)
@@ -43,17 +51,14 @@ func (f *AuthCaptureEvmScheme) checkLifecycleCommon(
 	}
 	extra := rc.extra
 
-	if extra.OperatorType != "" && extra.OperatorType != "delegated" {
-		return nil, x402.NewVerifyError(ErrLifecycleNotRelayed, payer, "lifecycle payloads require operatorType delegated")
+	if err := f.checkOperator(extra, payer, true); err != nil {
+		return nil, err
 	}
-	if !authcapture.IsNonZeroAddress(extra.ReceiverAuthorizer) {
-		return nil, x402.NewVerifyError(ErrLifecycleNotRelayed, payer, "lifecycle payloads require a non-zero receiverAuthorizer")
+	if operation != opRefund && extra.PaymentFlow == authcapture.PaymentFlowAuthorization {
+		return nil, x402.NewVerifyError(ErrPayloadType, payer, "capture and void require paymentFlow escrow, got authorization")
 	}
-	if extra.PaymentFlow != "" && extra.PaymentFlow != "escrow" {
-		return nil, x402.NewVerifyError(ErrPayloadType, payer, fmt.Sprintf("capture and void require paymentFlow escrow, got %s", extra.PaymentFlow))
-	}
-	if !f.controlsAddress(extra.CaptureAuthorizer) {
-		return nil, x402.NewVerifyError(ErrOperatorNotAdmitted, payer, fmt.Sprintf("captureAuthorizer %s is not controlled by this facilitator", extra.CaptureAuthorizer))
+	if operation == opRefund && !f.config.RefundFunding {
+		return nil, x402.NewVerifyError(ErrRefundFundingUnavailable, payer, "refunds for delegated operators need an out-of-band funding agreement")
 	}
 	if !strings.EqualFold(paymentInfo.Operator, extra.CaptureAuthorizer) {
 		return nil, x402.NewVerifyError(ErrOperatorMismatch, payer, "paymentInfo.operator does not match captureAuthorizer")
@@ -101,6 +106,11 @@ func (f *AuthCaptureEvmScheme) loadCollectedState(ctx context.Context, lc *lifec
 	lc.capturableAmount = capturable
 	lc.refundableAmount = refundable
 	return nil
+}
+
+// balancesMatch reports whether the on-chain balances are what the authorizer signed against.
+func (lc *lifecyclePreconditions) balancesMatch(expectedCapturable, expectedRefundable *big.Int) bool {
+	return lc.capturableAmount.Cmp(expectedCapturable) == 0 && lc.refundableAmount.Cmp(expectedRefundable) == 0
 }
 
 // paymentInfoMismatch returns a description of the first paymentInfo field that differs
@@ -174,31 +184,6 @@ type capturePreconditions struct {
 	withVoid    bool
 }
 
-// parseCaptureFee reads the deployment's fee field (feeBps on v1.0, feeAmount on v1.1).
-func parseCaptureFee(p *authcapture.CapturePayload, deployment *authcapture.AuthCaptureDeployment) (authcapture.CaptureFee, bool) {
-	if deployment.Version == authcapture.AuthCaptureDeploymentV1_0 {
-		return authcapture.CaptureFee{Bps: p.FeeBps}, p.FeeBps != nil && p.FeeAmount == ""
-	}
-	amount, ok := new(big.Int).SetString(p.FeeAmount, 10)
-	return authcapture.CaptureFee{Amount: amount}, ok && p.FeeBps == nil
-}
-
-// feeWithinBounds applies the escrow's fee range: feeBps in [min, max] on v1.0, and
-// feeAmount in [amount*min/10000, amount*max/10000] on v1.1.
-func feeWithinBounds(fee authcapture.CaptureFee, amount *big.Int, extra authcapture.AuthCaptureExtra) bool {
-	if fee.Bps != nil {
-		return *fee.Bps >= extra.MinFeeBps && *fee.Bps <= extra.MaxFeeBps
-	}
-	lowest := authcapture.FeeAmountFromBps(amount, extra.MinFeeBps)
-	highest := authcapture.FeeAmountFromBps(amount, extra.MaxFeeBps)
-	return fee.Amount.Cmp(lowest) >= 0 && fee.Amount.Cmp(highest) <= 0
-}
-
-func parseUint(value string) (*big.Int, bool) {
-	n, ok := new(big.Int).SetString(value, 10)
-	return n, ok && n.Sign() >= 0
-}
-
 // checkCapturePreconditions validates a capture payload per the spec's Lifecycle payloads checklist.
 // Every check that needs no chain read, including both authorizer signatures, runs before the
 // payment state is read.
@@ -213,12 +198,12 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	}
 	payer := p.PaymentInfo.Payer
 
-	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce)
+	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce, opCapture)
 	if err != nil {
 		return nil, err
 	}
 
-	fee, ok := parseCaptureFee(p, &lc.deployment)
+	fee, ok := parseSubmittedFee(p.FeeBps, p.FeeAmount, &lc.deployment)
 	if !ok {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, payer, "fee field does not match the deployment's fee encoding")
 	}
@@ -234,11 +219,8 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	if amount.Sign() <= 0 {
 		return nil, x402.NewVerifyError(ErrInsufficientAuthorization, payer, "amount must be > 0 and <= capturableAmount")
 	}
-	if !strings.EqualFold(p.FeeReceiver, lc.extra.FeeRecipient) {
-		return nil, x402.NewVerifyError(ErrFeeReceiver, payer, "feeReceiver does not match extra.feeRecipient")
-	}
-	if !feeWithinBounds(fee, amount, lc.extra) {
-		return nil, x402.NewVerifyError(ErrFeeBpsOutOfRange, payer, "fee outside extra bounds")
+	if reason := validateSubmittedFee(lc.extra, amount, fee, p.FeeReceiver); reason != "" {
+		return nil, x402.NewVerifyError(reason, payer, "submitted fee or feeReceiver does not satisfy extra")
 	}
 
 	captureSig, err := evm.HexToBytes(p.AuthorizerSignature)
@@ -269,7 +251,7 @@ func (f *AuthCaptureEvmScheme) checkCapturePreconditions(
 	if err := f.loadCollectedState(ctx, lc); err != nil {
 		return nil, err
 	}
-	if expectedCapturable.Cmp(lc.capturableAmount) != 0 || expectedRefundable.Cmp(lc.refundableAmount) != 0 {
+	if !lc.balancesMatch(expectedCapturable, expectedRefundable) {
 		return nil, x402.NewVerifyError(ErrUnexpectedPaymentState, payer, "expected capturable/refundable amount is stale")
 	}
 	if amount.Cmp(lc.capturableAmount) > 0 {
@@ -345,7 +327,7 @@ func (f *AuthCaptureEvmScheme) settleCapture(
 	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
-	if resp, err := f.resumePending(ctx, payload, requirements); resp != nil || err != nil {
+	if resp, err := f.resumePending(ctx, payload, requirements, nil); resp != nil || err != nil {
 		return resp, err
 	}
 
@@ -364,7 +346,7 @@ func (f *AuthCaptureEvmScheme) settleCapture(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := f.awaitSettlement(ctx, payload, requirements, payer, txHash)
+	resp, err := f.awaitSettlement(ctx, payload, requirements, payer, txHash, nil)
 	if err != nil || !pre.withVoid {
 		return resp, err
 	}
@@ -425,7 +407,7 @@ func (f *AuthCaptureEvmScheme) checkVoidPreconditions(
 		return nil, x402.NewVerifyError(ErrVoidAuthorizerSignature, payer, "voidAuthorizerSignature must not appear on a void payload")
 	}
 
-	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce)
+	lc, err := f.checkLifecycleCommon(payload, requirements, p.PaymentInfo, p.SaltNonce, opVoid)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +448,7 @@ func (f *AuthCaptureEvmScheme) settleVoid(
 	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
-	if resp, err := f.resumePending(ctx, payload, requirements); resp != nil || err != nil {
+	if resp, err := f.resumePending(ctx, payload, requirements, nil); resp != nil || err != nil {
 		return resp, err
 	}
 
@@ -485,5 +467,5 @@ func (f *AuthCaptureEvmScheme) settleVoid(
 	if err != nil {
 		return nil, err
 	}
-	return f.awaitSettlement(ctx, payload, requirements, payer, txHash)
+	return f.awaitSettlement(ctx, payload, requirements, payer, txHash, nil)
 }

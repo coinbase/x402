@@ -61,6 +61,11 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("invalid authCaptureEscrow in payment requirements extra")
 	}
 
+	captureMode := stringFromExtra(ex, "captureMode")
+	if captureMode != "" && captureMode != CaptureModeSync && captureMode != CaptureModeDeferred {
+		return AuthCaptureExtra{}, AuthCaptureDeployment{}, fmt.Errorf("invalid captureMode %q", captureMode)
+	}
+
 	autoCapture, _ := ex["autoCapture"].(bool)
 	return AuthCaptureExtra{
 		CaptureAuthorizer:   captureAuthorizer,
@@ -74,6 +79,7 @@ func ParseAuthCaptureExtra(requirements types.PaymentRequirements) (AuthCaptureE
 		ReceiverAuthorizer:  stringFromExtra(ex, "receiverAuthorizer"),
 		Policy:              stringFromExtra(ex, "policy"),
 		PaymentFlow:         stringFromExtra(ex, "paymentFlow"),
+		CaptureMode:         captureMode,
 		AutoCapture:         autoCapture,
 		OperatorType:        stringFromExtra(ex, "operatorType"),
 		AssetTransferMethod: assetTransferMethod,

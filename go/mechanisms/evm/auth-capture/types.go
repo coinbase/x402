@@ -31,6 +31,7 @@ type AuthCaptureExtra struct {
 	Name                string
 	Version             string
 	PaymentFlow         string
+	CaptureMode         string
 	AutoCapture         bool
 	ReceiverAuthorizer  string
 	Policy              string
@@ -202,14 +203,14 @@ func isPaymentInfoStructMap(value interface{}) bool {
 }
 
 // IsLifecyclePayload reports whether value names a supported lifecycle operation
-// ("capture" or "void"). Field-level validation is in IsCapturePayload/IsVoidPayload.
+// ("capture", "void" or "refund"). Field-level validation is in the per-type guards.
 func IsLifecyclePayload(value interface{}) bool {
 	v, ok := value.(map[string]interface{})
 	if !ok {
 		return false
 	}
 	t, ok := v["type"].(string)
-	return ok && (t == "capture" || t == "void")
+	return ok && (t == "capture" || t == "void" || t == "refund")
 }
 
 // IsCapturePayload reports whether value is a capture lifecycle payload.
@@ -242,4 +243,21 @@ func IsVoidPayload(value interface{}) bool {
 	return isPaymentInfoStructMap(v["paymentInfo"]) &&
 		isHexString(v["saltNonce"]) &&
 		isNonEmptyString(v["authorizerSignature"])
+}
+
+// IsRefundPayload reports whether value is a refund lifecycle payload.
+func IsRefundPayload(value interface{}) bool {
+	v, ok := value.(map[string]interface{})
+	if !ok || !IsLifecyclePayload(value) || v["type"] != "refund" {
+		return false
+	}
+	if !isPaymentInfoStructMap(v["paymentInfo"]) || !isHexString(v["saltNonce"]) {
+		return false
+	}
+	for _, key := range []string{"amount", "expectedCapturableAmount", "expectedRefundableAmount", "authorizerSignature"} {
+		if !isNonEmptyString(v[key]) {
+			return false
+		}
+	}
+	return true
 }

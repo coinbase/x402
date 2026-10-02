@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,15 @@ type mockFacSigner struct {
 	isValidSignatureResult interface{}
 	stateReads             int
 	readFroms              []string
+
+	readFunctions []string
+	tokenBalance  *big.Int            // balanceOf through ReadContract
+	balances      map[string]*big.Int // balanceOf inside a multicall, by lowercase account
+	tokenStore    string
+
+	simulateCalls func(from string, calls []SimulatedCall) ([]SimulatedCallResult, error)
+	writeTarget   string
+	writeGas      uint64
 }
 
 func newMockFacSigner(addresses ...string) *mockFacSigner {
@@ -61,6 +71,7 @@ func newMockFacSigner(addresses ...string) *mockFacSigner {
 		writeTx:          txHash,
 		receipt:          &evm.TransactionReceipt{Status: evm.TxStatusSuccess, TxHash: txHash},
 		multicallSuccess: true,
+		balances:         map[string]*big.Int{},
 	}
 }
 
@@ -92,6 +103,13 @@ func (m *mockFacSigner) ReadContract(_ context.Context, _ string, abiJSON []byte
 	if functionName == "isValidSignature" {
 		return m.isValidSignatureResult, nil
 	}
+	m.readFunctions = append(m.readFunctions, functionName)
+	switch functionName {
+	case "balanceOf":
+		return m.tokenBalance, nil
+	case "getTokenStore":
+		return common.HexToAddress(m.tokenStore), nil
+	}
 	if err := m.simulateErr[functionName]; err != nil {
 		return nil, err
 	}
@@ -108,7 +126,8 @@ func (m *mockFacSigner) VerifyTypedData(context.Context, string, evm.TypedDataDo
 	return false, nil
 }
 
-func (m *mockFacSigner) WriteContract(_ context.Context, _ string, abiJSON []byte, function string, _ []byte, args ...interface{}) (string, error) {
+func (m *mockFacSigner) WriteContract(_ context.Context, target string, abiJSON []byte, function string, _ []byte, args ...interface{}) (string, error) {
+	m.writeTarget = target
 	if err := packArgs(abiJSON, function, args); err != nil {
 		return "", err
 	}
@@ -120,6 +139,17 @@ func (m *mockFacSigner) WriteContract(_ context.Context, _ string, abiJSON []byt
 		m.afterWrite(function)
 	}
 	return m.writeTx, nil
+}
+
+// WriteContractWithGas makes the mock a GasLimitWriter.
+func (m *mockFacSigner) WriteContractWithGas(ctx context.Context, target string, abiJSON []byte, function string, dataSuffix []byte, gas uint64, args ...interface{}) (string, error) {
+	m.writeGas = gas
+	return m.WriteContract(ctx, target, abiJSON, function, dataSuffix, args...)
+}
+
+// SimulateCalls makes the mock a CallSimulator.
+func (m *mockFacSigner) SimulateCalls(_ context.Context, from string, calls []SimulatedCall) ([]SimulatedCallResult, error) {
+	return m.simulateCalls(from, calls)
 }
 
 func (m *mockFacSigner) SendTransaction(context.Context, string, []byte) (string, error) {
@@ -155,12 +185,29 @@ func (m *mockFacSigner) tryAggregate(args []interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	erc20, err := abi.JSON(bytes.NewReader(evm.ERC20BalanceOfABI))
+	if err != nil {
+		return nil, err
+	}
 	calls := reflect.ValueOf(args[1])
 	results := make([]aggregateResult, calls.Len())
 	for i := range results {
 		callData := calls.Index(i).FieldByName("CallData").Bytes()
 		if bytes.HasPrefix(callData, escrow.Methods["paymentState"].ID) {
 			returnData, err := escrow.Methods["paymentState"].Outputs.Pack(m.paymentStateHasCollected, m.paymentStateCapturable, m.paymentStateRefundable)
+			if err != nil {
+				return nil, err
+			}
+			results[i] = aggregateResult{Success: true, ReturnData: returnData}
+			continue
+		}
+		if bytes.HasPrefix(callData, erc20.Methods["balanceOf"].ID) {
+			account := strings.ToLower(common.BytesToAddress(callData[len(callData)-20:]).Hex())
+			balance := m.balances[account]
+			if balance == nil {
+				balance = new(big.Int)
+			}
+			returnData, err := erc20.Methods["balanceOf"].Outputs.Pack(balance)
 			if err != nil {
 				return nil, err
 			}
@@ -197,6 +244,8 @@ var (
 	facPayTo             = "0x" + strings.Repeat("2", 40)
 	facAsset             = "0x" + strings.Repeat("a", 40)
 )
+
+var allowAllCustomOperators = []OperatorAllowlistEntry{{Address: OperatorAddressWildcard, OperatorType: authcapture.OperatorTypeCustom}}
 
 const (
 	facNetwork = "eip155:84532"

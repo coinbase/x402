@@ -199,7 +199,7 @@ func TestVerifyCapture_Rejections(t *testing.T) {
 			if test.mutate != nil {
 				test.mutate(&fx, wire, signer)
 			}
-			scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{})
+			scheme := newScheme(signer, AuthCaptureEvmSchemeConfig{Operators: allowAllCustomOperators})
 
 			_, err := scheme.Verify(context.Background(), fx.payload(wire), fx.requirements, nil)
 			assertVerifyReason(t, err, test.reason)

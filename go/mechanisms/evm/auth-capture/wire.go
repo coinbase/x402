@@ -56,6 +56,16 @@ type VoidPayload struct {
 	VoidAuthorizerSignature string
 }
 
+// RefundPayload is the parsed refund lifecycle payload.
+type RefundPayload struct {
+	PaymentInfo              PaymentInfoStruct
+	SaltNonce                string
+	Amount                   string
+	ExpectedCapturableAmount string
+	ExpectedRefundableAmount string
+	AuthorizerSignature      string
+}
+
 // ToWireMap returns the JSON wire form of the PaymentInfo carried by lifecycle payloads.
 func (p PaymentInfoStruct) ToWireMap() (map[string]interface{}, error) {
 	encoded, err := json.Marshal(p)
@@ -86,7 +96,11 @@ func Eip3009CollectPayloadFromMap(data map[string]interface{}) (*Eip3009CollectP
 	payload.Signature, _ = data["signature"].(string)
 	payload.Salt, _ = data["salt"].(string)
 	payload.SaltNonce, _ = data["saltNonce"].(string)
-	payload.Charge = chargeCompletionFromMap(data)
+	charge, err := chargeCompletionFromMap(data)
+	if err != nil {
+		return nil, err
+	}
+	payload.Charge = charge
 	return payload, nil
 }
 
@@ -112,28 +126,46 @@ func Permit2CollectPayloadFromMap(data map[string]interface{}) (*Permit2CollectP
 	payload.Signature, _ = data["signature"].(string)
 	payload.Salt, _ = data["salt"].(string)
 	payload.SaltNonce, _ = data["saltNonce"].(string)
-	payload.Charge = chargeCompletionFromMap(data)
+	charge, err := chargeCompletionFromMap(data)
+	if err != nil {
+		return nil, err
+	}
+	payload.Charge = charge
 	return payload, nil
 }
 
-func chargeCompletionFromMap(data map[string]interface{}) *ChargeCompletion {
+// chargeCompletionFromMap reads the server-added charge fields. All four or none must be present.
+func chargeCompletionFromMap(data map[string]interface{}) (*ChargeCompletion, error) {
+	feeBps, hasFeeBps := JSONNumberToUint16(data["feeBps"])
+	feeAmount, hasFeeAmount := data["feeAmount"].(string)
 	amount, hasAmount := data["amount"].(string)
 	feeReceiver, hasFeeReceiver := data["feeReceiver"].(string)
 	authorizerSignature, hasAuthorizerSig := data["authorizerSignature"].(string)
-	if !hasAmount || !hasFeeReceiver || !hasAuthorizerSig {
-		return nil
+
+	present := 0
+	for _, has := range []bool{hasAmount, hasFeeBps || hasFeeAmount, hasFeeReceiver, hasAuthorizerSig} {
+		if has {
+			present++
+		}
+	}
+	switch present {
+	case 0:
+		return nil, nil
+	case 4:
+	default:
+		return nil, fmt.Errorf("charge completion needs amount, a fee field, feeReceiver and authorizerSignature together")
 	}
 
 	charge := &ChargeCompletion{
 		Amount:              amount,
+		FeeAmount:           feeAmount,
 		FeeReceiver:         feeReceiver,
 		AuthorizerSignature: authorizerSignature,
 	}
-	charge.FeeAmount, _ = data["feeAmount"].(string)
-	if feeBps, ok := JSONNumberToUint16(data["feeBps"]); ok {
+	if hasFeeBps {
 		charge.FeeBps = &feeBps
 	}
-	return charge
+	return charge, nil
 }
 
 func paymentInfoStructFromMap(v map[string]interface{}) (PaymentInfoStruct, error) {
@@ -211,5 +243,25 @@ func VoidPayloadFromMap(data map[string]interface{}) (*VoidPayload, error) {
 	payload.SaltNonce, _ = data["saltNonce"].(string)
 	payload.AuthorizerSignature, _ = data["authorizerSignature"].(string)
 	payload.VoidAuthorizerSignature, _ = data["voidAuthorizerSignature"].(string)
+	return payload, nil
+}
+
+// RefundPayloadFromMap parses a wire payload already confirmed by IsRefundPayload.
+func RefundPayloadFromMap(data map[string]interface{}) (*RefundPayload, error) {
+	infoMap, ok := data["paymentInfo"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid paymentInfo field")
+	}
+	info, err := paymentInfoStructFromMap(infoMap)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := &RefundPayload{PaymentInfo: info}
+	payload.SaltNonce, _ = data["saltNonce"].(string)
+	payload.Amount, _ = data["amount"].(string)
+	payload.ExpectedCapturableAmount, _ = data["expectedCapturableAmount"].(string)
+	payload.ExpectedRefundableAmount, _ = data["expectedRefundableAmount"].(string)
+	payload.AuthorizerSignature, _ = data["authorizerSignature"].(string)
 	return payload, nil
 }

@@ -53,6 +53,15 @@ func checkRequest(payload types.PaymentPayload, requirements types.PaymentRequir
 	if extra.AutoCapture {
 		return nil, x402.NewVerifyError(ErrUnsupportedPaymentFlow, payer, "autoCapture is removed; use paymentFlow")
 	}
+	switch extra.PaymentFlow {
+	case "", authcapture.PaymentFlowEscrow:
+	case authcapture.PaymentFlowAuthorization:
+		if !authcapture.IsNonZeroAddress(extra.ReceiverAuthorizer) {
+			return nil, x402.NewVerifyError(ErrMissingReceiverAuthorizer, payer, "paymentFlow authorization requires a non-zero receiverAuthorizer")
+		}
+	default:
+		return nil, x402.NewVerifyError(ErrUnsupportedPaymentFlow, payer, fmt.Sprintf("unsupported paymentFlow: %s", extra.PaymentFlow))
+	}
 	return &requestContext{extra: extra, deployment: deployment, chainID: chainID}, nil
 }
 
@@ -278,12 +287,39 @@ func (f *AuthCaptureEvmScheme) writeEscrow(
 	function string,
 	args ...interface{},
 ) (string, error) {
+	return f.submitEscrowCall(ctx, fctx, payload, requirements, deployment, payer, deployment.Escrow, 0, function, args...)
+}
+
+// submitEscrowCall submits an escrow-ABI call to target, the escrow itself or a custom operator
+// forwarding to it. A non-zero gas caps the call, which needs a GasLimitWriter signer.
+func (f *AuthCaptureEvmScheme) submitEscrowCall(
+	ctx context.Context,
+	fctx *x402.FacilitatorContext,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
+	deployment *authcapture.AuthCaptureDeployment,
+	payer string,
+	target string,
+	gas uint64,
+	function string,
+	args ...interface{},
+) (string, error) {
 	network := x402.Network(payload.Accepted.Network)
 	dataSuffix, err := evm.ResolveDataSuffix(fctx, evm.DataSuffixContext{Payload: payload, Requirements: requirements})
 	if err != nil {
 		return "", x402.NewSettleError(ErrPayloadFormat, payer, network, "", err.Error())
 	}
-	txHash, err := f.signer.WriteContract(ctx, deployment.Escrow, authcapture.EscrowABIForDeployment(deployment), function, dataSuffix, args...)
+	escrowABI := authcapture.EscrowABIForDeployment(deployment)
+	var txHash string
+	if gas > 0 {
+		writer, ok := f.signer.(GasLimitWriter)
+		if !ok {
+			return "", x402.NewSettleError(ErrSimulationFailed, payer, network, "", "signer cannot cap gas for a custom operator")
+		}
+		txHash, err = writer.WriteContractWithGas(ctx, target, escrowABI, function, dataSuffix, gas, args...)
+	} else {
+		txHash, err = f.signer.WriteContract(ctx, target, escrowABI, function, dataSuffix, args...)
+	}
 	if err != nil {
 		return "", x402.NewSettleError(revertReason(deployment, errorRevertData(err)), payer, network, "", err.Error())
 	}
@@ -315,18 +351,16 @@ func payloadPayer(payload map[string]interface{}) string {
 	return ""
 }
 
-// settledAmount is the amount reported in the SettleResponse: the hold for authorize,
-// the captured amount for capture, and none for void.
+// settledAmount is the amount reported in the SettleResponse: the hold for authorize, the
+// amount the payload names for charge, capture and refund, and none for void.
 func settledAmount(payload map[string]interface{}, requirements types.PaymentRequirements) string {
-	switch payload["type"] {
-	case "void":
+	if payload["type"] == opVoid {
 		return ""
-	case "capture":
-		amount, _ := payload["amount"].(string)
-		return amount
-	default:
-		return requirements.Amount
 	}
+	if amount, ok := payload["amount"].(string); ok {
+		return amount
+	}
+	return requirements.Amount
 }
 
 // resumePending completes a settlement whose transaction was broadcast on an earlier
@@ -335,6 +369,7 @@ func (f *AuthCaptureEvmScheme) resumePending(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	check receiptCheck,
 ) (*x402.SettleResponse, error) {
 	key := settlementKey(payload.Payload)
 	if key == "" {
@@ -345,16 +380,21 @@ func (f *AuthCaptureEvmScheme) resumePending(
 		return nil, nil
 	}
 	_ = f.pendingStore.Delete(ctx, key)
-	return f.awaitSettlement(ctx, payload, requirements, payloadPayer(payload.Payload), txHash)
+	return f.awaitSettlement(ctx, payload, requirements, payloadPayer(payload.Payload), txHash, check)
 }
 
-// awaitSettlement waits for txHash to confirm and builds the SettleResponse.
+// receiptCheck inspects a confirmed receipt. It returns a failed SettleResponse to reject the
+// settlement, and nil, nil to accept it.
+type receiptCheck func(ctx context.Context, receipt *evm.TransactionReceipt) (*x402.SettleResponse, error)
+
+// awaitSettlement waits for txHash to confirm, applies check if set, and builds the SettleResponse.
 func (f *AuthCaptureEvmScheme) awaitSettlement(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
 	payer string,
 	txHash string,
+	check receiptCheck,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
 	receipt, err := evm.WaitForSettleReceiptWithPendingStore(
@@ -364,6 +404,11 @@ func (f *AuthCaptureEvmScheme) awaitSettlement(
 	if err != nil {
 		return nil, err
 	}
+	if check != nil {
+		if rejected, err := check(ctx, receipt); rejected != nil || err != nil {
+			return rejected, err
+		}
+	}
 	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: receipt.TxHash,
@@ -371,4 +416,14 @@ func (f *AuthCaptureEvmScheme) awaitSettlement(
 		Payer:       payer,
 		Amount:      settledAmount(payload.Payload, requirements),
 	}, nil
+}
+
+// readTokenBalance reads an ERC-20 balance. It returns nil when the read fails or decodes to
+// an unexpected type, so callers can treat the balance as unknown.
+func readTokenBalance(ctx context.Context, signer evm.FacilitatorEvmSigner, token, account string) *big.Int {
+	balance, err := signer.ReadContract(ctx, token, evm.ERC20BalanceOfABI, "balanceOf", common.HexToAddress(account))
+	if err != nil {
+		return nil
+	}
+	return asBigInt(balance)
 }

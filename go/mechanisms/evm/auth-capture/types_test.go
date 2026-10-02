@@ -241,3 +241,52 @@ func TestLifecyclePayloadParsing(t *testing.T) {
 		t.Fatal("expected an incomplete paymentInfo to fail")
 	}
 }
+
+func validRefund() map[string]interface{} {
+	return map[string]interface{}{
+		"type":                     "refund",
+		"paymentInfo":              validPaymentInfoWire(),
+		"saltNonce":                "0x01",
+		"amount":                   "250000",
+		"expectedCapturableAmount": "0",
+		"expectedRefundableAmount": "750000",
+		"authorizerSignature":      "0xabcd",
+	}
+}
+
+func TestIsRefundPayload(t *testing.T) {
+	valid := validRefund()
+	if !IsRefundPayload(valid) || !IsLifecyclePayload(valid) {
+		t.Fatal("expected a refund payload")
+	}
+
+	for _, missing := range []string{"saltNonce", "amount", "expectedCapturableAmount", "expectedRefundableAmount", "authorizerSignature", "paymentInfo"} {
+		payload := copyMap(valid)
+		delete(payload, missing)
+		if IsRefundPayload(payload) {
+			t.Fatalf("expected a refund without %s to be rejected", missing)
+		}
+	}
+	capture := copyMap(valid)
+	capture["type"] = "capture"
+	if IsRefundPayload(capture) || IsRefundPayload("refund") {
+		t.Fatal("expected a non-refund payload to be rejected")
+	}
+}
+
+func TestRefundPayloadFromMap(t *testing.T) {
+	refund, err := RefundPayloadFromMap(validRefund())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refund.Amount != "250000" || refund.ExpectedRefundableAmount != "750000" || refund.SaltNonce != "0x01" || refund.AuthorizerSignature != "0xabcd" {
+		t.Fatalf("unexpected refund payload: %+v", refund)
+	}
+
+	if _, err := RefundPayloadFromMap(map[string]interface{}{}); err == nil {
+		t.Fatal("expected a missing paymentInfo to fail")
+	}
+	if _, err := RefundPayloadFromMap(map[string]interface{}{"paymentInfo": map[string]interface{}{}}); err == nil {
+		t.Fatal("expected an incomplete paymentInfo to fail")
+	}
+}

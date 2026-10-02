@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -36,14 +37,36 @@ type collectAuth struct {
 	signature         string
 	salt              string
 	saltNonce         string
+	charge            *authcapture.ChargeCompletion
+}
+
+// collectOperation is the escrow call a collect payload settles as: authorize for the whole hold,
+// or charge of the amount and fee the server's completion names (the provisional full amount and
+// default fee until the payload is completed).
+type collectOperation struct {
+	function    string
+	amount      *big.Int
+	fee         authcapture.CaptureFee
+	feeReceiver string
+	completed   bool
+}
+
+// collectOutcome is what a collect call must leave on chain, reconstructed from the payload
+// without verifying it. A resumed settlement checks a custom operator against it.
+type collectOutcome struct {
+	collectOperation
+	deployment      authcapture.AuthCaptureDeployment
+	extra           authcapture.AuthCaptureExtra
+	paymentInfo     authcapture.PaymentInfoStruct
+	paymentInfoHash string
+	payer           string
+	tokenCollector  string
+	network         x402.Network
 }
 
 // collectPreconditions is the verified state settleCollect reuses from verifyCollect.
 type collectPreconditions struct {
-	deployment   authcapture.AuthCaptureDeployment
-	paymentInfo  authcapture.PaymentInfoStruct
-	payer        string
-	collector    string
+	collectOutcome
 	sigData      *evm.ERC6492SignatureData
 	rawSignature []byte
 }
@@ -54,9 +77,6 @@ func parseEip3009Auth(payload map[string]interface{}, rc *requestContext, asset 
 		return nil, x402.NewVerifyError(ErrPayloadFormat, "", err.Error())
 	}
 	auth := p.Authorization
-	if p.Charge != nil {
-		return nil, x402.NewVerifyError(ErrUnsupportedPaymentFlow, auth.From, "terminal charge completion is not supported")
-	}
 	validAfter, err := strconv.ParseUint(auth.ValidAfter, 10, 64)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, auth.From, "invalid validAfter")
@@ -82,6 +102,7 @@ func parseEip3009Auth(payload map[string]interface{}, rc *requestContext, asset 
 		signature:         p.Signature,
 		salt:              p.Salt,
 		saltNonce:         p.SaltNonce,
+		charge:            p.Charge,
 	}, nil
 }
 
@@ -91,9 +112,6 @@ func parsePermit2Auth(payload map[string]interface{}, rc *requestContext) (*coll
 		return nil, x402.NewVerifyError(ErrPayloadFormat, "", err.Error())
 	}
 	auth := p.Permit2Authorization
-	if p.Charge != nil {
-		return nil, x402.NewVerifyError(ErrUnsupportedPaymentFlow, auth.From, "terminal charge completion is not supported")
-	}
 	deadline, err := strconv.ParseUint(auth.Deadline, 10, 64)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, auth.From, "invalid deadline")
@@ -119,22 +137,33 @@ func parsePermit2Auth(payload map[string]interface{}, rc *requestContext) (*coll
 		signature:         p.Signature,
 		salt:              p.Salt,
 		saltNonce:         p.SaltNonce,
+		charge:            p.Charge,
 	}, nil
 }
 
-// checkOperator applies the operator, policy and payment-flow checks for a collect payload.
-func (f *AuthCaptureEvmScheme) checkOperator(extra authcapture.AuthCaptureExtra, payer string) error {
-	if extra.OperatorType != "" && extra.OperatorType != "delegated" {
-		return x402.NewVerifyError(ErrUnsupportedOperatorType, payer, fmt.Sprintf("unsupported operatorType: %s", extra.OperatorType))
-	}
-	if !f.controlsAddress(extra.CaptureAuthorizer) {
-		return x402.NewVerifyError(ErrOperatorNotAdmitted, payer, fmt.Sprintf("captureAuthorizer %s is not controlled by this facilitator", extra.CaptureAuthorizer))
-	}
+// checkOperator applies the operator and policy checks. A lifecycle payload is relayed only for
+// a delegated operator with a receiver authorizer; a custom operator runs lifecycle out of band.
+func (f *AuthCaptureEvmScheme) checkOperator(extra authcapture.AuthCaptureExtra, payer string, lifecycle bool) error {
 	if authcapture.IsNonZeroAddress(extra.Policy) {
 		return x402.NewVerifyError(ErrPolicy, payer, "policy operator type is not supported")
 	}
-	if extra.PaymentFlow != "" && extra.PaymentFlow != "escrow" {
-		return x402.NewVerifyError(ErrUnsupportedPaymentFlow, payer, fmt.Sprintf("unsupported paymentFlow: %s", extra.PaymentFlow))
+	switch extra.OperatorType {
+	case authcapture.OperatorTypeCustom:
+		if !f.operatorAdmitted(extra.CaptureAuthorizer) {
+			return x402.NewVerifyError(ErrOperatorNotAdmitted, payer, fmt.Sprintf("captureAuthorizer %s is not an admitted custom operator", extra.CaptureAuthorizer))
+		}
+		if lifecycle {
+			return x402.NewVerifyError(ErrLifecycleNotRelayed, payer, "lifecycle payloads are not relayed for custom operators")
+		}
+	case "", authcapture.OperatorTypeDelegated:
+		if !f.controlsAddress(extra.CaptureAuthorizer) {
+			return x402.NewVerifyError(ErrOperatorNotAdmitted, payer, fmt.Sprintf("captureAuthorizer %s is not controlled by this facilitator", extra.CaptureAuthorizer))
+		}
+		if lifecycle && !authcapture.IsNonZeroAddress(extra.ReceiverAuthorizer) {
+			return x402.NewVerifyError(ErrLifecycleNotRelayed, payer, "lifecycle payloads require a non-zero receiverAuthorizer")
+		}
+	default:
+		return x402.NewVerifyError(ErrUnsupportedOperatorType, payer, fmt.Sprintf("unsupported operatorType: %s", extra.OperatorType))
 	}
 	return nil
 }
@@ -175,16 +204,17 @@ func checkTimes(extra authcapture.AuthCaptureExtra, requirements types.PaymentRe
 	return nil
 }
 
-// checkBindings requires the collector, token and amount to match the requirements.
-func checkBindings(requirements types.PaymentRequirements, auth *collectAuth) error {
+// checkBindings requires the collector, token and amount to match the requirements. The amount
+// is the one the payer was offered: on a charge settle requirements.Amount carries the charge.
+func checkBindings(acceptedAmount string, requirements types.PaymentRequirements, auth *collectAuth) error {
 	if !strings.EqualFold(auth.collector, auth.expectedCollector) {
 		return x402.NewVerifyError(ErrTokenCollectorMismatch, auth.payer, fmt.Sprintf("collector mismatch: %s != %s", auth.collector, auth.expectedCollector))
 	}
 	if auth.token != "" && !strings.EqualFold(auth.token, requirements.Asset) {
 		return x402.NewVerifyError(ErrTokenMismatch, auth.payer, "permitted token mismatch")
 	}
-	if auth.amount != requirements.Amount {
-		return x402.NewVerifyError(ErrAmountMismatch, auth.payer, fmt.Sprintf("amount mismatch: %s != %s", auth.amount, requirements.Amount))
+	if auth.amount != acceptedAmount {
+		return x402.NewVerifyError(ErrAmountMismatch, auth.payer, fmt.Sprintf("amount mismatch: %s != %s", auth.amount, acceptedAmount))
 	}
 	return nil
 }
@@ -245,109 +275,260 @@ func (f *AuthCaptureEvmScheme) verifyPayerSignature(ctx context.Context, auth *c
 	}
 }
 
+// resolveCollectOperation decides the escrow call: authorize for an escrow payload, charge for an
+// authorization payload. A charge is completed by the server's amount, fee and signature; before
+// that (a raw /verify) it is simulated as a full-amount charge at the minimum fee, and /settle
+// rejects it with requireCompletion.
+func resolveCollectOperation(rc *requestContext, auth *collectAuth, requireCompletion bool) (collectOperation, error) {
+	signed, ok := parseUint(auth.amount)
+	if !ok {
+		return collectOperation{}, x402.NewVerifyError(ErrPayloadFormat, auth.payer, "invalid amount")
+	}
+	charging := rc.extra.PaymentFlow == authcapture.PaymentFlowAuthorization
+	switch {
+	case auth.charge != nil && !charging:
+		return collectOperation{}, x402.NewVerifyError(ErrPayloadFormat, auth.payer, "charge completion requires paymentFlow authorization")
+	case auth.charge == nil && !charging:
+		return collectOperation{function: "authorize", amount: signed}, nil
+	case auth.charge == nil && requireCompletion:
+		return collectOperation{}, x402.NewVerifyError(ErrPayloadFormat, auth.payer, "settle requires a completed charge payload")
+	case auth.charge == nil:
+		return collectOperation{
+			function:    "charge",
+			amount:      signed,
+			fee:         authcapture.DefaultCaptureFee(&rc.deployment, signed, rc.extra.MinFeeBps),
+			feeReceiver: rc.extra.FeeRecipient,
+		}, nil
+	}
+
+	charge := auth.charge
+	amount, ok := parseUint(charge.Amount)
+	if !ok {
+		return collectOperation{}, x402.NewVerifyError(ErrPayloadFormat, auth.payer, "invalid charge amount")
+	}
+	if amount.Sign() == 0 || amount.Cmp(signed) > 0 {
+		return collectOperation{}, x402.NewVerifyError(ErrAmountMismatch, auth.payer, "charge amount must be > 0 and <= the signed amount")
+	}
+	fee, ok := parseSubmittedFee(charge.FeeBps, charge.FeeAmount, &rc.deployment)
+	if !ok {
+		return collectOperation{}, x402.NewVerifyError(ErrPayloadFormat, auth.payer, "charge fee field does not match the escrow deployment")
+	}
+	if reason := validateSubmittedFee(rc.extra, amount, fee, charge.FeeReceiver); reason != "" {
+		return collectOperation{}, x402.NewVerifyError(reason, auth.payer, "submitted fee or feeReceiver does not satisfy extra")
+	}
+	return collectOperation{function: "charge", amount: amount, fee: fee, feeReceiver: charge.FeeReceiver, completed: true}, nil
+}
+
+func parseCollectAuth(payload types.PaymentPayload, rc *requestContext, requirements types.PaymentRequirements) (*collectAuth, error) {
+	if authcapture.IsPermit2Payload(payload.Payload) {
+		return parsePermit2Auth(payload.Payload, rc)
+	}
+	return parseEip3009Auth(payload.Payload, rc, requirements.Asset)
+}
+
+// newCollectOutcome reconstructs the PaymentInfo the payer signed, which is bound to the amount
+// it was offered (payload.Accepted), not a charge settle's overridden requirements.Amount.
+func newCollectOutcome(
+	rc *requestContext,
+	auth *collectAuth,
+	op collectOperation,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
+) (*collectOutcome, error) {
+	accepted := requirements
+	accepted.Amount = payload.Accepted.Amount
+	paymentInfo := authcapture.ReconstructPaymentInfo(auth.payer, auth.validBefore, auth.salt, accepted, rc.extra)
+	hash, err := authcapture.ComputePaymentInfoHash(rc.chainID, paymentInfo, auth.payer, rc.deployment.Escrow)
+	if err != nil {
+		return nil, x402.NewVerifyError(ErrPayloadFormat, auth.payer, err.Error())
+	}
+	return &collectOutcome{
+		collectOperation: op,
+		deployment:       rc.deployment,
+		extra:            rc.extra,
+		paymentInfo:      paymentInfo,
+		paymentInfoHash:  hash,
+		payer:            auth.payer,
+		tokenCollector:   auth.expectedCollector,
+		network:          x402.Network(payload.Accepted.Network),
+	}, nil
+}
+
+// reconstructCollectOutcome rebuilds a collect's expected outcome without verifying it, for a
+// settlement resumed after its transaction was already broadcast.
+func reconstructCollectOutcome(payload types.PaymentPayload, requirements types.PaymentRequirements) (*collectOutcome, error) {
+	payer := payloadPayer(payload.Payload)
+	rc, err := checkRequest(payload, requirements, payer)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := parseCollectAuth(payload, rc, requirements)
+	if err != nil {
+		return nil, err
+	}
+	op, err := resolveCollectOperation(rc, auth, true)
+	if err != nil {
+		return nil, err
+	}
+	return newCollectOutcome(rc, auth, op, payload, requirements)
+}
+
+// checkChargeSignature verifies the receiver authorizer's signature over a completed charge.
+func (f *AuthCaptureEvmScheme) checkChargeSignature(ctx context.Context, rc *requestContext, auth *collectAuth, out *collectOutcome) error {
+	signature, err := evm.HexToBytes(auth.charge.AuthorizerSignature)
+	if err != nil {
+		return x402.NewVerifyError(ErrAuthorizerSignature, auth.payer, err.Error())
+	}
+	collectorData, err := evm.HexToBytes(auth.signature)
+	if err != nil {
+		return x402.NewVerifyError(ErrSignature, auth.payer, err.Error())
+	}
+	valid, err := authcapture.VerifyCharge(ctx, f.signer, rc.extra.ReceiverAuthorizer, &rc.deployment, rc.extra.CaptureAuthorizer, rc.chainID,
+		authcapture.ChargeParams{
+			PaymentInfoHash: out.paymentInfoHash,
+			Amount:          out.amount,
+			TokenCollector:  out.tokenCollector,
+			CollectorData:   collectorData,
+			Fee:             out.fee,
+			FeeReceiver:     out.feeReceiver,
+		}, signature)
+	if err != nil {
+		return x402.NewVerifyError(ErrAuthorizerSignature, auth.payer, err.Error())
+	}
+	if !valid {
+		return x402.NewVerifyError(ErrAuthorizerSignature, auth.payer, "authorizer signature invalid")
+	}
+	return nil
+}
+
 // checkCollectPreconditions runs every collect verification step short of simulation.
 func (f *AuthCaptureEvmScheme) checkCollectPreconditions(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
+	requireCompletion bool,
 ) (*collectPreconditions, error) {
 	payer := payloadPayer(payload.Payload)
 	rc, err := checkRequest(payload, requirements, payer)
 	if err != nil {
 		return nil, err
 	}
-	if err := f.checkOperator(rc.extra, payer); err != nil {
+	if err := f.checkOperator(rc.extra, payer, false); err != nil {
 		return nil, err
 	}
 
-	var auth *collectAuth
-	if authcapture.IsPermit2Payload(payload.Payload) {
-		auth, err = parsePermit2Auth(payload.Payload, rc)
-	} else {
-		auth, err = parseEip3009Auth(payload.Payload, rc, requirements.Asset)
-	}
+	auth, err := parseCollectAuth(payload, rc, requirements)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := checkMethodRouting(rc.extra, auth); err != nil {
 		return nil, err
 	}
 	if err := checkTimes(rc.extra, requirements, auth); err != nil {
 		return nil, err
 	}
-	if err := checkBindings(requirements, auth); err != nil {
+	if err := checkBindings(payload.Accepted.Amount, requirements, auth); err != nil {
 		return nil, err
 	}
 	if err := checkSalt(rc.extra, auth); err != nil {
 		return nil, err
 	}
 
-	paymentInfo := authcapture.ReconstructPaymentInfo(auth.payer, auth.validBefore, auth.salt, requirements, rc.extra)
-	expectedNonce, err := authcapture.ComputePayerAgnosticPaymentInfoHash(rc.chainID, paymentInfo, rc.deployment.Escrow)
+	op, err := resolveCollectOperation(rc, auth, requireCompletion)
+	if err != nil {
+		return nil, err
+	}
+	out, err := newCollectOutcome(rc, auth, op, payload, requirements)
+	if err != nil {
+		return nil, err
+	}
+	expectedNonce, err := authcapture.ComputePayerAgnosticPaymentInfoHash(rc.chainID, out.paymentInfo, rc.deployment.Escrow)
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, auth.payer, err.Error())
 	}
 	if !strings.EqualFold(expectedNonce, auth.nonce) {
 		return nil, x402.NewVerifyError(ErrNonceMismatch, auth.payer, fmt.Sprintf("nonce mismatch: %s != %s", auth.nonce, expectedNonce))
 	}
+	if op.completed {
+		if err := f.checkChargeSignature(ctx, rc, auth, out); err != nil {
+			return nil, err
+		}
+	}
 
 	sigData, err := f.verifyPayerSignature(ctx, auth)
 	if err != nil {
 		return nil, err
 	}
-	return &collectPreconditions{
-		deployment:   rc.deployment,
-		paymentInfo:  paymentInfo,
-		payer:        auth.payer,
-		collector:    auth.expectedCollector,
-		sigData:      sigData,
-		rawSignature: sigData.InnerSignature,
-	}, nil
+	if rc.extra.OperatorType == authcapture.OperatorTypeCustom && needsFactoryDeploy(sigData) {
+		return nil, x402.NewVerifyError(ErrUndeployedSmartWallet, auth.payer, "custom operators do not support counterfactual wallets")
+	}
+	return &collectPreconditions{collectOutcome: *out, sigData: sigData, rawSignature: sigData.InnerSignature}, nil
 }
 
-// authorizeArgs are the AuthCaptureEscrow.authorize call arguments.
-func (pre *collectPreconditions) authorizeArgs() ([]interface{}, error) {
-	amount, ok := new(big.Int).SetString(pre.paymentInfo.MaxAmount, 10)
-	if !ok {
-		return nil, x402.NewVerifyError(ErrPayloadFormat, pre.payer, "invalid amount")
-	}
+// escrowArgs are the AuthCaptureEscrow authorize or charge call arguments.
+func (pre *collectPreconditions) escrowArgs() ([]interface{}, error) {
 	tuple, err := pre.paymentInfo.ToAbiTuple()
 	if err != nil {
 		return nil, x402.NewVerifyError(ErrPayloadFormat, pre.payer, err.Error())
 	}
-	return []interface{}{tuple, amount, common.HexToAddress(pre.collector), pre.rawSignature}, nil
+	args := []interface{}{tuple, pre.amount, common.HexToAddress(pre.tokenCollector), pre.rawSignature}
+	if pre.function == "charge" {
+		args = append(args, pre.fee.Arg(), common.HexToAddress(pre.feeReceiver))
+	}
+	return args, nil
 }
 
-// simulateAuthorize simulates the authorize call, or only the factory deploy for a counterfactual payer.
-func simulateAuthorize(ctx context.Context, signer evm.FacilitatorEvmSigner, pre *collectPreconditions) error {
-	if needsFactoryDeploy(pre.sigData) {
-		return simulateFactoryDeploy(ctx, signer, pre.sigData, pre.payer)
+// simulateCollect simulates the collect call, or only the factory deploy for a counterfactual payer.
+// A failed simulation is reported as insufficient_balance when the payer holds less than it signed.
+func (f *AuthCaptureEvmScheme) simulateCollect(ctx context.Context, pre *collectPreconditions) error {
+	err := f.simulateCollectCall(ctx, pre)
+	if err == nil {
+		return nil
 	}
-	args, err := pre.authorizeArgs()
+	var verifyErr *x402.VerifyError
+	if !errors.As(err, &verifyErr) {
+		return err
+	}
+	balance := readTokenBalance(ctx, f.signer, pre.paymentInfo.Token, pre.payer)
+	signed, ok := parseUint(pre.paymentInfo.MaxAmount)
+	if balance == nil || !ok || balance.Cmp(signed) >= 0 {
+		return err
+	}
+	return x402.NewVerifyError(ErrInsufficientBalance, pre.payer, "payer balance is below the signed amount")
+}
+
+func (f *AuthCaptureEvmScheme) simulateCollectCall(ctx context.Context, pre *collectPreconditions) error {
+	if pre.extra.OperatorType == authcapture.OperatorTypeCustom {
+		return f.simulateCustomCollect(ctx, pre)
+	}
+	if needsFactoryDeploy(pre.sigData) {
+		return simulateFactoryDeploy(ctx, f.signer, pre.sigData, pre.payer)
+	}
+	args, err := pre.escrowArgs()
 	if err != nil {
 		return err
 	}
-	return simulateEscrowCall(ctx, signer, &pre.deployment, pre.paymentInfo.Operator, pre.payer, "authorize", args...)
+	return simulateEscrowCall(ctx, f.signer, &pre.deployment, pre.paymentInfo.Operator, pre.payer, pre.function, args...)
 }
 
-// verifyCollect validates an EIP-3009 or Permit2 collect payload and simulates the authorize.
+// verifyCollect validates an EIP-3009 or Permit2 collect payload and simulates its authorize or charge.
 func (f *AuthCaptureEvmScheme) verifyCollect(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
 ) (*x402.VerifyResponse, error) {
-	pre, err := f.checkCollectPreconditions(ctx, payload, requirements)
+	pre, err := f.checkCollectPreconditions(ctx, payload, requirements, false)
 	if err != nil {
 		return nil, err
 	}
-	if err := simulateAuthorize(ctx, f.signer, pre); err != nil {
+	if err := f.simulateCollect(ctx, pre); err != nil {
 		return nil, err
 	}
 	return &x402.VerifyResponse{IsValid: true, Payer: pre.payer}, nil
 }
 
-// settleCollect submits the authorize call for a collect payload.
+// settleCollect submits the authorize or charge call for a collect payload. A charge and a custom
+// operator are always re-simulated: the first moves the funds for good, the second is untrusted code.
 func (f *AuthCaptureEvmScheme) settleCollect(
 	ctx context.Context,
 	payload types.PaymentPayload,
@@ -355,16 +536,17 @@ func (f *AuthCaptureEvmScheme) settleCollect(
 	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
 	network := x402.Network(payload.Accepted.Network)
-	if resp, err := f.resumePending(ctx, payload, requirements); resp != nil || err != nil {
+	if resp, err := f.resumePending(ctx, payload, requirements, f.resumedCollectCheck(payload, requirements)); resp != nil || err != nil {
 		return resp, err
 	}
 
-	pre, err := f.checkCollectPreconditions(ctx, payload, requirements)
+	pre, err := f.checkCollectPreconditions(ctx, payload, requirements, true)
 	if err != nil {
 		return nil, toSettleError(err, network, "")
 	}
-	if f.config.SimulateInSettle {
-		if err := simulateAuthorize(ctx, f.signer, pre); err != nil {
+	custom := pre.extra.OperatorType == authcapture.OperatorTypeCustom
+	if f.config.SimulateInSettle || custom || pre.completed {
+		if err := f.simulateCollect(ctx, pre); err != nil {
 			return nil, toSettleError(err, network, pre.payer)
 		}
 	}
@@ -374,13 +556,38 @@ func (f *AuthCaptureEvmScheme) settleCollect(
 		}
 	}
 
-	args, err := pre.authorizeArgs()
+	args, err := pre.escrowArgs()
 	if err != nil {
 		return nil, toSettleError(err, network, pre.payer)
 	}
-	txHash, err := f.writeEscrow(ctx, fctx, payload, requirements, &pre.deployment, pre.payer, "authorize", args...)
+	if !custom {
+		txHash, err := f.writeEscrow(ctx, fctx, payload, requirements, &pre.deployment, pre.payer, pre.function, args...)
+		if err != nil {
+			return nil, err
+		}
+		return f.awaitSettlement(ctx, payload, requirements, pre.payer, txHash, nil)
+	}
+
+	before, err := f.snapshotCustomBalances(ctx, &pre.collectOutcome)
+	if err != nil {
+		return nil, toSettleError(err, network, pre.payer)
+	}
+	txHash, err := f.submitEscrowCall(ctx, fctx, payload, requirements, &pre.deployment, pre.payer,
+		pre.extra.CaptureAuthorizer, f.customGasLimit(), pre.function, args...)
 	if err != nil {
 		return nil, err
 	}
-	return f.awaitSettlement(ctx, payload, requirements, pre.payer, txHash)
+	return f.awaitSettlement(ctx, payload, requirements, pre.payer, txHash, f.customReceiptCheck(&pre.collectOutcome, before))
+}
+
+// resumedCollectCheck is the receipt check for a collect whose transaction was broadcast by an
+// earlier settle attempt. Only a custom operator needs one.
+func (f *AuthCaptureEvmScheme) resumedCollectCheck(payload types.PaymentPayload, requirements types.PaymentRequirements) receiptCheck {
+	return func(ctx context.Context, receipt *evm.TransactionReceipt) (*x402.SettleResponse, error) {
+		out, err := reconstructCollectOutcome(payload, requirements)
+		if err != nil || out.extra.OperatorType != authcapture.OperatorTypeCustom {
+			return nil, nil
+		}
+		return f.customReceiptCheck(out, nil)(ctx, receipt)
+	}
 }

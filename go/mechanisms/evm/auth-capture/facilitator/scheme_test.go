@@ -114,8 +114,10 @@ func TestVerifyCollect_Rejections(t *testing.T) {
 		{name: "max fee above 10000", extra: map[string]interface{}{"maxFeeBps": float64(10001)}, reason: ErrExtra},
 		{name: "zero recipient with fee bounds", extra: map[string]interface{}{"feeRecipient": authcapture.ZeroAddress}, reason: ErrZeroFeeReceiver},
 		{name: "legacy autoCapture", extra: map[string]interface{}{"autoCapture": true}, reason: ErrUnsupportedPaymentFlow},
-		{name: "authorization flow", extra: map[string]interface{}{"paymentFlow": "authorization"}, reason: ErrUnsupportedPaymentFlow},
-		{name: "custom operator", extra: map[string]interface{}{"operatorType": "custom"}, reason: ErrUnsupportedOperatorType},
+		{name: "authorization flow without receiver authorizer", extra: map[string]interface{}{"paymentFlow": "authorization"}, reason: ErrMissingReceiverAuthorizer},
+		{name: "unknown payment flow", extra: map[string]interface{}{"paymentFlow": "streaming"}, reason: ErrUnsupportedPaymentFlow},
+		{name: "custom operator outside the allowlist", extra: map[string]interface{}{"operatorType": "custom"}, reason: ErrOperatorNotAdmitted},
+		{name: "unknown operator type", extra: map[string]interface{}{"operatorType": "multisig"}, reason: ErrUnsupportedOperatorType},
 		{name: "policy operator", extra: map[string]interface{}{"policy": "0x" + strings.Repeat("5", 40)}, reason: ErrPolicy},
 		{name: "operator not controlled", extra: map[string]interface{}{"captureAuthorizer": "0x" + strings.Repeat("9", 40)}, reason: ErrOperatorNotAdmitted},
 		{
@@ -195,7 +197,7 @@ func TestVerifyCollect_Rejections(t *testing.T) {
 			reason: ErrSignature,
 		},
 		{
-			name: "terminal charge completion",
+			name: "charge completion on an escrow payload",
 			mutate: func(_ *types.PaymentRequirements, p *types.PaymentPayload) {
 				p.Payload["amount"] = "1"
 				p.Payload["feeAmount"] = "0"
@@ -203,7 +205,7 @@ func TestVerifyCollect_Rejections(t *testing.T) {
 				p.Payload["authorizerSignature"] = "0x01"
 				p.Payload["saltNonce"] = "0x01"
 			},
-			reason: ErrUnsupportedPaymentFlow,
+			reason: ErrPayloadFormat,
 		},
 	}
 	for _, test := range tests {
