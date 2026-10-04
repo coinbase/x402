@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Vérif Entreprise FR">
+  <rect width="256" height="256" rx="56" fill="#16306b"/>
+  <path d="M70 132 L110 172 L188 90" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="64" y="204" width="42" height="12" rx="6" fill="#3b6cf6"/>
+  <rect x="107" y="204" width="42" height="12" rx="0" fill="#ffffff"/>
+  <rect x="150" y="204" width="42" height="12" rx="6" fill="#ef4444"/>
+</svg>
