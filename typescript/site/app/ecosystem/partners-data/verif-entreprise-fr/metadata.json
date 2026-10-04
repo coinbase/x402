@@ -1,0 +1,7 @@
+{
+  "name": "Vérif Entreprise FR",
+  "description": "French company verification (KYB) by SIREN from official open data: legal status, insolvency proceedings (BODACC), RGE certifications and an explained verdict, paid per call via x402.",
+  "logoUrl": "/logos/verif-entreprise-fr.svg",
+  "websiteUrl": "https://api-production-24833.up.railway.app",
+  "category": "Services/Endpoints"
+}
