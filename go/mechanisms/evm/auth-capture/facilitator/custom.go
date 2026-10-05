@@ -3,6 +3,7 @@ package facilitator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -350,7 +351,8 @@ func (f *AuthCaptureEvmScheme) simulateCustomCollect(ctx context.Context, pre *c
 }
 
 func toVerifyViolation(err error, payer string) error {
-	if v, ok := err.(*outcomeViolation); ok {
+	var v *outcomeViolation
+	if errors.As(err, &v) {
 		return x402.NewVerifyError(v.reason, payer, v.message)
 	}
 	return x402.NewVerifyError(ErrSimulationFailed, payer, err.Error())

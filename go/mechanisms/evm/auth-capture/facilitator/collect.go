@@ -586,7 +586,7 @@ func (f *AuthCaptureEvmScheme) resumedCollectCheck(payload types.PaymentPayload,
 	return func(ctx context.Context, receipt *evm.TransactionReceipt) (*x402.SettleResponse, error) {
 		out, err := reconstructCollectOutcome(payload, requirements)
 		if err != nil || out.extra.OperatorType != authcapture.OperatorTypeCustom {
-			return nil, nil
+			return nil, nil //nolint:nilerr // an unreadable outcome is reported by the settle that resumes it
 		}
 		return f.customReceiptCheck(out, nil)(ctx, receipt)
 	}

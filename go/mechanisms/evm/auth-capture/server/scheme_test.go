@@ -551,14 +551,24 @@ func TestEnhancePaymentRequirements_DeadlinesAreRelativeToIssueTime(t *testing.T
 	requirements := mockRequirements(nil)
 	requirements.Extra = map[string]interface{}{}
 
-	before := time.Now()
 	enhanced, err := newScheme(0, 0).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
 	require.NoError(t, err)
-	assert.InDelta(t, before.Add(DefaultCaptureDeadline).Unix(), enhanced.Extra["captureDeadline"], 5)
-	assert.InDelta(t, before.Add(DefaultRefundDeadline).Unix(), enhanced.Extra["refundDeadline"], 5)
+	assertBucketed(t, enhanced.Extra["captureDeadline"], uint64(DefaultCaptureDeadline/time.Second))
+	assertBucketed(t, enhanced.Extra["refundDeadline"], uint64(DefaultRefundDeadline/time.Second))
 
 	_, err = newScheme(time.Hour, time.Minute).EnhancePaymentRequirements(context.Background(), requirements, types.SupportedKind{}, nil)
 	require.ErrorContains(t, err, ErrRefundBeforeCaptureDeadline)
+}
+
+// assertBucketed checks a deadline is the start of the current (or just-ended) minute plus offset.
+func assertBucketed(t *testing.T, deadline interface{}, offset uint64) {
+	t.Helper()
+	got, ok := deadline.(uint64)
+	require.True(t, ok, "deadline is %T", deadline)
+	start := got - offset
+	assert.Zero(t, start%deadlineBucketSeconds)
+	now := uint64(time.Now().Unix())
+	assert.True(t, start <= now && now-start < 2*deadlineBucketSeconds, "bucket start %d is not within a minute of %d", start, now)
 }
 
 func TestEnrichSettlementPayload_PartialCaptureVoidsRemainder(t *testing.T) {
