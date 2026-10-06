@@ -1,0 +1,7 @@
+{
+  "name": "Akashi Notari",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/akashi-notari.png",
+  "description": "Proof-of-existence notary for agents: anchors a file's SHA-256 hash on Base for $0.01 USDC over x402, by HTTP or MCP, with free proof lookups.",
+  "websiteUrl": "https://github.com/self-reality/verifier/tree/main/workers/anchor"
+}
