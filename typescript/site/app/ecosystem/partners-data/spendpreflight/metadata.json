@@ -1,0 +1,7 @@
+{
+  "name": "SpendPreflight",
+  "description": "Operated by SpendPreflight: preflight allow/hold/block decisions and payee sanctions screening for agents before they pay (x402, USDC on Base).",
+  "logoUrl": "/logos/spendpreflight.svg",
+  "websiteUrl": "https://spendpreflight.com",
+  "category": "Services/Endpoints"
+}
