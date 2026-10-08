@@ -1,0 +1,7 @@
+{
+  "name": "SpendTheBits",
+  "description": "Self-custody wallet where every @handle is an x402-payable endpoint. Sell an API or a file per call in USDC on Base, and let AI agents buy gift cards over x402 within limits the owner sets.",
+  "logoUrl": "/logos/spendthebits.png",
+  "websiteUrl": "https://superapp.spendthebits.com/agents",
+  "category": "Services/Endpoints"
+}
