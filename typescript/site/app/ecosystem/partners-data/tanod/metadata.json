@@ -1,0 +1,7 @@
+{
+  "name": "Tanod",
+  "description": "Tanod offers pay-per-call APIs and an MCP server for AI agents: about 170 x402 routes covering security pre-checks, PDF and document conversion, web-to-Markdown and screenshots, DNS/RDAP, chain reads, OCR and utilities. Paid in USDC on Base and Polygon via the CDP facilitator, with a free daily allowance per IP and no signup.",
+  "logoUrl": "/logos/tanod.png",
+  "websiteUrl": "https://tanod.dev",
+  "category": "Services/Endpoints"
+}
