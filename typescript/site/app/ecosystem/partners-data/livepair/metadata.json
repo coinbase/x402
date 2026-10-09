@@ -1,0 +1,7 @@
+{
+  "name": "LivePair AI",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/livepair.png",
+  "description": "Multimodal AI API — private image/video generation and text models over an OpenAI-compatible endpoint, payable per request in USDC on Base via x402.",
+  "websiteUrl": "https://livepairai.com/docs/frameworks"
+}
