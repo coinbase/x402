@@ -1,0 +1,7 @@
+{
+  "name": "On-chain Forensics",
+  "description": "Pay-per-call on-chain forensics for any ERC-20 on Base or Ethereum mainnet: exact 24h net supply change with mint/burn events, wallet flow analysis with top counterparties, and a $0.02 token verdict card (activity score, verdict tier, whale/concentration flags, plain-English take). Payments via x402 v2, USDC on Base. Free daily eval tier, no wallet needed.",
+  "logoUrl": "/logos/onchain-forensics.png",
+  "websiteUrl": "https://leohoudinisanders-byte.github.io/onchain-forensics/",
+  "category": "Services/Endpoints"
+}
