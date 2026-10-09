@@ -1,0 +1,7 @@
+{
+  "name": "ProvenPaid",
+  "description": "Independent evidence for agent payments. Before an agent pays an unfamiliar x402 endpoint, ProvenPaid validates its payment challenge and reports public on-chain evidence for its receiving address: distinct payers, repeat payers and payment concentration. Sold per check over x402 ($0.01 USDC on Base). MCP server: provenpaid-mcp.",
+  "logoUrl": "/logos/provenpaid.png",
+  "websiteUrl": "https://api.provenpaid.com",
+  "category": "Infrastructure & Tooling"
+}
