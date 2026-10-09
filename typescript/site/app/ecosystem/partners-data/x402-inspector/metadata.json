@@ -1,0 +1,7 @@
+{
+  "name": "x402 Inspector",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402-inspector.png",
+  "description": "Browser-only decoder and linter for x402 PAYMENT-REQUIRED, X-PAYMENT / PAYMENT-SIGNATURE and PAYMENT-RESPONSE headers (v1 and v2). Shows human-readable USDC amounts and flags non-CAIP-2 networks, malformed payTo/amount fields and expired EIP-3009 authorizations.",
+  "websiteUrl": "https://dansgit2b.github.io/x402-inspector/"
+}
