@@ -1,0 +1,7 @@
+{
+  "name": "wtsp.dev",
+  "description": "WhatsApp lookups for AI agents: whether a phone number is on WhatsApp, its profile and business details, its profile photo and its carrier. Every request is paid with x402 in USDC on Base, no sign-up or API key.",
+  "logoUrl": "/logos/wtsp.png",
+  "websiteUrl": "https://wtsp.dev",
+  "category": "Services/Endpoints"
+}
