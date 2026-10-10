@@ -2,6 +2,6 @@
   "name": "API de datos UY/AR",
   "description": "Official Uruguay and Argentina data for agents and apps: BCU Unidad Indexada and exchange rates, Argentine national holidays and Uruguayan RUT validation. Pay per call in USDC on Base; free MCP server with a daily quota.",
   "logoUrl": "/logos/api-datos-uy-ar.png",
-  "websiteUrl": "https://api-datos-uy-ar.vercel.app",
+  "websiteUrl": "https://datosuyar.dev",
   "category": "Services/Endpoints"
 }
