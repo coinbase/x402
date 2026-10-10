@@ -1,0 +1,7 @@
+{
+  "name": "PickleCheck",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/picklecheck.jpg",
+  "description": "Risk signals for Base tokens and phishing URLs for AI agents: honeypot/sell simulation, liquidity and LP-lock checks, top-holder concentration, AVOID/CAUTION/VERIFY_MORE/OK verdicts. $0.008 USDC per check via x402 on Base. Beta: grab your 10 free checks a day, and we'd love your advice via POST /feedback.",
+  "websiteUrl": "https://picklecheck.onrender.com"
+}
