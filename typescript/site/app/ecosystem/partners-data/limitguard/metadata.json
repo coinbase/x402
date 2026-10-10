@@ -1,0 +1,7 @@
+{
+  "name": "Limitguard",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/limitguard.png",
+  "description": "Check before you pay: Dutch and Belgian company and lead verification against the official registers, VAT and sanctions lists, wallet screening on Base and Solana, and an agent wallet check with ERC-8004 identity. Pay per call in USDC by x402, over REST, MCP or A2A (a2a-x402).",
+  "websiteUrl": "https://limitguard.ai"
+}
