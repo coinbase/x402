@@ -1,0 +1,7 @@
+{
+  "name": "Toolrail",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/toolrail.png",
+  "description": "Pay-per-call data and utility API for agents focused on Chile and Latin America: UF and indexed units, central-bank FX, VAT for 17 countries, tax IDs, business days, PDFs. Base and Solana, listed in the Bazaar.",
+  "websiteUrl": "https://toolrail.dev"
+}
