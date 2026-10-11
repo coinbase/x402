@@ -1,0 +1,7 @@
+{
+  "name": "x402 Log Filter",
+  "description": "Pay-per-call API that filters JSON/NDJSON event logs by field, operator (gt/lt/eq/contains/crosses_threshold) and time range, returning matching events. $0.005 USDC per call on Base via x402 v2; Bazaar-discoverable.",
+  "logoUrl": "/logos/x402-log-filter.png",
+  "websiteUrl": "https://logfilter.hectichustle.workers.dev",
+  "category": "Services/Endpoints"
+}
