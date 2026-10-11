@@ -1,0 +1,7 @@
+{
+  "name": "x402 Health",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402-health.png",
+  "description": "Pay-per-call health checks for x402 endpoints: checks that an endpoint is reachable and serves valid 402 metadata (network, price, payTo), tracks uptime history, and ranks reliable x402 services by category. Paid in USDC on Solana; includes an MCP server.",
+  "websiteUrl": "https://github.com/biff-cloud/x402-health"
+}
