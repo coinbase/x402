@@ -1,0 +1,7 @@
+{
+  "name": "OrionCMD Agent APIs",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/orioncmd.png",
+  "description": "Pay-per-call APIs for agents in USDC on Base: website security checks, ransomware claim lookups, SaaS vendor status, invoice tools and email deliverability tests. No accounts or API keys.",
+  "websiteUrl": "https://orioncmd.com"
+}
