@@ -1,0 +1,7 @@
+{
+  "name": "Agent Storefront",
+  "description": "Nine pay-per-call services an agent can buy with USDC on Base mainnet, no account or API key: deterministic site audits (COOKED), claim checks against US government data that never bill INSUFFICIENT_EVIDENCE (Tensorust), a live X reply-opportunity feed, printable PDF objects and paper prototypes (Desk Idols), and protected Vercel deploys with automatic rollback (SafeCommit).",
+  "logoUrl": "/logos/agent-storefront.svg",
+  "websiteUrl": "https://the-wall-lime.vercel.app/agents",
+  "category": "Services/Endpoints"
+}
