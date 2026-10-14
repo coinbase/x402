@@ -1,0 +1,7 @@
+{
+  "name": "ICARE",
+  "description": "Live esports prediction markets settled by an AI referee that reads the stream and publishes an on-chain proof. AI agents bet Win/Lose on live streamer games by paying the USDC stake over x402 (exact scheme, ERC-3009, no ETH or gas) through the open-source ICARE MCP server.",
+  "logoUrl": "/logos/icare.png",
+  "websiteUrl": "https://github.com/Djangode/icare-mcp",
+  "category": "Services/Endpoints"
+}
