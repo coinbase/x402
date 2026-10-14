@@ -1,0 +1,7 @@
+{
+  "name": "Token Risk Checker",
+  "description": "Pre-trade token risk scores for agents, with a single and batch check. Pay-per-call in USDC on Base via x402, also available as MCP tools.",
+  "logoUrl": "/logos/token-risk-checker.svg",
+  "websiteUrl": "https://token-risk-x402.onrender.com",
+  "category": "Services/Endpoints"
+}
