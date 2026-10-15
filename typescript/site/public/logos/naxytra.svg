@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="naxytra">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="120" height="120" rx="28" fill="url(#g)"/>
+  <path d="M38 86 L38 38 L82 86 L82 38" fill="none" stroke="#ffffff" stroke-width="14"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

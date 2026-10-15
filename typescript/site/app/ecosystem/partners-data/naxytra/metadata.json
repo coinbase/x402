@@ -1,0 +1,7 @@
+{
+  "name": "naxytra",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/naxytra.svg",
+  "description": "Pay-per-call execution and settlement for agents: discover a tool over MCP or HTTP, pay once with x402 (USDC on Base), and get a verifiable result with an on-chain settlement receipt. Self-serve credits included.",
+  "websiteUrl": "https://www.naxytra.com/agents"
+}
