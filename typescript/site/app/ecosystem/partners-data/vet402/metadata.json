@@ -1,0 +1,7 @@
+{
+  "name": "vet402",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/vet402.png",
+  "description": "Independent verification for the x402 economy. vet402 observes every endpoint in the public discovery catalog daily and makes real purchases on Base mainnet, publishing what settled with the on-chain tx hash as evidence — machine-readable receipts, an accuracy ledger, and a weekly State of x402.",
+  "websiteUrl": "https://vet402.com"
+}
