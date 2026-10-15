@@ -1,0 +1,7 @@
+{
+  "name": "MAKO by Pollinate Research",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/mako.png",
+  "description": "Payment assurance for AI agents that spend money. Pre-spend verification, per-endpoint reliability scoring (PULSE), wallet reputation, pricing benchmarks, and EIP-712 signed transaction receipts with a published failure taxonomy — nine paid x402 routes settling USDC on Base via the CDP facilitator.",
+  "websiteUrl": "https://pollinateresearch.com"
+}
