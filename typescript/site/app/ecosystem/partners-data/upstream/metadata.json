@@ -1,0 +1,7 @@
+{
+  "name": "Upstream",
+  "description": "Live status, incidents and model deprecations for ~40 AI and developer APIs, for agents. Free tier, then pay per call with x402 (USDC on Base) over REST or MCP: status $0.003, changes $0.01.",
+  "logoUrl": "/logos/upstream.png",
+  "websiteUrl": "https://upstream-api.pages.dev",
+  "category": "Services/Endpoints"
+}
