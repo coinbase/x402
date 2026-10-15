@@ -1,0 +1,7 @@
+{
+  "name": "Macro Pulse",
+  "description": "Economic momentum score for any country (GDP growth, inflation, unemployment trends) from World Bank Open Data. $0.02 per call in USDC on Base via x402.",
+  "logoUrl": "/logos/macro-pulse.svg",
+  "websiteUrl": "https://macro-pulse-x402.onrender.com",
+  "category": "Services/Endpoints"
+}
