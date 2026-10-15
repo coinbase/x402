@@ -1,0 +1,7 @@
+{
+  "name": "FractalAI",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/fractalai.png",
+  "description": "Pay-per-call x402 endpoints on Base (USDC) that return post-quantum (ML-DSA-65 / FIPS 204) signed receipts: an independent notary/witness for x402 settlements, signed Aave V3 liquidation-risk alerts, and attestations. Every receipt verifies offline against a public, epoch-chained key directory.",
+  "websiteUrl": "https://fractalai.net.co/x402"
+}
