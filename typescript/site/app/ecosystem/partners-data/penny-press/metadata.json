@@ -1,0 +1,7 @@
+{
+  "name": "Penny Press",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/penny-press.png",
+  "description": "Free for humans. Pennies for machines. Essays on freedom, economics and philosophy \u2014 pay-per-read for AI agents via x402 micropayments (USDC on Base).",
+  "websiteUrl": "https://www.pennypress.org"
+}
