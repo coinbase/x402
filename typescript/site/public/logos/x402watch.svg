@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="x402watch">
+  <rect width="512" height="512" rx="64" fill="#07080a"/>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle">
+    <text x="256" y="256" font-size="156" font-weight="700" fill="#e7e9ee" letter-spacing="-6">x402</text>
+    <text x="256" y="338" font-size="60" font-weight="500" fill="#3ee0a3" letter-spacing="6">watch</text>
+  </g>
+  <g transform="translate(256 410)">
+    <circle cx="-40" cy="0" r="10" fill="#3ee0a3"/>
+    <circle cx="0"   cy="0" r="10" fill="#fbbf24"/>
+    <circle cx="40"  cy="0" r="10" fill="#f43f5e"/>
+  </g>
+</svg>
