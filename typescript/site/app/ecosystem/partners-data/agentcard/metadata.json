@@ -1,0 +1,7 @@
+{
+  "name": "Agentcard",
+  "category": "Client-Side Integrations",
+  "logoUrl": "/logos/agentcard.png",
+  "description": "Agentcard gives AI agents one-time virtual cards for card-rail checkout: fund a wallet, set spend caps and human approvals, and the agent mints a fresh single-use card that works at any merchant that accepts cards. A complementary card rail alongside x402 machine-native payments, with wallets funded via Coinbase CDP Onramp; agents connect over a remote MCP server, REST API, or CLI.",
+  "websiteUrl": "https://agentcard.sh"
+}
