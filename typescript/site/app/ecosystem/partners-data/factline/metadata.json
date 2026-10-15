@@ -1,0 +1,7 @@
+{
+  "name": "Factline",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/factline.png",
+  "description": "Official-records checks for agents, paid per call over x402 on Base and Solana: European company verification (KYB), supplier invoice checks, EU/UN/UK/US sanctions and PEP screening, EU VAT and Peppol lookups, plus a payee check for x402 sellers.",
+  "websiteUrl": "https://factline.dev/agents"
+}
