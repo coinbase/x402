@@ -1,0 +1,7 @@
+{
+  "name": "Watchdog x402",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/watchdog-x402.png",
+  "description": "Security checks an agent pays for at the moment it decides, over x402 v2. Who can upgrade this Solana program (single key, Squads multisig and time lock, immutable) or EVM contract (proxy admin, owner, Safe, timelock)? Known advisories in this Cargo.lock or npm lockfile? Plus full repo scans and 30-day signed-webhook watches. $0.01 to $0.90 per call in USDC on Solana or Base, no account or API key. Also ships as the open source watchdog-mcp MCP server.",
+  "websiteUrl": "https://watchdog.soladrome.finance"
+}
