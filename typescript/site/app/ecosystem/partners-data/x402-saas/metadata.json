@@ -1,0 +1,7 @@
+{
+  "name": "x402-saas",
+  "description": "Hosted x402 facilitator + onboarding proxy. Sign in with a wallet, point at any backend URL, get a paywalled URL in 60 seconds — no SDK to integrate. MIT-licensed core (x402-kit) anyone can self-host. 1% of routed USDC volume to operate the SaaS, 99% straight to the developer.",
+  "logoUrl": "/logos/x402-saas.svg",
+  "websiteUrl": "https://x402-saas.surge.sh",
+  "category": "Services/Endpoints"
+}

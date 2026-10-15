@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect width="200" height="200" rx="32" fill="#0B0F19"/>
+  <path d="M48 70 L88 70 L88 130 L72 130 L72 86 L48 86 Z" fill="#7CFFB2"/>
+  <path d="M112 70 L152 70 L152 86 L128 86 L128 92 L152 92 L152 130 L112 130 L112 114 L136 114 L136 108 L112 108 Z" fill="#7CFFB2"/>
+  <text x="100" y="170" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20" font-weight="600" fill="#7CFFB2">x402-saas</text>
+</svg>
