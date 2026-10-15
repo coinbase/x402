@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="title desc">
+  <title id="title">x402 Paid Endpoint</title>
+  <desc id="desc">Dark square logo with 402 and selfradiance wordmark.</desc>
+  <rect width="512" height="512" fill="#0a0a0a" />
+  <text x="256" y="256" text-anchor="middle" dominant-baseline="middle" fill="#2775CA" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace" font-size="176" font-weight="700">402</text>
+  <text x="256" y="340" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="30" font-weight="500">selfradiance</text>
+</svg>

@@ -1,0 +1,7 @@
+{
+  "name": "x402 Paid Endpoint",
+  "description": "Live $1 USDC endpoint on Base mainnet selling a machine-readable artifact via x402 v2 'exact'. MIT, with a reference buyer gated by a local signed-receipt policy layer.",
+  "logoUrl": "/logos/x402-paid-endpoint.svg",
+  "websiteUrl": "https://x402-paid-endpoint.selfradiance.workers.dev",
+  "category": "Services/Endpoints"
+}
