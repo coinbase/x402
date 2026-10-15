@@ -1,0 +1,7 @@
+{
+  "name": "WireSwitch",
+  "description": "Protocol translator hop: name ingress/egress on one POST. TypeScript client. Hosted path today is Stripe test PaymentIntent. Engine routes x402 cells; hosted x402 settle is not a public rail yet. Not a facilitator.",
+  "logoUrl": "/logos/wireswitch.png",
+  "websiteUrl": "https://wireswitch.io",
+  "category": "Infrastructure & Tooling"
+}
