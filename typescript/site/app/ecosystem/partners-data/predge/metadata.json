@@ -1,0 +1,7 @@
+{
+  "name": "Predge",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/predge.png",
+  "description": "Cryptographically signed, outcome-verified prediction-market and smart-money signals, sold per call over x402. Each paid route returns an ed25519-signed attestation an agent can verify offline. Multi-chain in USDC (Base, Solana, Algorand), with an MCP server and ERC-8004 discovery.",
+  "websiteUrl": "https://predge.io"
+}
