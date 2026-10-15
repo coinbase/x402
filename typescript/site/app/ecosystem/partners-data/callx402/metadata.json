@@ -1,0 +1,7 @@
+{
+  "name": "callx402 by Payload",
+  "description": "Actionable x402 payment diagnostics. Hosted actions investigate payment and facilitator failures and return structured evidence and explanations. Live on Base mainnet, accessible via npm, CLI, and MCP.",
+  "logoUrl": "/logos/callx402.png",
+  "websiteUrl": "https://www.npmjs.com/package/callx402",
+  "category": "Infrastructure & Tooling"
+}
