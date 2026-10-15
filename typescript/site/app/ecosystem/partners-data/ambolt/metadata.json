@@ -1,0 +1,7 @@
+{
+  "name": "Ambolt",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/ambolt.png",
+  "description": "Pay-per-call data for AI agents: company registers (NO, FI, CZ, SK, FR, GB, LEI), EU and UK tenders, document conversion, exchange rates and on-chain facts. USDC on Base or Solana via x402 from $0.003 a call, failed calls are not charged, and every tool is also a free MCP tool.",
+  "websiteUrl": "https://ambolt.dev"
+}
