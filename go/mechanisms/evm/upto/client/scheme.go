@@ -8,14 +8,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
-	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
-	"github.com/x402-foundation/x402/go/mechanisms/evm"
-	exactclient "github.com/x402-foundation/x402/go/mechanisms/evm/exact/client"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	exactclient "github.com/x402-foundation/x402/go/v2/mechanisms/evm/exact/client"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
-// UptoEvmScheme implements SchemeNetworkClient and ExtensionAwareClient for EVM upto payments.
+// UptoEvmScheme implements SchemeNetworkClient for EVM upto payments.
 // Always uses Permit2 (no EIP-3009 path).
 type UptoEvmScheme struct {
 	signer evm.ClientEvmSigner
@@ -33,20 +34,23 @@ func (c *UptoEvmScheme) Scheme() string {
 	return evm.SchemeUpto
 }
 
+func (c *UptoEvmScheme) FindDefaultAsset(asset string, network x402.Network) *x402.DefaultAsset {
+	info := evm.FindDefaultAsset(asset, string(network))
+	if info == nil {
+		return nil
+	}
+	return &x402.DefaultAsset{Asset: info.Asset, Decimals: info.Decimals, Symbol: info.Symbol}
+}
+
 // CreatePaymentPayload creates a V2 payment payload for the upto scheme (always Permit2).
+// If the server advertises eip2612GasSponsoring and the signer supports ReadContract,
+// automatically signs an EIP-2612 permit when Permit2 allowance is insufficient.
 func (c *UptoEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
+	payloadCtx x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
-	return CreateUptoPermit2Payload(ctx, c.signer, requirements)
-}
-
-// CreatePaymentPayloadWithExtensions creates a payment payload with extension support.
-func (c *UptoEvmScheme) CreatePaymentPayloadWithExtensions(
-	ctx context.Context,
-	requirements types.PaymentRequirements,
-	extensions map[string]interface{},
-) (types.PaymentPayload, error) {
+	extensions := payloadCtx.Extensions
 	result, err := CreateUptoPermit2Payload(ctx, c.signer, requirements)
 	if err != nil {
 		return types.PaymentPayload{}, err

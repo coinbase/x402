@@ -1,9 +1,22 @@
 """Utility functions for MCP payment handling."""
 
 import json
+from datetime import timedelta
 from typing import Any
 
-from ..schemas import PaymentPayload, PaymentRequired, SettleResponse
+from ..schemas import (
+    PaymentPayload,
+    PaymentRequired,
+    PaymentRequiredV1,
+    SettleResponse,
+    parse_payment_required,
+)
+from .constants import (
+    DEFAULT_ACCEPT_TIMEOUT_SECONDS,
+    DEFAULT_MAX_REQUEST_TIMEOUT_SECONDS,
+    DEFAULT_PROBE_TIMEOUT_SECONDS,
+    MAX_READ_TIMEOUT_SECONDS,
+)
 from .types import (
     MCP_PAYMENT_META_KEY,
     MCP_PAYMENT_REQUIRED_CODE,
@@ -11,6 +24,48 @@ from .types import (
     MCPToolResult,
     PaymentRequiredError,
 )
+
+
+def resolve_max_request_timeout_seconds(value: int | None) -> int:
+    if value is None:
+        return DEFAULT_MAX_REQUEST_TIMEOUT_SECONDS
+    if not isinstance(value, int) or value <= 0:
+        raise ValueError(f"max_request_timeout_seconds must be a positive int, got {value!r}")
+    return value
+
+
+def effective_accept_timeout_seconds(max_timeout_seconds: int | None) -> int:
+    if max_timeout_seconds is not None and max_timeout_seconds > 0:
+        return max_timeout_seconds
+    return DEFAULT_ACCEPT_TIMEOUT_SECONDS
+
+
+def _clamp_read_timeout_seconds(seconds: int) -> int:
+    return min(seconds, MAX_READ_TIMEOUT_SECONDS)
+
+
+def probe_read_timeout_seconds(
+    override: timedelta | None,
+    max_request_timeout_seconds: int,
+) -> timedelta:
+    if override is not None:
+        return override
+    seconds = _clamp_read_timeout_seconds(
+        min(DEFAULT_PROBE_TIMEOUT_SECONDS, max_request_timeout_seconds)
+    )
+    return timedelta(seconds=seconds)
+
+
+def paid_read_timeout_seconds(
+    override: timedelta | None,
+    max_timeout_seconds: int | None,
+    max_request_timeout_seconds: int,
+) -> timedelta:
+    if override is not None:
+        return override
+    accept_seconds = effective_accept_timeout_seconds(max_timeout_seconds)
+    seconds = _clamp_read_timeout_seconds(min(accept_seconds, max_request_timeout_seconds))
+    return timedelta(seconds=seconds)
 
 
 def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:
@@ -45,6 +100,38 @@ def extract_payment_from_meta(params: dict[str, Any]) -> PaymentPayload | None:
         return None
 
 
+def post_enrichment_accepts(payment_required: Any, fallback: list) -> list:
+    """Use enriched 402 accepts when they are a real list (not a Mock)."""
+    enriched = getattr(payment_required, "accepts", None)
+    return enriched if isinstance(enriched, list) else fallback
+
+
+def validate_payment_wrapper_accepts(resource_server: Any, accepts: list) -> None:
+    """Raise if a wrapper accept is unregistered or has an unsupported payment flow.
+
+    Skips resolution when the registered scheme has no real ``payment_flows``
+    table (test doubles / MagicMock).
+    """
+    from collections.abc import Mapping
+
+    from ..payment_flow import resolve_payment_flow
+
+    getter = getattr(resource_server, "get_registered_scheme", None)
+    if not callable(getter):
+        return
+    for requirement in accepts:
+        scheme_server = getter(requirement.network, requirement.scheme)
+        if scheme_server is None:
+            raise ValueError(
+                f'[x402] No scheme implementation registered for "{requirement.scheme}" '
+                f'on network "{requirement.network}"'
+            )
+        flows = getattr(scheme_server, "payment_flows", None)
+        if not isinstance(flows, Mapping):
+            continue
+        resolve_payment_flow(scheme_server, requirement)
+
+
 def attach_payment_to_meta(params: dict[str, Any], payload: PaymentPayload) -> dict[str, Any]:
     """Attach payment payload to request params.
 
@@ -57,8 +144,15 @@ def attach_payment_to_meta(params: dict[str, Any], payload: PaymentPayload) -> d
     """
     result = params.copy()
     meta = result.get("_meta", {}).copy() if isinstance(result.get("_meta"), dict) else {}
+    # exclude_none mirrors the HTTP encoder (encode_payment_signature_header uses
+    # model_dump_json(by_alias=True, exclude_none=True)). Without it, optional fields serialize
+    # as explicit nulls (e.g. resource.mimeType: null); strict facilitators — and proxies that
+    # re-marshal this payload into a PAYMENT-SIGNATURE header (CDP Bazaar) — reject such payloads
+    # as 'paymentPayload is invalid'. Keeping the two encoders consistent fixes that.
     meta[MCP_PAYMENT_META_KEY] = (
-        payload.model_dump(by_alias=True) if hasattr(payload, "model_dump") else payload
+        payload.model_dump(by_alias=True, exclude_none=True)
+        if hasattr(payload, "model_dump")
+        else payload
     )
     result["_meta"] = meta
     return result
@@ -122,8 +216,8 @@ def attach_payment_response_to_meta(
 
 def extract_payment_required_from_result(
     result: MCPToolResult,
-) -> PaymentRequired | None:
-    """Extract PaymentRequired from tool result (dual format).
+) -> PaymentRequired | PaymentRequiredV1 | None:
+    """Extract PaymentRequired from tool result (dual format, x402 v1 and v2).
 
     Handles both structuredContent (preferred) and content[0].text (fallback).
     """
@@ -154,14 +248,19 @@ def extract_payment_required_from_result(
 
 def _extract_payment_required_from_object(
     obj: dict[str, Any],
-) -> PaymentRequired | None:
-    """Extract PaymentRequired from object.
+) -> PaymentRequired | PaymentRequiredV1 | None:
+    """Extract PaymentRequired from object (version-aware).
+
+    Dispatches on the declared ``x402Version`` so a v1 server (x402Version=1,
+    ``maxAmountRequired``, legacy network names) parses as ``PaymentRequiredV1`` and a
+    v2 server as ``PaymentRequired``. Hardcoding v2 here previously caused v1
+    payment-required responses to be silently dropped (payment never attempted).
 
     Args:
         obj: Object to extract from
 
     Returns:
-        PaymentRequired if valid, None otherwise
+        PaymentRequired / PaymentRequiredV1 if valid, None otherwise
     """
     # Check for x402Version/x402_version and accepts fields
     if "x402Version" not in obj and "x402_version" not in obj:
@@ -171,10 +270,13 @@ def _extract_payment_required_from_object(
     if not isinstance(accepts, list) or len(accepts) == 0:
         return None
 
+    # parse_payment_required reads the wire field name ("x402Version"); normalize a
+    # snake_case key onto it, defaulting to v2 when the version is absent.
+    version = obj.get("x402Version", obj.get("x402_version"))
+    data = {k: v for k, v in obj.items() if k != "x402_version"}
+    data["x402Version"] = version if version is not None else 2
     try:
-        # Normalize camelCase to snake_case for Pydantic
-        normalized = {("x402_version" if k == "x402Version" else k): v for k, v in obj.items()}
-        return PaymentRequired(**normalized)
+        return parse_payment_required(data)
     except (TypeError, ValueError, KeyError):
         return None
 
@@ -192,6 +294,36 @@ def create_tool_resource_url(tool_name: str, custom_url: str | None = None) -> s
     if custom_url:
         return custom_url
     return f"mcp://tool/{tool_name}"
+
+
+def build_tool_resource_info(
+    tool_name: str,
+    config_resource: Any | None,
+) -> Any:
+    """Build ResourceInfo for an MCP tool from wrapper config.
+
+    Args:
+        tool_name: Name of the MCP tool
+        config_resource: Optional MCP wrapper resource metadata
+
+    Returns:
+        Schema ResourceInfo for PaymentRequired / matching
+    """
+    from ..schemas import ResourceInfo as SchemaResourceInfo
+
+    resource_info = SchemaResourceInfo(
+        url=create_tool_resource_url(tool_name, config_resource.url if config_resource else None),
+        description=(config_resource.description if config_resource else f"Tool: {tool_name}"),
+        mime_type=(config_resource.mime_type if config_resource else "application/json"),
+    )
+    if config_resource is not None:
+        if config_resource.service_name is not None:
+            resource_info.service_name = config_resource.service_name
+        if config_resource.tags is not None:
+            resource_info.tags = config_resource.tags
+        if config_resource.icon_url is not None:
+            resource_info.icon_url = config_resource.icon_url
+    return resource_info
 
 
 def is_object(value: Any) -> bool:
@@ -235,7 +367,7 @@ def create_payment_required_error(
     )
 
 
-def extract_payment_required_from_error(error: Any) -> PaymentRequired | None:
+def extract_payment_required_from_error(error: Any) -> PaymentRequired | PaymentRequiredV1 | None:
     """Extract PaymentRequired from an MCP JSON-RPC error.
 
     This function checks if the error is a 402 payment required error and extracts
@@ -313,6 +445,54 @@ def convert_mcp_result(mcp_result: Any) -> "MCPToolResult":
         is_error=is_error,
         meta=meta,
         structured_content=structured_content,
+    )
+
+
+def build_x402_client_config(
+    config_or_schemes: Any,
+) -> Any:
+    """Build ``x402ClientConfig`` from a config dict, scheme list, or existing config.
+
+    Accepts:
+    - ``x402ClientConfig`` (returned as-is)
+    - ``dict`` with ``schemes`` plus optional ``policies``, ``spend_controls``,
+      ``payment_requirements_selector``
+    - ``list`` of scheme registration dicts (``network``, ``client``, optional ``x402_version``)
+    """
+    from ..client_base import SchemeRegistration, x402ClientConfig
+
+    if isinstance(config_or_schemes, x402ClientConfig):
+        return config_or_schemes
+
+    if isinstance(config_or_schemes, list):
+        schemes_raw = config_or_schemes
+        policies = None
+        spend_controls = None
+        payment_requirements_selector = None
+    elif isinstance(config_or_schemes, dict):
+        schemes_raw = config_or_schemes.get("schemes", [])
+        policies = config_or_schemes.get("policies")
+        spend_controls = config_or_schemes.get("spend_controls")
+        payment_requirements_selector = config_or_schemes.get("payment_requirements_selector")
+    else:
+        raise TypeError(
+            "Expected x402ClientConfig, dict with 'schemes', or list of scheme registrations"
+        )
+
+    schemes = [
+        SchemeRegistration(
+            network=scheme["network"],
+            client=scheme["client"],
+            x402_version=scheme.get("x402_version", 2),
+        )
+        for scheme in schemes_raw
+    ]
+
+    return x402ClientConfig(
+        schemes=schemes,
+        policies=policies,
+        spend_controls=spend_controls,
+        payment_requirements_selector=payment_requirements_selector,
     )
 
 

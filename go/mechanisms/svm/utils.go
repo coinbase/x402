@@ -1,6 +1,8 @@
 package svm
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"math"
@@ -11,6 +13,9 @@ import (
 	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
+
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 var (
@@ -20,15 +25,15 @@ var (
 
 // NormalizeNetwork converts V1 network names to CAIP-2 format
 func NormalizeNetwork(network string) (string, error) {
-	// If it's already CAIP-2 format (contains ":"), validate it's supported
 	if strings.Contains(network, ":") {
-		if _, ok := NetworkConfigs[network]; ok {
+		switch network {
+		case SolanaMainnetCAIP2, SolanaDevnetCAIP2, SolanaTestnetCAIP2:
 			return network, nil
+		default:
+			return "", fmt.Errorf("unsupported Solana network: %s", network)
 		}
-		return "", fmt.Errorf("unsupported Solana network: %s", network)
 	}
 
-	// Otherwise, it's a V1 network name, convert to CAIP-2
 	caip2Network, ok := V1ToV2NetworkMap[network]
 	if !ok {
 		return "", fmt.Errorf("unsupported Solana network: %s", network)
@@ -37,9 +42,8 @@ func NormalizeNetwork(network string) (string, error) {
 	return caip2Network, nil
 }
 
-// GetNetworkConfig returns the configuration for a network
+// GetNetworkConfig returns transport endpoints for a supported Solana network.
 func GetNetworkConfig(network string) (*NetworkConfig, error) {
-	// Normalize to CAIP-2
 	caip2Network, err := NormalizeNetwork(network)
 	if err != nil {
 		return nil, err
@@ -47,26 +51,19 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 
 	config, ok := NetworkConfigs[caip2Network]
 	if !ok {
-		return nil, fmt.Errorf("network configuration not found: %s", network)
+		return nil, fmt.Errorf("no configuration for network: %s", network)
 	}
-
 	return &config, nil
 }
 
 // GetAssetInfo returns information about an asset on a network
 func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
-	config, err := GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
+	if found := FindDefaultAsset(assetSymbolOrAddress, network); found != nil {
+		return defaultAssetToAssetInfo(found), nil
 	}
 
 	// Check if it's a valid Solana address (mint address)
 	if ValidateSolanaAddress(assetSymbolOrAddress) {
-		// Check if it matches the default asset
-		if assetSymbolOrAddress == config.DefaultAsset.Address {
-			return &config.DefaultAsset, nil
-		}
-
 		// Unknown token - return basic info with default decimals
 		return &AssetInfo{
 			Address:  assetSymbolOrAddress,
@@ -75,8 +72,104 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 		}, nil
 	}
 
-	// Default to the network's default asset
-	return &config.DefaultAsset, nil
+	info, err := GetDefaultAsset(network, "")
+	if err != nil {
+		return nil, err
+	}
+	return defaultAssetToAssetInfo(info), nil
+}
+
+// stablecoinNetworkKey maps a network identifier to its mint lookup key.
+func stablecoinNetworkKey(network string) (string, error) {
+	caip2Network, err := NormalizeNetwork(network)
+	if err != nil {
+		return "", err
+	}
+
+	switch caip2Network {
+	case SolanaMainnetCAIP2:
+		return networkKeyMainnet, nil
+	case SolanaDevnetCAIP2:
+		return networkKeyDevnet, nil
+	case SolanaTestnetCAIP2:
+		return networkKeyTestnet, nil
+	default:
+		return "", fmt.Errorf("unsupported network: %s", network)
+	}
+}
+
+// GetStablecoinAddress returns the mint for a supported stablecoin on a network.
+// Stablecoins without a devnet/testnet mint fall back to their mainnet mint.
+func GetStablecoinAddress(symbol string, network string) (string, error) {
+	key, err := stablecoinNetworkKey(network)
+	if err != nil {
+		return "", err
+	}
+
+	mints, ok := StablecoinMints[strings.ToUpper(symbol)]
+	if !ok {
+		return "", fmt.Errorf("unsupported stablecoin: %s", symbol)
+	}
+	if address, ok := mints[key]; ok {
+		return address, nil
+	}
+	if address, ok := mints[networkKeyMainnet]; ok {
+		return address, nil
+	}
+	return "", fmt.Errorf("no %s address configured for network: %s", symbol, network)
+}
+
+// ResolveStablecoinMint resolves a stablecoin symbol to a mint address. SOL
+// returns false, and unrecognized values are returned unchanged.
+func ResolveStablecoinMint(currency string, network string) (string, bool) {
+	normalized := strings.ToUpper(currency)
+	if normalized == "SOL" {
+		return "", false
+	}
+	if _, ok := StablecoinMints[normalized]; ok {
+		address, err := GetStablecoinAddress(normalized, network)
+		if err != nil {
+			return currency, true
+		}
+		return address, true
+	}
+	return currency, true
+}
+
+// GetStablecoinSymbol returns the supported stablecoin symbol for a symbol or a
+// known mint address.
+func GetStablecoinSymbol(currency string) (string, bool) {
+	normalized := strings.ToUpper(currency)
+	if _, ok := StablecoinMints[normalized]; ok {
+		return normalized, true
+	}
+
+	for symbol, mints := range StablecoinMints {
+		for _, mint := range mints {
+			if mint == currency {
+				return symbol, true
+			}
+		}
+	}
+	return "", false
+}
+
+// GetStablecoinTokenProgram returns the token program owning a supported
+// stablecoin's mint. Unrecognized values default to SPL Token, whose mints
+// cannot be told apart from unknown ones without an RPC round-trip.
+func GetStablecoinTokenProgram(currency string, network string) string {
+	resolved, ok := ResolveStablecoinMint(currency, network)
+	if !ok {
+		resolved = currency
+	}
+	symbol, ok := GetStablecoinSymbol(resolved)
+	if !ok {
+		return TokenProgramAddress
+	}
+	if program, ok := StablecoinTokenPrograms[symbol]; ok {
+		return program
+	}
+	return TokenProgramAddress
 }
 
 // ValidateSolanaAddress checks if a string is a valid Solana address
@@ -154,6 +247,20 @@ func FormatAmount(amount uint64, decimals int) string {
 	return fmt.Sprintf("%d.%s", quotient, decStr)
 }
 
+// MessageHash returns a stable, immutable cache key for a transaction by hashing its
+// message bytes. The fee-payer signature (slot 0) is mutable — the facilitator
+// overwrites it before broadcast — so keying on the full wire bytes would let an
+// attacker bypass deduplication by randomizing those bytes. The message is what
+// every signer commits to, so its hash uniquely and immutably identifies a payment.
+func MessageHash(tx *solana.Transaction) (string, error) {
+	msgBytes, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize transaction message: %w", err)
+	}
+	hash := sha256.Sum256(msgBytes)
+	return base64.StdEncoding.EncodeToString(hash[:]), nil
+}
+
 // DecodeTransaction decodes a base64 encoded Solana transaction
 func DecodeTransaction(base64Tx string) (*solana.Transaction, error) {
 	// Decode base64
@@ -180,7 +287,10 @@ func GetTokenPayerFromTransaction(tx *solana.Transaction) (string, error) {
 
 	// Iterate through instructions to find TransferChecked
 	for _, inst := range tx.Message.Instructions {
-		programID := tx.Message.AccountKeys[inst.ProgramIDIndex]
+		programID, err := tx.Message.Program(inst.ProgramIDIndex)
+		if err != nil {
+			continue
+		}
 
 		// Check if this is a token program instruction
 		if programID == solana.TokenProgramID || programID == solana.Token2022ProgramID {
@@ -206,6 +316,76 @@ func GetTokenPayerFromTransaction(tx *solana.Transaction) (string, error) {
 	}
 
 	return "", fmt.Errorf("no TransferChecked instruction found in transaction")
+}
+
+// ResolveBlockhash prefers extra.recentBlockhash. A missing or malformed hint
+// is fetched from rpc at finalized commitment.
+func ResolveBlockhash(ctx context.Context, rpcClient *rpc.Client, requirements types.PaymentRequirements) (solana.Hash, error) {
+	if hint, ok := requirements.Extra["recentBlockhash"].(string); ok && hint != "" {
+		if blockhash, err := solana.HashFromBase58(hint); err == nil {
+			return blockhash, nil
+		}
+	}
+	latest, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return solana.Hash{}, fmt.Errorf("failed to get latest blockhash: %w", err)
+	}
+	return latest.Value.Blockhash, nil
+}
+
+// ResolveOpenSlot prefers extra.recentSlot. A missing or malformed hint is
+// fetched from rpc at finalized commitment.
+func ResolveOpenSlot(ctx context.Context, rpcClient *rpc.Client, requirements types.PaymentRequirements) (uint64, error) {
+	if slot, ok := parseHintUint64(requirements.Extra["recentSlot"]); ok {
+		return slot, nil
+	}
+	slot, err := rpcClient.GetSlot(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get slot: %w", err)
+	}
+	return slot, nil
+}
+
+func parseHintUint64(value any) (uint64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		if typed < 0 || typed != float64(uint64(typed)) {
+			return 0, false
+		}
+		return uint64(typed), true
+	case int:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case int64:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case uint64:
+		return typed, true
+	case string:
+		parsed, err := strconv.ParseUint(typed, 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+// CreateRPCClient dials rpcURL, or the network's default endpoint when rpcURL is empty.
+func CreateRPCClient(network, rpcURL string) (*rpc.Client, error) {
+	if rpcURL != "" {
+		return rpc.New(rpcURL), nil
+	}
+	config, err := GetNetworkConfig(network)
+	if err != nil {
+		return nil, err
+	}
+	return rpc.New(config.RPCURL), nil
 }
 
 // EncodeTransaction encodes a Solana transaction to base64

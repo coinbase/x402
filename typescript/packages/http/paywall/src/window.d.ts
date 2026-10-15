@@ -9,6 +9,8 @@ declare global {
       currentUrl: string;
       appName?: string;
       appLogo?: string;
+      faucetUrls?: Record<string, string>;
+      rpcUrls?: Record<string, string>;
       config: {
         chainConfig: Record<
           string,

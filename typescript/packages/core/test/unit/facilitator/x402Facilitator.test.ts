@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { x402Facilitator } from "../../../src/facilitator/x402Facilitator";
-import { SchemeNetworkFacilitator } from "../../../src/types/mechanisms";
+import { SchemeNetworkFacilitator, FacilitatorContext } from "../../../src/types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../../../src/types/payments";
 import { VerifyResponse, SettleResponse } from "../../../src/types/facilitator";
 import { Network } from "../../../src/types";
@@ -263,6 +263,24 @@ describe("x402Facilitator", () => {
       expect(testFacilitator.verifyCalls.length).toBe(1);
     });
 
+    it("should not treat regex metacharacters in network namespaces as wildcards", async () => {
+      const facilitator = new x402Facilitator();
+      const testFacilitator = new TestFacilitator("exact");
+
+      facilitator.register(["chain.v1:1" as Network, "chain.v1:2" as Network], testFacilitator);
+
+      const payload = buildPaymentPayload({ x402Version: 2 });
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "chainXv1:3" as Network,
+      });
+
+      await expect(async () => await facilitator.verify(payload, requirements)).rejects.toThrow(
+        "No facilitator registered for scheme: exact and network: chainXv1:3",
+      );
+      expect(testFacilitator.verifyCalls.length).toBe(0);
+    });
+
     it("should throw if no facilitator registered for version", async () => {
       const facilitator = new x402Facilitator();
 
@@ -435,7 +453,90 @@ describe("x402Facilitator", () => {
     });
   });
 
+  describe("FacilitatorContext", () => {
+    it("passes registered extensions to scheme verify and settle", async () => {
+      const facilitator = new x402Facilitator();
+      const extension = { key: "bazaar", catalogItem: { name: "Bazaar" } };
+      facilitator.registerExtension(extension);
+
+      class ContextCapturingFacilitator implements SchemeNetworkFacilitator {
+        readonly scheme = "exact";
+        verifyContextExtension: unknown;
+        settleContextExtension: unknown;
+
+        getExtra(_: string): Record<string, unknown> | undefined {
+          return undefined;
+        }
+
+        async verify(
+          _payload: PaymentPayload,
+          _requirements: PaymentRequirements,
+          context?: FacilitatorContext,
+        ): Promise<VerifyResponse> {
+          this.verifyContextExtension = context?.getExtension("bazaar");
+          return { isValid: true };
+        }
+
+        async settle(
+          _payload: PaymentPayload,
+          _requirements: PaymentRequirements,
+          context?: FacilitatorContext,
+        ): Promise<SettleResponse> {
+          this.settleContextExtension = context?.getExtension("bazaar");
+          return {
+            success: true,
+            transaction: "0xCtx",
+            network: "eip155:8453",
+          };
+        }
+      }
+
+      const schemeFacilitator = new ContextCapturingFacilitator();
+      facilitator.register("eip155:8453" as Network, schemeFacilitator);
+
+      const payload = buildPaymentPayload({ x402Version: 2 });
+      const requirements = buildPaymentRequirements({
+        scheme: "exact",
+        network: "eip155:8453" as Network,
+      });
+
+      await facilitator.verify(payload, requirements);
+      await facilitator.settle(payload, requirements);
+
+      expect(schemeFacilitator.verifyContextExtension).toBe(extension);
+      expect(schemeFacilitator.settleContextExtension).toBe(extension);
+    });
+  });
+
   describe("Network pattern matching", () => {
+    it("does not derive a wildcard pattern when registered networks span namespaces", async () => {
+      const facilitator = new x402Facilitator();
+      const mixedFacilitator = new TestFacilitator("exact");
+
+      facilitator.register(
+        ["eip155:8453" as Network, "solana:mainnet" as Network],
+        mixedFacilitator,
+      );
+
+      const payload = buildPaymentPayload({ x402Version: 2 });
+
+      await facilitator.verify(
+        payload,
+        buildPaymentRequirements({ scheme: "exact", network: "eip155:8453" as Network }),
+      );
+      expect(mixedFacilitator.verifyCalls).toHaveLength(1);
+
+      mixedFacilitator.verifyCalls.length = 0;
+
+      await expect(
+        facilitator.verify(
+          payload,
+          buildPaymentRequirements({ scheme: "exact", network: "eip155:1" as Network }),
+        ),
+      ).rejects.toThrow("No facilitator registered for scheme: exact and network: eip155:1");
+      expect(mixedFacilitator.verifyCalls).toHaveLength(0);
+    });
+
     it("should prefer exact match over pattern", async () => {
       const facilitator = new x402Facilitator();
       const exactFacilitator = new TestFacilitator("exact", { isValid: true });

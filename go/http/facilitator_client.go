@@ -3,15 +3,16 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	x402 "github.com/x402-foundation/x402/go"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // ============================================================================
@@ -38,7 +39,7 @@ type AuthHeaders struct {
 	Verify    map[string]string
 	Settle    map[string]string
 	Supported map[string]string
-	Discovery map[string]string
+	Bazaar    map[string]string
 }
 
 // FacilitatorConfig configures the HTTP facilitator client
@@ -52,7 +53,7 @@ type FacilitatorConfig struct {
 	// AuthProvider provides authentication headers (optional)
 	AuthProvider AuthProvider
 
-	// Timeout for requests (optional, defaults to 30s)
+	// Timeout for requests (optional, defaults to 90s)
 	Timeout time.Duration
 
 	// Identifier for this facilitator (optional)
@@ -83,19 +84,24 @@ func (e *FacilitatorResponseError) Unwrap() error {
 }
 
 type verifyResponseEnvelope struct {
-	IsValid        *bool  `json:"isValid"`
-	InvalidReason  string `json:"invalidReason,omitempty"`
-	InvalidMessage string `json:"invalidMessage,omitempty"`
-	Payer          string `json:"payer,omitempty"`
+	IsValid        *bool                  `json:"isValid"`
+	InvalidReason  string                 `json:"invalidReason,omitempty"`
+	InvalidMessage string                 `json:"invalidMessage,omitempty"`
+	Payer          string                 `json:"payer,omitempty"`
+	Extensions     map[string]interface{} `json:"extensions,omitempty"`
+	Extra          map[string]interface{} `json:"extra,omitempty"`
 }
 
 type settleResponseEnvelope struct {
-	Success      *bool         `json:"success"`
-	ErrorReason  string        `json:"errorReason,omitempty"`
-	ErrorMessage string        `json:"errorMessage,omitempty"`
-	Payer        string        `json:"payer,omitempty"`
-	Transaction  *string       `json:"transaction"`
-	Network      *x402.Network `json:"network"`
+	Success      *bool                  `json:"success"`
+	ErrorReason  string                 `json:"errorReason,omitempty"`
+	ErrorMessage string                 `json:"errorMessage,omitempty"`
+	Payer        string                 `json:"payer,omitempty"`
+	Transaction  *string                `json:"transaction"`
+	Network      *x402.Network          `json:"network"`
+	Amount       string                 `json:"amount,omitempty"`
+	Extensions   map[string]interface{} `json:"extensions,omitempty"`
+	Extra        map[string]interface{} `json:"extra,omitempty"`
 }
 
 type supportedKindEnvelope struct {
@@ -146,6 +152,8 @@ func parseVerifySuccessResponse(body []byte) (*x402.VerifyResponse, error) {
 		InvalidReason:  response.InvalidReason,
 		InvalidMessage: response.InvalidMessage,
 		Payer:          response.Payer,
+		Extensions:     response.Extensions,
+		Extra:          response.Extra,
 	}, nil
 }
 
@@ -165,7 +173,52 @@ func parseSettleSuccessResponse(body []byte) (*x402.SettleResponse, error) {
 		Payer:        response.Payer,
 		Transaction:  *response.Transaction,
 		Network:      *response.Network,
+		Amount:       response.Amount,
+		Extensions:   response.Extensions,
+		Extra:        response.Extra,
 	}, nil
+}
+
+var extensionResponseLogFieldAllowlist = []string{"status", "rejectedReason", "reason", "code"}
+
+// extractExtensionResponsesHeader decodes an EXTENSION-RESPONSES header into an object.
+// Missing or malformed headers are ignored.
+func extractExtensionResponsesHeader(resp *http.Response) map[string]interface{} {
+	header := resp.Header.Get("EXTENSION-RESPONSES")
+	if header == "" {
+		return nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(header)
+	if err != nil {
+		return nil
+	}
+	var headerExtensions map[string]interface{}
+	if err := json.Unmarshal(decoded, &headerExtensions); err != nil {
+		return nil
+	}
+	return headerExtensions
+}
+
+// logExtensionResponses logs allowlisted fields from decoded extension responses.
+func logExtensionResponses(headerExtensions map[string]interface{}) {
+	if headerExtensions == nil {
+		return
+	}
+	sanitized := make(map[string]map[string]interface{}, len(headerExtensions))
+	for extensionKey, payload := range headerExtensions {
+		filtered := make(map[string]interface{})
+		if payloadMap, ok := payload.(map[string]interface{}); ok {
+			for _, fieldKey := range extensionResponseLogFieldAllowlist {
+				if value, exists := payloadMap[fieldKey]; exists {
+					filtered[fieldKey] = value
+				}
+			}
+		}
+		sanitized[extensionKey] = filtered
+	}
+	if extJSON, err := json.Marshal(sanitized); err == nil {
+		log.Printf("[x402] extension responses: %s", extJSON)
+	}
 }
 
 func parseSupportedSuccessResponse(body []byte) (x402.SupportedResponse, error) {
@@ -223,7 +276,7 @@ func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient 
 	if httpClient == nil {
 		timeout := config.Timeout
 		if timeout == 0 {
-			timeout = 30 * time.Second
+			timeout = 90 * time.Second
 		}
 		httpClient = &http.Client{
 			Timeout: timeout,
@@ -316,7 +369,7 @@ func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 		}
 
 		// Read response body
-		responseBody, err := io.ReadAll(resp.Body)
+		responseBody, err := readLimitedBody(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			return x402.SupportedResponse{}, fmt.Errorf("failed to read response body: %w", err)
@@ -402,7 +455,7 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readLimitedBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -419,7 +472,14 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
-	return parseVerifySuccessResponse(responseBody)
+	result, err := parseVerifySuccessResponse(responseBody)
+	if err != nil {
+		return nil, err
+	}
+	headerExtensions := extractExtensionResponsesHeader(resp)
+	logExtensionResponses(headerExtensions)
+	result.ExtensionResponses = headerExtensions
+	return result, nil
 }
 
 func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.SettleResponse, error) {
@@ -469,7 +529,7 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(resp.Body)
+	responseBody, err := readLimitedBody(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -496,5 +556,12 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
-	return parseSettleSuccessResponse(responseBody)
+	result, err := parseSettleSuccessResponse(responseBody)
+	if err != nil {
+		return nil, err
+	}
+	headerExtensions := extractExtensionResponsesHeader(resp)
+	logExtensionResponses(headerExtensions)
+	result.ExtensionResponses = headerExtensions
+	return result, nil
 }

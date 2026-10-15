@@ -1,5 +1,6 @@
 import type { PaymentRequired } from "../types";
 import { getSvmTemplate } from "./template-loader";
+import { toScriptJson } from "../scriptJson";
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
@@ -24,6 +25,8 @@ interface SvmPaywallOptions {
   testnet: boolean;
   appName?: string;
   appLogo?: string;
+  faucetUrls?: Record<string, string>;
+  rpcUrls?: Record<string, string>;
 }
 
 /**
@@ -36,6 +39,8 @@ interface SvmPaywallOptions {
  * @param options.testnet - Whether to use testnet or mainnet
  * @param options.appName - The name of the application to display in the wallet connection modal
  * @param options.appLogo - The logo of the application to display in the wallet connection modal
+ * @param options.faucetUrls - Per-chain (CAIP-2 keyed) override for the testnet faucet link
+ * @param options.rpcUrls - Per-chain (CAIP-2 keyed) RPC endpoint for browser-side reads
  * @returns HTML string for the paywall page
  */
 export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
@@ -45,7 +50,8 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
     return `<!DOCTYPE html><html><body><h1>SVM Paywall (run pnpm build:paywall to generate full template)</h1></body></html>`;
   }
 
-  const { amount, testnet, paymentRequired, currentUrl, appName, appLogo } = options;
+  const { amount, testnet, paymentRequired, currentUrl, appName, appLogo, faucetUrls, rpcUrls } =
+    options;
 
   const logOnTestnet = testnet
     ? "console.log('SVM Payment required initialized:', window.x402);"
@@ -63,6 +69,8 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
       },
       appName: "${escapeString(appName || "")}",
       appLogo: "${escapeString(appLogo || "")}",
+      faucetUrls: ${faucetUrls ? JSON.stringify(faucetUrls) : "undefined"},
+      rpcUrls: ${rpcUrls ? toScriptJson(rpcUrls) : "undefined"},
     };
     ${logOnTestnet}
   </script>`;

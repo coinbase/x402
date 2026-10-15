@@ -1,8 +1,125 @@
-import type { NetworkSet } from './networks/networks';
+import type { NetworkSet, ProtocolFamily } from './networks/networks';
 
-export type ProtocolFamily = 'evm' | 'svm' | 'avm' | 'aptos' | 'stellar';
+export type { ProtocolFamily } from './networks/networks';
 export type Transport = 'http' | 'mcp';
-export type TransferMethod = 'eip3009' | 'permit2' | 'upto';
+export type PaymentScheme = 'exact' | 'upto' | 'batch-settlement' | 'auth-capture';
+export type AssetTransferMethod = 'eip3009' | 'permit2' | 'sequence' | 'ticketSequence';
+/** Payment ordering on the accept. Omitted on an endpoint means `authorization`. */
+export type PaymentFlow = 'authorization' | 'upfront' | 'escrow';
+
+/**
+ * Resolved asset transfer method for an endpoint.
+ */
+export function endpointAssetTransferMethod(endpoint: TestEndpoint): AssetTransferMethod | undefined {
+  const family = endpoint.protocolFamily ?? 'evm';
+  if (endpoint.assetTransferMethod != null) {
+    return endpoint.assetTransferMethod;
+  }
+  if (family === 'evm') {
+    const scheme = endpoint.scheme ?? 'exact';
+    return scheme === 'upto' ? 'permit2' : 'eip3009';
+  }
+  if (family === 'xrpl') {
+    return 'sequence';
+  }
+  return undefined;
+}
+
+/**
+ * Resolved payment scheme for an endpoint.
+ * Defaults to `exact` when omitted.
+ */
+export function endpointPaymentScheme(endpoint: TestEndpoint): PaymentScheme {
+  return endpoint.scheme ?? 'exact';
+}
+
+/**
+ * Resolved payment flow for an endpoint.
+ * Defaults to `authorization` when omitted.
+ */
+export function endpointPaymentFlow(endpoint: TestEndpoint): PaymentFlow {
+  return endpoint.paymentFlow ?? 'authorization';
+}
+
+/** Harness knobs for exact / upto endpoints (Permit2 settle paths). */
+export interface Permit2SchemeOptions {
+  permit2Direct?: boolean;
+  coldstart?: boolean;
+}
+
+/** Harness knobs for batch-settlement endpoints. */
+export type BatchSettlementSchemeOptions = Permit2SchemeOptions;
+
+export type SchemeOptions = Permit2SchemeOptions | BatchSettlementSchemeOptions;
+
+export function endpointUsesBatchSettlement(endpoint: TestEndpoint): boolean {
+  return endpoint.scheme === 'batch-settlement';
+}
+
+function authCaptureExtra(endpoint: TestEndpoint): Record<string, string | number | boolean> | undefined {
+  return endpoint.schemeExtra;
+}
+
+export function endpointAuthCaptureCaptureMode(endpoint: TestEndpoint): string | undefined {
+  const mode = authCaptureExtra(endpoint)?.captureMode;
+  return mode != null ? String(mode) : undefined;
+}
+
+export function endpointAuthCaptureOperatorType(endpoint: TestEndpoint): string | undefined {
+  const operatorType = authCaptureExtra(endpoint)?.operatorType;
+  return operatorType != null ? String(operatorType) : undefined;
+}
+
+/** Deferred delegated escrow: harness must POST capture after the client authorize GET. */
+export function endpointAuthCaptureNeedsDeferredCapture(endpoint: TestEndpoint): boolean {
+  return (
+    endpointPaymentScheme(endpoint) === 'auth-capture' &&
+    endpointAuthCaptureCaptureMode(endpoint) === 'deferred' &&
+    endpointAuthCaptureOperatorType(endpoint) === 'delegated'
+  );
+}
+
+/**
+ * Auth-capture branch id for coverage / minimization (not the HTTP path).
+ * Used by `--min` to require every catalog branch at least once; EIP-3009 paths
+ * also share one endpoint slot per server (`auth-capture~eip3009`).
+ */
+export function endpointAuthCaptureCoverageBranch(endpoint: TestEndpoint): string | undefined {
+  if (endpointPaymentScheme(endpoint) !== 'auth-capture') {
+    return undefined;
+  }
+  const method = endpointAssetTransferMethod(endpoint) ?? 'eip3009';
+  if (method === 'permit2') {
+    return 'self-sync-permit2';
+  }
+  const path = endpoint.path;
+  if (path.startsWith('/auth-capture-custom-forwarding/')) {
+    return 'custom-forwarding';
+  }
+  if (path.startsWith('/auth-capture-deferred/')) {
+    return 'deferred-delegated';
+  }
+  if (path.startsWith('/auth-capture-facilitator-authorizer/')) {
+    return 'facilitator-sync';
+  }
+  if (path.startsWith('/auth-capture/')) {
+    return 'self-sync-eip3009';
+  }
+  return 'other';
+}
+
+/**
+ * Endpoint path used for coverage-based minimization. Auth-capture collapses to
+ * one slot per server per asset method; branch coverage is tracked separately
+ * ({@link endpointAuthCaptureCoverageBranch}).
+ */
+export function endpointPathForCoverageMinimization(endpoint: TestEndpoint): string {
+  if (endpointPaymentScheme(endpoint) === 'auth-capture') {
+    const method = endpointAssetTransferMethod(endpoint) ?? 'eip3009';
+    return `auth-capture~${method}`;
+  }
+  return endpoint.path;
+}
 
 export interface ClientResult {
   success: boolean;
@@ -12,26 +129,33 @@ export interface ClientResult {
   error?: string;
 }
 
+/** Scheme-specific configs for a batch-settlement scenario. */
+export type BatchSettlementPhase = 'initial' | 'recovery-refund' | 'full';
+
+export interface BatchSettlementClientConfig {
+  /** Per-scenario unique salt that derives the onchain channel id (avoids collisions across runs). */
+  channelSalt: string;
+  /** Fixed e2e phase to run for this one-shot client process. */
+  phase: BatchSettlementPhase;
+  /** Optional alternate EOA used to sign vouchers (deposits still use the main client signer). */
+  voucherSignerPrivateKey?: string;
+  /** Trusted SVM batch operator pubkeys for server-signed voucher mode (base58, comma-separated). */
+  svmServerSignedOperators?: string;
+}
 export interface ClientConfig {
-  evmPrivateKey: string;
-  svmPrivateKey: string;
-  avmPrivateKey: string;
-  aptosPrivateKey: string;
-  stellarPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
-  evmNetwork: string;
-  evmRpcUrl: string;
+  networks: NetworkSet;
+  batchSettlement?: BatchSettlementClientConfig;
 }
 
 export interface ServerConfig {
   port: number;
-  evmPayTo: string;
-  svmPayTo: string;
-  avmPayTo: string;
-  aptosPayTo: string;
-  stellarPayTo: string;
   networks: NetworkSet;
+  /** When set, only forward SERVER_* addresses for these families */
+  enabledFamilies?: ProtocolFamily[];
+  /** Narrows catalog routes mounted by the server for this run (from scenario filters). */
+  runRouteFilter?: { excludeSchemes?: string[]; excludeNetworks?: string[] };
   facilitatorUrl?: string;
   mockFacilitatorUrl?: string;
 }
@@ -39,8 +163,6 @@ export interface ServerConfig {
 export interface ServerProxy {
   start(config: ServerConfig): Promise<void>;
   stop(): Promise<void>;
-  getHealthUrl(): string;
-  getProtectedPath(): string;
   getUrl(): string;
 }
 
@@ -54,12 +176,18 @@ export interface TestEndpoint {
   description: string;
   requiresPayment?: boolean;
   protocolFamily?: ProtocolFamily;
-  transferMethod?: TransferMethod;
+  scheme?: PaymentScheme;
+  assetTransferMethod?: AssetTransferMethod;
+  /** Omitted or `authorization` is the default (verify → resource → settle). */
+  paymentFlow?: PaymentFlow;
+  schemeOptions?: SchemeOptions;
   extensions?: string[];
-  /** True for Permit2 standard/direct settle - requires pre-approval (approve before test, not revoke) */
-  permit2Direct?: boolean;
-  /** True for endpoints that require Permit2 revocation + fund/drain state setup before the first test (coldstart). */
-  coldstart?: boolean;
+  /** Merged catalog `schemeExtra` for harness branching (auth-capture modes, etc.). */
+  schemeExtra?: Record<string, string | number | boolean>;
+  /** For MCP tools: the tool name used in tools/call. Defaults to path if not specified. */
+  toolName?: string;
+  /** For MCP tools: expected MCP wire transport for discovery metadata. */
+  mcpTransport?: 'streamable-http' | 'sse';
   health?: boolean;
   close?: boolean;
 }
@@ -67,15 +195,23 @@ export interface TestEndpoint {
 export interface TestConfig {
   name: string;
   type: 'server' | 'client' | 'facilitator';
+  enabled?: boolean;
   transport?: Transport;
   language: string;
   protocolFamilies?: ProtocolFamily[];
   x402Version?: number;
   x402Versions?: number[];
   extensions?: string[];
+  /**
+   * Payment schemes the component supports. Required on clients and
+   * facilitators that participate in EVM scenarios; the discovery filter
+   * skips pairings whose endpoint scheme is not in this list.
+   */
+  schemes?: PaymentScheme[];
   evm?: {
-    transferMethods: TransferMethod[];
+    assetTransferMethods?: AssetTransferMethod[];
   };
+  facilitators?: string[];
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

@@ -26,6 +26,30 @@ export function handleSimulationResult(simulation?: Api.SimulateTransactionRespo
 }
 
 /**
+ * Returns the address credentials carried by a Soroban credential union, for
+ * both the legacy V1 `sorobanCredentialsAddress` arm and the CAP-71 V2
+ * `sorobanCredentialsAddressV2` arm, which networks accept from Protocol 28
+ * onward. Both arms wrap the same `SorobanAddressCredentials` structure and
+ * differ only in the preimage the signer commits to. Returns `undefined` for
+ * every other arm (source-account, delegated).
+ *
+ * @param credentials - The credential union from an auth entry
+ * @returns The address credentials, or undefined for non-address arms
+ */
+export function getAddressCredentials(
+  credentials: xdr.SorobanCredentials,
+): xdr.SorobanAddressCredentials | undefined {
+  const credentialsType = credentials.switch();
+  if (credentialsType === xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
+    return credentials.address();
+  }
+  if (credentialsType === xdr.SorobanCredentialsType.sorobanCredentialsAddressV2()) {
+    return credentials.addressV2();
+  }
+  return undefined;
+}
+
+/**
  * Analysis result of transaction signers
  */
 export type ContractSigners = {
@@ -103,16 +127,11 @@ export function gatherAuthEntrySignatureStatus({
   const pendingSignature: string[] = [];
 
   for (const entry of invokeOp.auth ?? []) {
-    const credentialsType = entry.credentials().switch();
-
-    // Skip source account credentials - these use the transaction source
-    if (credentialsType === xdr.SorobanCredentialsType.sorobanCredentialsSourceAccount()) {
-      continue;
-    }
-
-    // Handle address-based credentials
-    if (credentialsType === xdr.SorobanCredentialsType.sorobanCredentialsAddress()) {
-      const addressCredentials = entry.credentials().address();
+    // Handle address-based credentials, both legacy V1 and CAP-71 V2 (accepted
+    // by the network from Protocol 28 onward). Source-account credentials are
+    // skipped - these use the transaction source.
+    const addressCredentials = getAddressCredentials(entry.credentials());
+    if (addressCredentials) {
       const address = Address.fromScAddress(addressCredentials.address()).toString();
       const signature = addressCredentials.signature();
 

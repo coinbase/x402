@@ -6,7 +6,10 @@ import time
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from x402.mechanisms.evm.asset_cache import reset_asset_contract_cache
 from x402.mechanisms.evm.constants import (
+    ERR_ASSET_NOT_DEPLOYED_CONTRACT,
+    ERR_ERC20_APPROVAL_BROADCAST_FAILED,
     ERR_INSUFFICIENT_BALANCE,
     ERR_NETWORK_MISMATCH,
     ERR_PERMIT2_ALLOWANCE_REQUIRED,
@@ -17,6 +20,8 @@ from x402.mechanisms.evm.constants import (
     ERR_PERMIT2_NOT_YET_VALID,
     ERR_PERMIT2_RECIPIENT_MISMATCH,
     ERR_PERMIT2_TOKEN_MISMATCH,
+    ERR_SETTLEMENT_PENDING,
+    ERR_TRANSACTION_FAILED,
     ERR_UNSUPPORTED_SCHEME,
     X402_EXACT_PERMIT2_PROXY_ADDRESS,
 )
@@ -152,7 +157,14 @@ class MockFacilitatorSigner:
     def verify_typed_data(self, *args: Any, **kwargs: Any) -> bool:
         return self._sig_valid
 
-    def write_contract(self, address: str, abi: list[dict], function_name: str, *args) -> str:
+    def write_contract(
+        self,
+        address: str,
+        abi: list[dict],
+        function_name: str,
+        *args,
+        data_suffix: str | None = None,
+    ) -> str:
         self.write_calls.append((address, function_name, args))
         return "0x" + "ab" * 32
 
@@ -170,7 +182,30 @@ class MockFacilitatorSigner:
         return 84532
 
     def get_code(self, address: str) -> bytes:
+        # Token contract is always deployed; other addresses (payer) default to EOA.
+        if address.lower() == TOKEN_ADDRESS.lower():
+            return b"\x60"
         return b""
+
+
+class _CountingAssetCodeSigner(MockFacilitatorSigner):
+    """Counts get_code calls for the payment token."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.asset_get_code_calls = 0
+
+    def get_code(self, address: str) -> bytes:
+        if address.lower() == TOKEN_ADDRESS.lower():
+            self.asset_get_code_calls += 1
+        return super().get_code(address)
+
+
+class _ReceiptTimeoutSigner(MockFacilitatorSigner):
+    """Signer whose broadcast never confirms in time (settlement_pending)."""
+
+    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+        raise TimeoutError("rpc: timeout waiting for receipt")
 
 
 # ============================================================================
@@ -281,6 +316,17 @@ class TestVerifyPermit2:
         assert result.is_valid is False
         assert result.invalid_reason == ERR_PERMIT2_INVALID_SPENDER
 
+    def test_verify_invalid_spender_does_not_check_asset_contract(self):
+        reset_asset_contract_cache()
+        signer = _CountingAssetCodeSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        auth = make_permit2_authorization(spender="0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+        payload = make_payment_payload(payload_dict=make_permit2_payload_dict(auth))
+        result = facilitator.verify(payload, make_requirements())
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_PERMIT2_INVALID_SPENDER
+        assert signer.asset_get_code_calls == 0
+
     def test_verify_rejects_recipient_mismatch(self):
         facilitator = self._make_facilitator()
         wrong_recipient = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
@@ -368,6 +414,26 @@ class TestVerifyPermit2:
         assert result.is_valid is False
         assert result.invalid_reason == ERR_INSUFFICIENT_BALANCE
 
+    def test_verify_rejects_eoa_asset(self):
+        # Asset address with no bytecode must be rejected after signature work.
+        # The mock returns non-empty code for TOKEN_ADDRESS by default; override to EOA.
+        # Other tests share TOKEN_ADDRESS but model it as deployed, and positive asset checks are
+        # cached process-wide, so drop those entries to force a real get_code here.
+        reset_asset_contract_cache()
+
+        class _EOAAssetSigner(MockFacilitatorSigner):
+            def get_code(self, address: str) -> bytes:
+                return b""  # all addresses, including token, are EOAs
+
+        facilitator = ExactEvmFacilitatorScheme(_EOAAssetSigner())
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = self._verify(facilitator)
+        assert result.is_valid is False
+        assert result.invalid_reason == ERR_ASSET_NOT_DEPLOYED_CONTRACT
+
 
 # ============================================================================
 # Facilitator settle_permit2 tests
@@ -433,6 +499,258 @@ class TestSettlePermit2:
             result = facilitator.settle(payload, requirements)
 
         assert result.success is False
+
+    def test_settle_receipt_wait_failure_returns_settlement_pending(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+        requirements = make_requirements()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(payload, requirements)
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "ab" * 32  # broadcast tx hash from write_contract
+
+    def test_settle_receipt_wait_type_error_returns_settlement_pending(self):
+        class _BrokenSigner(MockFacilitatorSigner):
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TypeError("wait_for_transaction_receipt() missing 1 required argument")
+
+        signer = _BrokenSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == "0x" + "ab" * 32
+
+    def test_cache_miss_broadcast_success_leaves_store_empty(self):
+        signer = MockFacilitatorSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is True
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_miss_wait_failure_populates_store_with_broadcast_hash(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(payload, make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        signature = payload.payload["signature"]
+        assert facilitator._pending_store.get(signature) == result.transaction
+
+    def test_cache_hit_skips_verify_and_broadcast_then_reconciles_success(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+        assert first.success is False
+        write_calls_after_first = len(signer.write_calls)
+
+        signer.wait_for_transaction_receipt = lambda tx_hash: TransactionReceipt(
+            status=1, block_number=1, tx_hash=tx_hash
+        )
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils.verify_permit2",
+            side_effect=AssertionError("verify must be skipped on a pending-store hit"),
+        ):
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is True
+        assert second.transaction == first.transaction
+        assert len(signer.write_calls) == write_calls_after_first  # no second broadcast
+        assert facilitator._pending_store.entries == {}
+
+    def test_cache_hit_still_unconfirmed_returns_settlement_pending_again(self):
+        signer = _ReceiptTimeoutSigner()
+        facilitator = ExactEvmFacilitatorScheme(signer)
+        payload = make_payment_payload()
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            first = facilitator.settle(payload, make_requirements())
+            second = facilitator.settle(payload, make_requirements())
+
+        assert second.success is False
+        assert second.error_reason == ERR_SETTLEMENT_PENDING
+        assert second.transaction == first.transaction
+        assert len(signer.write_calls) == 1  # never re-broadcast
+
+    def test_verify_only_failure_is_terminal_and_never_touches_store(self):
+        facilitator = self._make_facilitator(allowance=0)
+
+        result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert facilitator._pending_store.entries == {}
+
+    def test_settle_invalid_broadcast_hash_is_terminal(self):
+        # settlement_pending needs the broadcast hash to be actionable, so a signer that
+        # reports success without a usable hash must fail terminally.
+        class _InvalidHashSigner(MockFacilitatorSigner):
+            def write_contract(self, *args: Any, **kwargs: Any) -> str:
+                return "0xnothash"
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise AssertionError("must not wait on an invalid transaction hash")
+
+        facilitator = ExactEvmFacilitatorScheme(_InvalidHashSigner())
+
+        with patch(
+            "x402.mechanisms.evm.exact.permit2_utils._verify_permit2_signature",
+            return_value=True,
+        ):
+            result = facilitator.settle(make_payment_payload(), make_requirements())
+
+        assert result.success is False
+        assert result.error_reason == ERR_TRANSACTION_FAILED
+        assert result.transaction == ""
+
+    def test_settle_erc20_approval_invalid_settlement_hash_returned_without_error(self):
+        # Malformed final hash without error must not proceed to receipt wait.
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.exact.permit2_utils import (
+            _settle_permit2_with_erc20_approval,
+        )
+
+        class _InvalidHashExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return ["0xapproval"]
+
+        permit2_payload = ExactPermit2Payload(
+            permit2_authorization=make_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_permit2_with_erc20_approval(
+            _InvalidHashExtensionSigner(), make_payment_payload(), permit2_payload, erc20_info
+        )
+
+        assert result.success is False
+        assert result.error_reason == ERR_ERC20_APPROVAL_BROADCAST_FAILED
+        assert result.transaction == ""
+
+    def test_settle_erc20_approval_atomic_bundle_single_hash_succeeds(self):
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.exact.permit2_utils import (
+            _settle_permit2_with_erc20_approval,
+        )
+
+        bundle_hash = "0x" + "ef" * 32
+
+        class _AtomicBundleExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return [bundle_hash]
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                return TransactionReceipt(status=1, block_number=1, tx_hash=tx_hash)
+
+        permit2_payload = ExactPermit2Payload(
+            permit2_authorization=make_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_permit2_with_erc20_approval(
+            _AtomicBundleExtensionSigner(), make_payment_payload(), permit2_payload, erc20_info
+        )
+
+        assert result.success is True
+        assert result.transaction == bundle_hash
+
+    def test_settle_erc20_approval_extension_receipt_wait_failure_returns_settlement_pending(
+        self,
+    ):
+        from x402.extensions.erc20_approval_gas_sponsoring import (
+            Erc20ApprovalGasSponsoringInfo,
+        )
+        from x402.mechanisms.evm.exact.permit2_utils import (
+            _settle_permit2_with_erc20_approval,
+        )
+
+        settle_hash = "0x" + "ef" * 32
+
+        class _ReceiptTimeoutExtensionSigner:
+            def send_transactions(self, transactions: list[Any]) -> list[str]:
+                return ["0x" + "11" * 32, settle_hash]
+
+            def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
+                raise TimeoutError("rpc: timeout waiting for receipt")
+
+        permit2_payload = ExactPermit2Payload(
+            permit2_authorization=make_permit2_authorization(),
+            signature="0x" + "aa" * 65,
+        )
+        erc20_info = Erc20ApprovalGasSponsoringInfo(
+            from_address=PAYER,
+            asset=TOKEN_ADDRESS,
+            spender=X402_EXACT_PERMIT2_PROXY_ADDRESS,
+            amount=str(2**256 - 1),
+            signed_transaction="0x" + "ff" * 100,
+            version="1",
+        )
+
+        result = _settle_permit2_with_erc20_approval(
+            _ReceiptTimeoutExtensionSigner(),
+            make_payment_payload(),
+            permit2_payload,
+            erc20_info,
+        )
+
+        assert result.success is False
+        assert result.error_reason == ERR_SETTLEMENT_PENDING
+        assert result.transaction == settle_hash
 
 
 # ============================================================================

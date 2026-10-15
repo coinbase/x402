@@ -1,6 +1,19 @@
 import prompts from 'prompts';
 import { DiscoveredClient, DiscoveredServer, DiscoveredFacilitator, TestScenario } from '../types';
-import { TestFilters, getUniqueVersions, getUniqueProtocolFamilies } from './filters';
+import {
+  TestFilters,
+  filterScenarios,
+  getUniqueVersions,
+  getUniqueProtocolFamilies,
+  getUniquePaymentSchemes,
+  getScenarioPaymentScheme,
+  getUniquePaymentFlows,
+  getScenarioPaymentFlow,
+  getUniqueAssetTransferMethods,
+  getScenarioAssetTransferMethod,
+  PaymentSchemeKind,
+} from './filters';
+import type { PaymentFlow, AssetTransferMethod } from '../types';
 import { log } from '../logger';
 import { NetworkMode, getNetworkModeDescription } from '../networks/networks';
 
@@ -280,7 +293,116 @@ export async function runInteractiveMode(
     selectedFamilies = availableFamilies;
   }
 
-  // Question 8: Endpoint filter (optional free-text, comma-separated regex patterns)
+  // Question 8 (CONDITIONAL): Payment scheme — exact vs upto vs batch-settlement (EVM transfer semantics)
+  const scenariosForScheme = filterScenarios(preliminaryScenarios, {
+    versions: selectedVersions,
+    protocolFamilies: selectedFamilies,
+  });
+  const availableSchemes = getUniquePaymentSchemes(scenariosForScheme);
+  let selectedSchemes: string[] | undefined;
+
+  if (availableSchemes.length > 1) {
+    const schemeChoices = availableSchemes.map((k: PaymentSchemeKind) => {
+      const count = scenariosForScheme.filter(s => getScenarioPaymentScheme(s) === k).length;
+      return {
+        title: `${k} (${count} scenarios)`,
+        value: k,
+        selected: true,
+      };
+    });
+
+    const schemesResponse = await prompts({
+      type: 'multiselect',
+      name: 'schemes',
+      message: 'Select payment schemes',
+      choices: schemeChoices,
+      min: 1,
+      hint: 'exact = eip3009/permit2; upto = usage-based; batch-settlement = voucher channel; auth-capture = escrow (sync, deferred capture, or custom operator)',
+      instructions: false,
+    });
+
+    if (!schemesResponse.schemes || schemesResponse.schemes.length === 0) {
+      return null;
+    }
+
+    selectedSchemes = schemesResponse.schemes;
+  } else if (availableSchemes.length === 1) {
+    selectedSchemes = availableSchemes;
+  }
+
+  // Question 9 (CONDITIONAL): Payment flow — authorization vs upfront vs escrow
+  const scenariosForFlow = filterScenarios(scenariosForScheme, {
+    schemes: selectedSchemes,
+  });
+  const availableFlows = getUniquePaymentFlows(scenariosForFlow);
+  let selectedPaymentFlows: string[] | undefined;
+
+  if (availableFlows.length > 1) {
+    const flowChoices = availableFlows.map((flow: PaymentFlow) => {
+      const count = scenariosForFlow.filter(s => getScenarioPaymentFlow(s) === flow).length;
+      return {
+        title: `${flow} (${count} scenarios)`,
+        value: flow,
+        selected: true,
+      };
+    });
+
+    const flowsResponse = await prompts({
+      type: 'multiselect',
+      name: 'paymentFlows',
+      message: 'Select payment flows',
+      choices: flowChoices,
+      min: 1,
+      hint: 'authorization = verify → resource → settle; upfront / escrow = pay before resource',
+      instructions: false,
+    });
+
+    if (!flowsResponse.paymentFlows || flowsResponse.paymentFlows.length === 0) {
+      return null;
+    }
+
+    selectedPaymentFlows = flowsResponse.paymentFlows;
+  } else if (availableFlows.length === 1) {
+    selectedPaymentFlows = availableFlows;
+  }
+
+  // Question 10 (CONDITIONAL): Asset transfer method
+  const scenariosForAtm = filterScenarios(scenariosForFlow, {
+    paymentFlows: selectedPaymentFlows,
+  });
+  const availableAtms = getUniqueAssetTransferMethods(scenariosForAtm);
+  let selectedAssetTransferMethods: string[] | undefined;
+
+  if (availableAtms.length > 1) {
+    const atmChoices = availableAtms.map((method: AssetTransferMethod) => {
+      const count = scenariosForAtm.filter(s => getScenarioAssetTransferMethod(s) === method).length;
+      return {
+        title: `${method} (${count} scenarios)`,
+        value: method,
+        selected: true,
+      };
+    });
+
+    const atmResponse = await prompts({
+      type: 'multiselect',
+      name: 'assetTransferMethods',
+      message: 'Select asset transfer methods',
+      choices: atmChoices,
+      min: 1,
+      hint: 'eip3009, permit2 (EVM); sequence, ticketSequence (XRPL)',
+      instructions: false,
+    });
+
+    if (!atmResponse.assetTransferMethods || atmResponse.assetTransferMethods.length === 0) {
+      return null;
+    }
+
+    selectedAssetTransferMethods = atmResponse.assetTransferMethods;
+  } else if (availableAtms.length === 1) {
+    selectedAssetTransferMethods = availableAtms;
+  }
+
+  // Question 11: Endpoint filter (optional free-text, comma-separated regex patterns)
   const endpointsResponse = await prompts({
     type: 'text',
     name: 'endpoints',
@@ -297,7 +419,7 @@ export async function runInteractiveMode(
     ? (endpointsResponse.endpoints as string).split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
     : undefined;
 
-  // Question 9: Select network mode (testnet/mainnet) - LAST question
+  // Question 12: Select network mode (testnet/mainnet) - LAST question
   // Skip if preselected via CLI flag
   let networkMode: NetworkMode;
 
@@ -346,6 +468,9 @@ export async function runInteractiveMode(
     extensions: selectedExtensions,
     versions: selectedVersions,
     protocolFamilies: selectedFamilies,
+    schemes: selectedSchemes,
+    paymentFlows: selectedPaymentFlows,
+    assetTransferMethods: selectedAssetTransferMethods,
     endpoints: selectedEndpoints,
     networkMode,
   };

@@ -8,10 +8,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/x402-foundation/x402/go/extensions/eip2612gassponsor"
-	"github.com/x402-foundation/x402/go/extensions/erc20approvalgassponsor"
-	"github.com/x402-foundation/x402/go/mechanisms/evm"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/extensions/eip2612gassponsor"
+	"github.com/x402-foundation/x402/go/v2/extensions/erc20approvalgassponsor"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // ExactEvmScheme implements the SchemeNetworkClient interface for EVM exact payments (V2)
@@ -35,34 +36,26 @@ func (c *ExactEvmScheme) Scheme() string {
 	return evm.SchemeExact
 }
 
+func (c *ExactEvmScheme) FindDefaultAsset(asset string, network x402.Network) *x402.DefaultAsset {
+	info := evm.FindDefaultAsset(asset, string(network))
+	if info == nil {
+		return nil
+	}
+	return &x402.DefaultAsset{Asset: info.Asset, Decimals: info.Decimals, Symbol: info.Symbol}
+}
+
 // CreatePaymentPayload creates a V2 payment payload for the exact scheme.
 // Routes to EIP-3009 or Permit2 based on requirements.Extra["assetTransferMethod"].
 // Defaults to EIP-3009 for backward compatibility.
-func (c *ExactEvmScheme) CreatePaymentPayload(
-	ctx context.Context,
-	requirements types.PaymentRequirements,
-) (types.PaymentPayload, error) {
-	assetTransferMethod := evm.AssetTransferMethodEIP3009 // default
-	if requirements.Extra != nil {
-		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
-			assetTransferMethod = evm.AssetTransferMethod(method)
-		}
-	}
-	if assetTransferMethod == evm.AssetTransferMethodPermit2 {
-		return CreatePermit2Payload(ctx, c.signer, requirements)
-	}
-	return c.createEIP3009Payload(ctx, requirements)
-}
-
-// CreatePaymentPayloadWithExtensions creates a payment payload with extension awareness.
 // For Permit2 flows, if the server advertises eip2612GasSponsoring and the signer
 // supports ReadContract, automatically signs an EIP-2612 permit when Permit2
 // allowance is insufficient.
-func (c *ExactEvmScheme) CreatePaymentPayloadWithExtensions(
+func (c *ExactEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirements,
-	extensions map[string]interface{},
+	payloadCtx x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
+	extensions := payloadCtx.Extensions
 	assetTransferMethod := evm.AssetTransferMethodEIP3009
 	if requirements.Extra != nil {
 		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
@@ -267,7 +260,8 @@ func (c *ExactEvmScheme) createEIP3009Payload(
 	}
 
 	// V2 specific: No buffer on validAfter (can use immediately)
-	validAfter, validBefore := evm.CreateValidityWindow(time.Hour)
+	timeoutDuration := time.Duration(requirements.MaxTimeoutSeconds) * time.Second
+	validAfter, validBefore := evm.CreateValidityWindow(timeoutDuration)
 
 	// Extract extra fields for EIP-3009
 	tokenName := assetInfo.Name

@@ -78,7 +78,8 @@ export function wrapFetchWithPayment(
     }
 
     // Run payment required hooks
-    const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired);
+    const requestUrl = response.url || request.url;
+    const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired, requestUrl);
     if (hookHeaders) {
       const hookRequest = clonedRequest.clone();
       for (const [key, value] of Object.entries(hookHeaders)) {
@@ -119,7 +120,37 @@ export function wrapFetchWithPayment(
     );
 
     // Retry the request with payment
-    const secondResponse = await fetch(clonedRequest);
+    const secondResponse = await fetch(clonedRequest.clone());
+
+    // Fire payment response hooks and handle recovery
+    const result = await httpClient.processPaymentResult(
+      paymentPayload,
+      name => secondResponse.headers.get(name),
+      secondResponse.status,
+    );
+
+    if (result.recovered) {
+      // Hook fixed state — retry with fresh payload (bounded to one recovery)
+      const freshPayload = await client.createPaymentPayload(paymentRequired);
+      const retryHeaders = httpClient.encodePaymentSignatureHeader(freshPayload);
+      const retryRequest = clonedRequest;
+      for (const [k, v] of Object.entries(retryHeaders)) {
+        retryRequest.headers.set(k, v);
+      }
+      retryRequest.headers.set(
+        "Access-Control-Expose-Headers",
+        "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
+      );
+      const retryResponse = await fetch(retryRequest);
+      // Fire hooks on retry response — no further recovery to prevent loops
+      await httpClient.processPaymentResult(
+        freshPayload,
+        name => retryResponse.headers.get(name),
+        retryResponse.status,
+      );
+      return retryResponse;
+    }
+
     return secondResponse;
   };
 }
@@ -141,6 +172,7 @@ export function wrapFetchWithPaymentFromConfig(
 
 // Re-export types and utilities for convenience
 export { x402Client, x402HTTPClient } from "@x402/core/client";
+export type { HTTPResourceResponse } from "@x402/core/client";
 export type {
   PaymentPolicy,
   SchemeRegistration,

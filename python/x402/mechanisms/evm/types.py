@@ -306,6 +306,7 @@ class TransactionReceipt:
     status: int
     block_number: int
     tx_hash: str
+    logs: list[Any] | None = None
 
 
 @dataclass
@@ -315,6 +316,9 @@ class ERC6492SignatureData:
     factory: bytes  # 20-byte factory address (zero if not ERC-6492)
     factory_calldata: bytes  # Deployment calldata (empty if not ERC-6492)
     inner_signature: bytes  # The actual signature (EIP-1271 or EOA)
+    # Whether the signer had bytecode, as determined by verify_universal_signature.
+    # Zero value elsewhere.
+    code_deployed: bool = False
 
 
 # EIP-712 authorization types for signing

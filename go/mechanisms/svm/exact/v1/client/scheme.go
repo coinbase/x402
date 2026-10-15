@@ -9,20 +9,21 @@ import (
 	"fmt"
 	"strconv"
 
-	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	svm "github.com/x402-foundation/x402/go/mechanisms/svm"
-	"github.com/x402-foundation/x402/go/types"
+	x402 "github.com/x402-foundation/x402/go/v2"
+	svm "github.com/x402-foundation/x402/go/v2/mechanisms/svm"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // ExactSvmSchemeV1 implements the SchemeNetworkClientV1 interface for SVM (Solana) exact payments (V1)
 type ExactSvmSchemeV1 struct {
-	signer svm.ClientSvmSigner
-	config *svm.ClientConfig // Optional custom RPC configuration
+	signer    svm.ClientSvmSigner
+	config    *svm.ClientConfig // Optional custom RPC configuration
+	mintCache *svm.MintMetadataCache
 }
 
 // NewExactSvmSchemeV1 creates a new ExactSvmSchemeV1
@@ -33,8 +34,9 @@ func NewExactSvmSchemeV1(signer svm.ClientSvmSigner, config ...*svm.ClientConfig
 		cfg = config[0]
 	}
 	return &ExactSvmSchemeV1{
-		signer: signer,
-		config: cfg,
+		signer:    signer,
+		config:    cfg,
+		mintCache: svm.NewMintMetadataCache(),
 	}
 }
 
@@ -43,10 +45,19 @@ func (c *ExactSvmSchemeV1) Scheme() string {
 	return svm.SchemeExact
 }
 
+func (c *ExactSvmSchemeV1) FindDefaultAsset(asset string, network x402.Network) *x402.DefaultAsset {
+	info := svm.FindDefaultAsset(asset, string(network))
+	if info == nil {
+		return nil
+	}
+	return &x402.DefaultAsset{Asset: info.Asset, Decimals: info.Decimals, Symbol: info.Symbol}
+}
+
 // CreatePaymentPayload creates a V1 payment payload for the Exact scheme
 func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	ctx context.Context,
 	requirements types.PaymentRequirementsV1,
+	_ x402.PaymentPayloadContext,
 ) (types.PaymentPayloadV1, error) {
 
 	// Validate network (V1 uses simple names, normalize to CAIP-2 internally)
@@ -60,8 +71,6 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	if err != nil {
 		return types.PaymentPayloadV1{}, err
 	}
-
-	// Get RPC URL (custom or default)
 	rpcURL := config.RPCURL
 	if c.config != nil && c.config.RPCURL != "" {
 		rpcURL = c.config.RPCURL
@@ -76,14 +85,19 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		return types.PaymentPayloadV1{}, fmt.Errorf(ErrInvalidAssetAddress+": %w", err)
 	}
 
-	// Get mint account to determine token program
-	mintAccount, err := rpcClient.GetAccountInfo(ctx, mintPubkey)
+	mintMetadata, err := c.mintCache.GetOrFetch(ctx, rpcClient, networkStr, mintPubkey)
 	if err != nil {
+		if errors.Is(err, svm.ErrUnknownMintTokenProgram) {
+			return types.PaymentPayloadV1{}, errors.New(ErrUnknownTokenProgram)
+		}
+		if errors.Is(err, svm.ErrFailedToDecodeMintData) {
+			return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToDecodeMintData+": %w", err)
+		}
 		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToGetMintAccount+": %w", err)
 	}
 
 	// Determine token program (Token or Token-2022)
-	tokenProgramID := mintAccount.Value.Owner
+	tokenProgramID := mintMetadata.TokenProgramID
 	if tokenProgramID != solana.TokenProgramID && tokenProgramID != solana.Token2022ProgramID {
 		return types.PaymentPayloadV1{}, errors.New(ErrUnknownTokenProgram)
 	}
@@ -132,13 +146,6 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		return types.PaymentPayloadV1{}, fmt.Errorf(ErrInvalidFeePayerAddress+": %w", err)
 	}
 
-	// Get mint account data to get decimals
-	var mintData token.Mint
-	err = bin.NewBinDecoder(mintAccount.Value.Data.GetBinary()).Decode(&mintData)
-	if err != nil {
-		return types.PaymentPayloadV1{}, fmt.Errorf(ErrFailedToDecodeMintData+": %w", err)
-	}
-
 	// Get latest blockhash
 	latestBlockhash, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
@@ -164,7 +171,7 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	// Build final transfer instruction
 	transferIx, err := token.NewTransferCheckedInstructionBuilder().
 		SetAmount(amount).
-		SetDecimals(mintData.Decimals).
+		SetDecimals(mintMetadata.Decimals).
 		SetSourceAccount(sourceATA).
 		SetMintAccount(mintPubkey).
 		SetDestinationAccount(destinationATA).

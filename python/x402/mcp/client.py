@@ -25,16 +25,20 @@ import json
 import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 from ..client import x402Client, x402ClientSync
-from ..schemas.payments import PaymentRequired
 from ..schemas.responses import SettleResponse
 from .constants import MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY
 from .utils import (
+    _extract_payment_required_from_object,
     convert_mcp_result,
     extract_payment_required_from_result,
     extract_payment_response_from_meta,
+    paid_read_timeout_seconds,
+    probe_read_timeout_seconds,
+    resolve_max_request_timeout_seconds,
 )
 
 __all__ = [
@@ -76,10 +80,14 @@ class x402MCPSession:
         session: Any,
         x402_client: x402Client,
         auto_payment: bool = True,
+        max_request_timeout_seconds: int | None = None,
     ) -> None:
         self._session = session
         self._x402_client = x402_client
         self._auto_payment = auto_payment
+        self._max_request_timeout_seconds = resolve_max_request_timeout_seconds(
+            max_request_timeout_seconds
+        )
 
     async def initialize(self) -> None:
         """Initialize the MCP session."""
@@ -93,6 +101,7 @@ class x402MCPSession:
         self,
         name: str,
         arguments: dict[str, Any] | None = None,
+        read_timeout_seconds: timedelta | None = None,
     ) -> MCPToolCallResult:
         """Call a tool with automatic x402 payment handling.
 
@@ -104,14 +113,19 @@ class x402MCPSession:
         Args:
             name: Tool name to call.
             arguments: Arguments to pass to the tool.
+            read_timeout_seconds: Per-call MCP timeout; overrides accept and cap.
 
         Returns:
             MCPToolCallResult with content, payment info, and error status.
         """
+        probe_timeout = probe_read_timeout_seconds(
+            read_timeout_seconds, self._max_request_timeout_seconds
+        )
         # First call without payment
         result = await self._session.call_tool(
             name=name,
             arguments=arguments or {},
+            read_timeout_seconds=probe_timeout,
         )
 
         # If no error, return directly
@@ -132,11 +146,20 @@ class x402MCPSession:
         # Serialize for transmission
         payload_dict = payment_payload.model_dump(by_alias=True)
 
+        accepted = payment_payload.accepted
+        max_timeout_seconds = accepted.max_timeout_seconds if accepted is not None else None
+        paid_timeout = paid_read_timeout_seconds(
+            read_timeout_seconds,
+            max_timeout_seconds,
+            self._max_request_timeout_seconds,
+        )
+
         # Retry with payment in _meta
         result = await self._session.call_tool(
             name=name,
             arguments=arguments or {},
             meta={MCP_PAYMENT_META_KEY: payload_dict},
+            read_timeout_seconds=paid_timeout,
         )
 
         return self._build_result(result, payment_made=True)
@@ -161,21 +184,20 @@ class x402MCPSession:
             raw_result=result,
         )
 
-    def _extract_payment_required(self, result: Any) -> PaymentRequired | None:
-        """Extract PaymentRequired from an error result.
+    def _extract_payment_required(self, result: Any) -> Any:
+        """Extract PaymentRequired (x402 v1 or v2) from an error result.
 
         Prefers ``structuredContent`` (per spec), falls back to parsing
         ``content[0].text`` as JSON.  Also handles FastMCP-wrapped error
-        formats via regex fallback.
+        formats via regex fallback. Version-aware so v1 servers are detected too.
         """
         # Preferred path: check structuredContent first (per MCP x402 spec)
         if hasattr(result, "structuredContent") and result.structuredContent:
             sc = result.structuredContent
-            if isinstance(sc, dict) and "accepts" in sc and "x402Version" in sc:
-                try:
-                    return PaymentRequired.model_validate(sc)
-                except Exception:
-                    pass
+            if isinstance(sc, dict) and "accepts" in sc:
+                pr = _extract_payment_required_from_object(sc)
+                if pr is not None:
+                    return pr
 
         # Fallback: parse content[].text as JSON
         if not hasattr(result, "content") or not result.content:
@@ -186,10 +208,9 @@ class x402MCPSession:
                 continue
             parsed = _try_extract_payment_json(item.text)
             if parsed:
-                try:
-                    return PaymentRequired.model_validate(parsed)
-                except Exception:
-                    pass
+                pr = _extract_payment_required_from_object(parsed)
+                if pr is not None:
+                    return pr
 
         return None
 
@@ -208,6 +229,7 @@ class x402MCPClientSync:
         *,
         auto_payment: bool = True,
         on_payment_requested: Any = None,
+        max_request_timeout_seconds: int | None = None,
     ) -> None:
         """Initialize sync x402 MCP client.
 
@@ -221,6 +243,19 @@ class x402MCPClientSync:
         self._payment_client = payment_client
         self._auto_payment = auto_payment
         self._on_payment_requested = on_payment_requested
+        self._max_request_timeout_seconds = resolve_max_request_timeout_seconds(
+            max_request_timeout_seconds
+        )
+
+    @property
+    def client(self) -> Any:
+        """Get underlying MCP client."""
+        return self._mcp_client
+
+    @property
+    def payment_client(self) -> x402ClientSync:
+        """Get underlying x402 payment client."""
+        return self._payment_client
 
     def call_tool(
         self,
@@ -233,15 +268,19 @@ class x402MCPClientSync:
         Args:
             name: Tool name
             args: Tool arguments
-            **kwargs: Additional MCP client options
+            **kwargs: MCP client options (``read_timeout_seconds`` overrides accept/cap).
 
         Returns:
             MCPToolCallResult with content, payment info, and error status
         """
         args = args or {}
         params = {"name": name, "arguments": args}
+        probe_timeout = probe_read_timeout_seconds(
+            kwargs.get("read_timeout_seconds"), self._max_request_timeout_seconds
+        )
+        probe_kwargs = {**kwargs, "read_timeout_seconds": probe_timeout}
 
-        result = self._mcp_client.call_tool(params, **kwargs)
+        result = self._mcp_client.call_tool(params, **probe_kwargs)
         mcp_result = convert_mcp_result(result)
 
         payment_required = extract_payment_required_from_result(mcp_result)
@@ -266,7 +305,15 @@ class x402MCPClientSync:
             "arguments": args,
             "_meta": {MCP_PAYMENT_META_KEY: payload_dict},
         }
-        result = self._mcp_client.call_tool(params_with_meta, **kwargs)
+        accepted = payment_payload.accepted
+        max_timeout_seconds = accepted.max_timeout_seconds if accepted is not None else None
+        paid_timeout = paid_read_timeout_seconds(
+            kwargs.get("read_timeout_seconds"),
+            max_timeout_seconds,
+            self._max_request_timeout_seconds,
+        )
+        paid_kwargs = {**kwargs, "read_timeout_seconds": paid_timeout}
+        result = self._mcp_client.call_tool(params_with_meta, **paid_kwargs)
         mcp_result = convert_mcp_result(result)
         return self._build_result(mcp_result, payment_made=True)
 
@@ -288,6 +335,7 @@ async def create_x402_mcp_client(
     server_url: str,
     *,
     auto_payment: bool = True,
+    max_request_timeout_seconds: int | None = None,
 ):
     """Create an MCP client session with automatic x402 payment handling.
 
@@ -319,7 +367,12 @@ async def create_x402_mcp_client(
 
     async with sse_client(sse_url) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
-            mcp_session = x402MCPSession(session, x402_client, auto_payment)
+            mcp_session = x402MCPSession(
+                session,
+                x402_client,
+                auto_payment,
+                max_request_timeout_seconds=max_request_timeout_seconds,
+            )
             await mcp_session.initialize()
             yield mcp_session
 
@@ -349,3 +402,44 @@ def _try_extract_payment_json(text: str) -> dict | None:
             pass
 
     return None
+
+
+def wrap_mcp_client_with_payment_sync(
+    mcp_client: Any,
+    payment_client: x402ClientSync,
+    *,
+    auto_payment: bool = True,
+    on_payment_requested: Any = None,
+    max_request_timeout_seconds: int | None = None,
+) -> x402MCPClientSync:
+    """Wrap an existing sync MCP client with x402 payment handling."""
+    return x402MCPClientSync(
+        mcp_client,
+        payment_client,
+        auto_payment=auto_payment,
+        on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
+    )
+
+
+def wrap_mcp_client_with_payment_from_config_sync(
+    mcp_client: Any,
+    *,
+    schemes: list[dict[str, Any]] | None = None,
+    config: Any = None,
+    auto_payment: bool = True,
+    on_payment_requested: Any = None,
+    max_request_timeout_seconds: int | None = None,
+) -> x402MCPClientSync:
+    """Wrap a sync MCP client using ``x402ClientSync.from_config``."""
+    from .utils import build_x402_client_config
+
+    config_or_schemes = config if config is not None else (schemes or [])
+    payment_client = x402ClientSync.from_config(build_x402_client_config(config_or_schemes))
+    return x402MCPClientSync(
+        mcp_client,
+        payment_client,
+        auto_payment=auto_payment,
+        on_payment_requested=on_payment_requested,
+        max_request_timeout_seconds=max_request_timeout_seconds,
+    )

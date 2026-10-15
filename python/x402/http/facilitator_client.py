@@ -19,6 +19,7 @@ from ..schemas import (
     VerifyResponse,
 )
 from ..schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
+from .extension_responses import extract_extension_responses_header, log_extension_responses
 from .facilitator_client_base import (
     AuthHeaders,
     AuthProvider,
@@ -52,6 +53,7 @@ _ResponseModelT = TypeVar(
     SettleResponse,
     SupportedResponse,
 )
+_ResponseWithSidechannelT = TypeVar("_ResponseWithSidechannelT", VerifyResponse, SettleResponse)
 
 
 def _response_excerpt(response: Any, limit: int = 200) -> str:
@@ -85,6 +87,16 @@ def _parse_facilitator_response(
         raise FacilitatorResponseError(
             f"Facilitator {operation} returned invalid data: {_response_excerpt(response)}"
         ) from exc
+
+
+def _attach_extension_responses(
+    result: _ResponseWithSidechannelT,
+    response: Any,
+) -> _ResponseWithSidechannelT:
+    """Populate extension_responses from the HTTP sidechannel."""
+    header_obj = extract_extension_responses_header(response)
+    log_extension_responses(header_obj)
+    return result.model_copy(update={"extension_responses": header_obj})
 
 
 # ============================================================================
@@ -288,7 +300,8 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, VerifyResponse, "verify")
+        result = _parse_facilitator_response(response, VerifyResponse, "verify")
+        return _attach_extension_responses(result, response)
 
     async def _settle_http(
         self,
@@ -309,7 +322,8 @@ class HTTPFacilitatorClient(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, SettleResponse, "settle")
+        result = _parse_facilitator_response(response, SettleResponse, "settle")
+        return _attach_extension_responses(result, response)
 
 
 # ============================================================================
@@ -504,7 +518,8 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, VerifyResponse, "verify")
+        result = _parse_facilitator_response(response, VerifyResponse, "verify")
+        return _attach_extension_responses(result, response)
 
     def _settle_http(
         self,
@@ -525,4 +540,5 @@ class HTTPFacilitatorClientSync(HTTPFacilitatorClientBase):
         if response.status_code != 200:
             raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
-        return _parse_facilitator_response(response, SettleResponse, "settle")
+        result = _parse_facilitator_response(response, SettleResponse, "settle")
+        return _attach_extension_responses(result, response)

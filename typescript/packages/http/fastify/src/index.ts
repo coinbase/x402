@@ -9,8 +9,13 @@ import {
   FacilitatorClient,
   FacilitatorResponseError,
   getFacilitatorResponseError,
+  attachBackgroundInitHandler,
   SETTLEMENT_OVERRIDES_HEADER,
   SettlementOverrides,
+  checkIfBazaarNeeded,
+  PaymentCancellationDispatcher,
+  CompletedSettlement,
+  withPrivateCacheControl,
 } from "@x402/core/server";
 import {
   SchemeNetworkServer,
@@ -33,6 +38,8 @@ export function setSettlementOverrides(reply: FastifyReply, overrides: Settlemen
 }
 
 interface X402PaymentContext {
+  cancellationDispatcher: PaymentCancellationDispatcher;
+  beforeHandlerSettlement?: CompletedSettlement;
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
   declaredExtensions?: Record<string, unknown>;
@@ -114,22 +121,6 @@ function getResponseBodyBuffer(payload: unknown): Buffer | undefined {
   }
 
   return Buffer.from(JSON.stringify(payload ?? {}));
-}
-
-/**
- * Check if any routes in the configuration declare bazaar extensions.
- *
- * @param routes - Route configuration
- * @returns True if any route has extensions.bazaar defined
- */
-function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
-  if ("accepts" in routes) {
-    return !!(routes.extensions && "bazaar" in routes.extensions);
-  }
-
-  return Object.values(routes).some(routeConfig => {
-    return !!(routeConfig.extensions && "bazaar" in routeConfig.extensions);
-  });
 }
 
 /**
@@ -228,6 +219,31 @@ function sendFacilitatorError(reply: FastifyReply, error: FacilitatorResponseErr
 }
 
 /**
+ * Logs an unexpected error and sends a generic 500 without leaking internals.
+ *
+ * @param reply - The Fastify reply to write to
+ * @param error - The unexpected error
+ */
+function sendInternalError(reply: FastifyReply, error: unknown): void {
+  console.error(error);
+  reply.status(500).send({ error: "Internal Server Error" });
+}
+
+/**
+ * Decode percent-escapes in a request path.
+ *
+ * @param path - Request path
+ * @returns Decoded path, or the original if decoding fails
+ */
+function decodedRoutePath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
  * Configuration for registering a payment scheme with a specific network.
  */
 export interface SchemeRegistration {
@@ -281,6 +297,11 @@ export function paymentMiddlewareFromHTTPServer(
   app.decorateRequest("x402RawGuard", undefined);
 
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+  // Retryable failures (e.g. a facilitator timeout) must not become unhandled
+  // rejections; the original promise is still awaited on the first protected
+  // request. Fatal capability / route mismatches exit the process so a
+  // misconfigured server does not stay up until that request.
+  attachBackgroundInitHandler(initPromise);
   let isInitialized = false;
 
   /**
@@ -305,10 +326,18 @@ export function paymentMiddlewareFromHTTPServer(
   }
 
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(httpServer.routes) && !httpServer.server.hasExtension("bazaar")) {
-    bazaarPromise = import("@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
-        httpServer.server.registerExtension(bazaarResourceServerExtension);
+  if (checkIfBazaarNeeded(httpServer.routes)) {
+    if (!httpServer.server.hasExtension("bazaar")) {
+      bazaarPromise = import("@x402/extensions/bazaar").then(
+        ({ bazaarResourceServerExtension }) => {
+          httpServer.server.registerExtension(bazaarResourceServerExtension);
+        },
+      );
+    }
+    bazaarPromise = (bazaarPromise ?? Promise.resolve())
+      .then(() => import("@x402/extensions/bazaar"))
+      .then(({ validateBazaarRouteExtensions }) => {
+        validateBazaarRouteExtensions(httpServer.routes);
       })
       .catch(err => {
         console.error("Failed to load bazaar extension:", err);
@@ -316,11 +345,19 @@ export function paymentMiddlewareFromHTTPServer(
   }
 
   app.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
+    // find-my-way 9.5-9.8 and 9.9+ (both allowed by fastify ^5) resolve absolute-form and other
+    // non-origin-form request-targets to different paths, so the gate cannot mirror the router.
+    // Reject them before route matching instead.
+    if (request.url.charCodeAt(0) !== 47 /* "/" */) {
+      return reply.status(400).send({ error: "Bad Request" });
+    }
+
     const path = request.url.split("?")[0];
     const adapter = new FastifyAdapter(request);
     const context: HTTPRequestContext = {
       adapter,
       path,
+      decodedPath: decodedRoutePath(path),
       method: request.method,
       paymentHeader:
         (request.headers["payment-signature"] as string | undefined) ||
@@ -339,7 +376,7 @@ export function paymentMiddlewareFromHTTPServer(
         if (facilitatorError) {
           return sendFacilitatorError(reply, facilitatorError);
         }
-        throw error;
+        return sendInternalError(reply, error);
       }
     }
 
@@ -355,7 +392,7 @@ export function paymentMiddlewareFromHTTPServer(
       if (error instanceof FacilitatorResponseError) {
         return sendFacilitatorError(reply, error);
       }
-      throw error;
+      return sendInternalError(reply, error);
     }
 
     switch (result.type) {
@@ -376,6 +413,8 @@ export function paymentMiddlewareFromHTTPServer(
 
       case "payment-verified": {
         request.x402Context = {
+          cancellationDispatcher: result.cancellationDispatcher,
+          beforeHandlerSettlement: result.beforeHandlerSettlement,
           paymentPayload: result.paymentPayload,
           paymentRequirements: result.paymentRequirements,
           declaredExtensions: result.declaredExtensions,
@@ -426,6 +465,24 @@ export function paymentMiddlewareFromHTTPServer(
     }
 
     if (reply.statusCode >= 400) {
+      const cancelSettlement = await x402Context.cancellationDispatcher.cancel({
+        reason: "handler_failed",
+        responseStatus: reply.statusCode,
+      });
+      reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
+      const existingCacheControl =
+        reply.getHeader("Cache-Control") != null ? String(reply.getHeader("Cache-Control")) : null;
+      const failureHeaders = httpServer.createFailurePathSettlementHeaders(
+        cancelSettlement,
+        x402Context.beforeHandlerSettlement,
+        x402Context.paymentPayload,
+        existingCacheControl,
+      );
+      if (failureHeaders) {
+        for (const [key, value] of Object.entries(failureHeaders)) {
+          reply.header(key, value);
+        }
+      }
       return effectivePayload;
     }
 
@@ -444,10 +501,13 @@ export function paymentMiddlewareFromHTTPServer(
         x402Context.paymentRequirements,
         x402Context.declaredExtensions,
         { request: x402Context.requestContext, responseBody, responseHeaders },
+        undefined,
+        x402Context.beforeHandlerSettlement,
       );
 
       if (!settleResult.success) {
         const { response } = settleResult;
+        reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
         for (const [key, value] of Object.entries(response.headers)) {
           reply.header(key, value);
         }
@@ -462,18 +522,40 @@ export function paymentMiddlewareFromHTTPServer(
       for (const [key, value] of Object.entries(settleResult.headers)) {
         reply.header(key, value);
       }
+      reply.header(
+        "Cache-Control",
+        withPrivateCacheControl(
+          reply.getHeader("Cache-Control") != null
+            ? String(reply.getHeader("Cache-Control"))
+            : null,
+        ),
+      );
+      reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
       return effectivePayload;
     } catch (error) {
       if (error instanceof FacilitatorResponseError) {
+        reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
         reply.status(502);
         reply.type("application/json");
         return JSON.stringify({ error: error.message });
       }
       console.error(error);
+      reply.removeHeader(SETTLEMENT_OVERRIDES_HEADER);
       reply.status(402);
       reply.type("application/json");
       return JSON.stringify({});
     }
+  });
+
+  app.addHook("onError", async (request: FastifyRequest, _reply: FastifyReply, error: Error) => {
+    const x402Context = request.x402Context;
+    if (!x402Context) {
+      return;
+    }
+    await x402Context.cancellationDispatcher.cancel({
+      reason: "handler_threw",
+      error,
+    });
   });
 }
 

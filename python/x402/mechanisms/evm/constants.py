@@ -20,9 +20,6 @@ TX_STATUS_FAILED = 0
 # Default validity period (1 hour in seconds)
 DEFAULT_VALIDITY_PERIOD = 3600
 
-# Default validity buffer (10 minutes before now for clock skew)
-DEFAULT_VALIDITY_BUFFER = 600
-
 # ERC-6492 magic value (32 bytes)
 # bytes32(uint256(keccak256("erc6492.invalid.signature")) - 1)
 ERC6492_MAGIC_VALUE = bytes.fromhex(
@@ -193,6 +190,12 @@ EIP2612_PERMIT_TYPES: dict[str, list[dict[str, str]]] = {
 # Gas limit for a standard ERC-20 approve() transaction
 ERC20_APPROVE_GAS_LIMIT = 70_000
 
+# Fallback max fee per gas (1 gwei) when fee estimation fails
+DEFAULT_MAX_FEE_PER_GAS = 1_000_000_000
+
+# Fallback max priority fee per gas (0.1 gwei) when fee estimation fails
+DEFAULT_MAX_PRIORITY_FEE_PER_GAS = 100_000_000
+
 # Permit2 deadline buffer (seconds) for verification
 PERMIT2_DEADLINE_BUFFER = 6
 
@@ -316,9 +319,11 @@ X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI = [
 ]
 
 # Error codes
+ERR_ASSET_NOT_DEPLOYED_CONTRACT = "asset_not_deployed_contract"
 ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
 ERR_UNDEPLOYED_SMART_WALLET = "invalid_exact_evm_payload_undeployed_smart_wallet"
 ERR_SMART_WALLET_DEPLOYMENT_FAILED = "smart_wallet_deployment_failed"
+ERR_FACTORY_NOT_ALLOWED = "eip6492_factory_not_allowed"
 ERR_RECIPIENT_MISMATCH = "invalid_exact_evm_payload_recipient_mismatch"
 ERR_AUTHORIZATION_VALUE_MISMATCH = "invalid_exact_evm_payload_authorization_value_mismatch"
 ERR_VALID_BEFORE_EXPIRED = "invalid_exact_evm_payload_authorization_valid_before"
@@ -332,10 +337,13 @@ ERR_FAILED_TO_GET_NETWORK_CONFIG = "invalid_exact_evm_failed_to_get_network_conf
 ERR_FAILED_TO_GET_ASSET_INFO = "invalid_exact_evm_failed_to_get_asset_info"
 ERR_FAILED_TO_VERIFY_SIGNATURE = "invalid_exact_evm_failed_to_verify_signature"
 ERR_TRANSACTION_FAILED = "transaction_failed"
+# Broadcast succeeded; receipt wait failed (RPC/timeout). Non-terminal — return with tx hash.
+ERR_SETTLEMENT_PENDING = "settlement_pending"
 ERR_TOKEN_NAME_MISMATCH = "invalid_exact_evm_token_name_mismatch"
 ERR_TOKEN_VERSION_MISMATCH = "invalid_exact_evm_token_version_mismatch"
 ERR_EIP3009_NOT_SUPPORTED = "invalid_exact_evm_eip3009_not_supported"
 ERR_TRANSACTION_SIMULATION_FAILED = "invalid_exact_evm_transaction_simulation_failed"
+ERR_TRANSFER_EVENT_MISMATCH = "invalid_exact_evm_transfer_event_mismatch"
 
 # Permit2-specific error codes
 ERR_PERMIT2_INVALID_SPENDER = "invalid_permit2_spender"
@@ -359,6 +367,7 @@ ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED = "upto_amount_exceeds_permitted"
 ERR_UPTO_UNAUTHORIZED_FACILITATOR = "upto_unauthorized_facilitator"
 ERR_UPTO_TRANSACTION_FAILED = "invalid_upto_evm_transaction_failed"
 ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG = "invalid_upto_evm_failed_to_get_network_config"
+ERR_ERC20_APPROVAL_TX_FAILED = "erc20_approval_tx_failed"
 ERR_ERC20_APPROVAL_BROADCAST_FAILED = "erc20_approval_broadcast_failed"
 
 
@@ -378,136 +387,8 @@ class AssetInfo(_AssetInfoRequired, total=False):
     supports_eip2612: bool
 
 
-class _NetworkConfigRequired(TypedDict):
-    """Required fields for an EVM network configuration."""
-
-    chain_id: int
-
-
-class NetworkConfig(_NetworkConfigRequired, total=False):
-    """Configuration for an EVM network."""
-
-    default_asset: AssetInfo
-
-
-# Network configurations
-NETWORK_CONFIGS: dict[str, NetworkConfig] = {
-    # Base Mainnet
-    "eip155:8453": {
-        "chain_id": 8453,
-        "default_asset": {
-            "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-    },
-    # Base Sepolia (Testnet)
-    "eip155:84532": {
-        "chain_id": 84532,
-        "default_asset": {
-            "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            "name": "USDC",
-            "version": "2",
-            "decimals": 6,
-        },
-    },
-    # MegaETH Mainnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
-    "eip155:4326": {
-        "chain_id": 4326,
-        "default_asset": {
-            "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-            "name": "MegaUSD",
-            "version": "1",
-            "decimals": 18,
-            "asset_transfer_method": "permit2",
-            "supports_eip2612": True,
-        },
-    },
-    # Monad Mainnet
-    "eip155:143": {
-        "chain_id": 143,
-        "default_asset": {
-            "address": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-    },
-    # Mezo Testnet (uses Permit2 instead of EIP-3009, supports EIP-2612)
-    "eip155:31611": {
-        "chain_id": 31611,
-        "default_asset": {
-            "address": "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
-            "name": "Mezo USD",
-            "version": "1",
-            "decimals": 18,
-            "asset_transfer_method": "permit2",
-            "supports_eip2612": True,
-        },
-    },
-    # Stable Mainnet
-    "eip155:988": {
-        "chain_id": 988,
-        "default_asset": {
-            "address": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
-            "name": "USDT0",
-            "version": "1",
-            "decimals": 6,
-        },
-    },
-    # Stable Testnet
-    "eip155:2201": {
-        "chain_id": 2201,
-        "default_asset": {
-            "address": "0x78Cf24370174180738C5B8E352B6D14c83a6c9A9",
-            "name": "USDT0",
-            "version": "1",
-            "decimals": 6,
-        },
-    },
-    # Polygon Mainnet
-    "eip155:137": {
-        "chain_id": 137,
-        "default_asset": {
-            "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-        "supported_assets": {
-            "USDC": {
-                "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-                "name": "USD Coin",
-                "version": "2",
-                "decimals": 6,
-            },
-        },
-    },
-    # Arbitrum One
-    "eip155:42161": {
-        "chain_id": 42161,
-        "default_asset": {
-            "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-    },
-    # Arbitrum Sepolia
-    "eip155:421614": {
-        "chain_id": 421614,
-        "default_asset": {
-            "address": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
-            "name": "USD Coin",
-            "version": "2",
-            "decimals": 6,
-        },
-    },
-}
-
 # V1 legacy constants are in x402.mechanisms.evm.v1.constants
-# (V1_NETWORKS, V1_NETWORK_CHAIN_IDS, V1_DEFAULT_ASSETS)
+# (V1_NETWORKS, V1_NETWORK_CHAIN_IDS)
 
 # EIP-3009 ABIs
 TRANSFER_WITH_AUTHORIZATION_VRS_ABI = [

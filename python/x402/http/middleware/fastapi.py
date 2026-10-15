@@ -6,6 +6,7 @@ Provides payment-gated route protection for FastAPI applications.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -19,16 +20,19 @@ except ImportError as e:
         "FastAPI middleware requires fastapi and starlette. Install with: uv add x402[fastapi]"
     ) from e
 
+from ...schemas import SettleResponse, VerifiedPaymentCancelOptions
+from ..background_init import handle_background_init_error
 from ..constants import SETTLEMENT_OVERRIDES_HEADER
 from ..facilitator_client_base import FacilitatorResponseError
 from ..types import (
     HTTPAdapter,
     HTTPRequestContext,
+    HTTPTransportContext,
     PaywallConfig,
-    RouteConfig,
     RoutesConfig,
 )
 from ..x402_http_server import PaywallProvider, x402HTTPResourceServer
+from ..x402_http_server_base import PAYMENT_REQUIRED_CACHE_CONTROL, with_private_cache_control
 
 if TYPE_CHECKING:
     from ...server import x402ResourceServer
@@ -38,54 +42,17 @@ if TYPE_CHECKING:
 # Extension Auto-Registration
 # ============================================================================
 
+from ._bazaar_utils import (
+    check_if_bazaar_needed as _check_if_bazaar_needed,
+)
+from ._bazaar_utils import (
+    register_bazaar_extension as _register_bazaar_extension,
+)
+from ._bazaar_utils import (
+    validate_bazaar_extensions as _validate_bazaar_extensions,
+)
 
-def _check_if_bazaar_needed(routes: RoutesConfig) -> bool:
-    """Check if any routes in the configuration declare bazaar extensions.
-
-    Args:
-        routes: Route configuration.
-
-    Returns:
-        True if any route has extensions.bazaar defined.
-    """
-    # Handle single RouteConfig instance
-    if isinstance(routes, RouteConfig):
-        return bool(routes.extensions and "bazaar" in routes.extensions)
-
-    # Handle dict of routes
-    if isinstance(routes, dict):
-        # Check if it's a single route config dict (has "accepts" key)
-        if "accepts" in routes:
-            extensions = routes.get("extensions", {})
-            return bool(extensions and "bazaar" in extensions)
-
-        # Handle multiple routes
-        for route_config in routes.values():
-            if isinstance(route_config, RouteConfig):
-                if route_config.extensions and "bazaar" in route_config.extensions:
-                    return True
-            elif isinstance(route_config, dict):
-                extensions = route_config.get("extensions", {})
-                if extensions and "bazaar" in extensions:
-                    return True
-
-    return False
-
-
-def _register_bazaar_extension(server: x402ResourceServer) -> None:
-    """Register bazaar extension with server if available.
-
-    Args:
-        server: x402ResourceServer to register extension with.
-    """
-    try:
-        from ...extensions.bazaar import bazaar_resource_server_extension
-
-        server.register_extension(bazaar_resource_server_extension)
-    except ImportError:
-        # Bazaar extension not available, skip silently
-        pass
-
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # FastAPI Adapter
@@ -198,6 +165,21 @@ def _facilitator_error_response(error: FacilitatorResponseError) -> JSONResponse
     )
 
 
+def _decoded_route_path(request: Request) -> str:
+    """request.url.path with any ASGI root_path mount prefix stripped,
+    mirroring Starlette's own get_route_path so mounted apps stay protected.
+    """
+    path = request.url.path
+    root_path = request.scope.get("root_path", "")
+    if not root_path or not path.startswith(root_path):
+        return path
+    if path == root_path:
+        return ""
+    if path[len(root_path)] == "/":
+        return path[len(root_path) :]
+    return path
+
+
 def payment_middleware(
     routes: RoutesConfig,
     server: x402ResourceServer,
@@ -212,7 +194,7 @@ def payment_middleware(
         server: Pre-configured x402ResourceServer.
         paywall_config: Optional paywall UI configuration.
         paywall_provider: Optional custom paywall provider.
-        sync_facilitator_on_start: Fetch facilitator support on first request.
+        sync_facilitator_on_start: Fetch facilitator support when the middleware is created.
 
     Returns:
         FastAPI middleware function.
@@ -252,6 +234,7 @@ def payment_middleware(
     # Auto-register bazaar extension if routes declare it
     if _check_if_bazaar_needed(routes):
         _register_bazaar_extension(server)
+        _validate_bazaar_extensions(routes)
 
     # Create HTTP server wrapper
     http_server = x402HTTPResourceServer(server, routes)
@@ -259,9 +242,19 @@ def payment_middleware(
     if paywall_provider:
         http_server.register_paywall_provider(paywall_provider)
 
-    # Lazy initialization state with async lock for concurrency safety
+    # Initialization state with async lock for concurrency safety
     init_done = False
     init_lock = asyncio.Lock()
+
+    # Initialize if requested - queries facilitator /supported to populate
+    # facilitator clients. Fatal capability / route mismatches exit the process
+    # so a misconfigured server does not stay up until the first paid request.
+    if sync_facilitator_on_start:
+        try:
+            http_server.initialize()
+            init_done = True
+        except Exception as error:
+            handle_background_init_error(error)
 
     async def middleware(
         request: Request,
@@ -271,9 +264,13 @@ def payment_middleware(
 
         # Create adapter and context
         adapter = FastAPIAdapter(request)
+        # Starlette dispatches literal routes on the decoded path but
+        # wildcard/param routes on the escaped one, so match both.
+        raw_path = request.scope["raw_path"].decode("ascii").split("?")[0]
         context = HTTPRequestContext(
             adapter=adapter,
-            path=request.url.path,
+            path=raw_path,
+            decoded_path=_decoded_route_path(request),
             method=request.method,
             payment_header=(
                 adapter.get_header("payment-signature") or adapter.get_header("x-payment")
@@ -299,6 +296,12 @@ def payment_middleware(
             result = await http_server.process_http_request(context, paywall_config)
         except FacilitatorResponseError as error:
             return _facilitator_error_response(error)
+        except Exception:
+            logger.exception("x402: unexpected error while processing an HTTP payment request")
+            return JSONResponse(
+                content={"error": "Internal Server Error"},
+                status_code=500,
+            )
 
         if result.type == "no-payment-required":
             return await call_next(request)
@@ -329,12 +332,49 @@ def payment_middleware(
             # Store payment info in request state
             request.state.payment_payload = result.payment_payload
             request.state.payment_requirements = result.payment_requirements
+            dispatcher = result.cancellation_dispatcher
+            transport_context = HTTPTransportContext(request=context)
 
-            # Call protected route
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception as error:
+                cancel_settlement = None
+                if dispatcher is not None:
+                    cancel_settlement = await dispatcher.cancel(
+                        VerifiedPaymentCancelOptions(reason="handler_threw", error=error)
+                    )
+                failure_headers = http_server.create_failure_path_settlement_headers(
+                    cancel_settlement,
+                    result.before_handler_settlement,
+                    result.payment_payload,
+                )
+                if not isinstance(failure_headers, dict) or not failure_headers:
+                    raise
+                return JSONResponse(
+                    content={"error": "Internal Server Error"},
+                    status_code=500,
+                    headers=failure_headers,
+                )
 
             # Don't settle on error responses
             if response.status_code >= 400:
+                cancel_settlement = None
+                if dispatcher is not None:
+                    cancel_settlement = await dispatcher.cancel(
+                        VerifiedPaymentCancelOptions(
+                            reason="handler_failed",
+                            response_status=response.status_code,
+                        )
+                    )
+                failure_headers = http_server.create_failure_path_settlement_headers(
+                    cancel_settlement,
+                    result.before_handler_settlement,
+                    result.payment_payload,
+                    response.headers.get("Cache-Control"),
+                )
+                if isinstance(failure_headers, dict):
+                    for key, value in failure_headers.items():
+                        response.headers[key] = value
                 return response
 
             # Read response body for potential buffering
@@ -351,6 +391,8 @@ def payment_middleware(
                     if k.lower() == SETTLEMENT_OVERRIDES_HEADER.lower():
                         del response.headers[k]
 
+            transport_context.response_headers = dict(response.headers)
+
             # Process settlement (await async method)
             try:
                 settle_result = await http_server.process_settlement(
@@ -358,6 +400,9 @@ def payment_middleware(
                     result.payment_requirements,
                     context=context,
                     settlement_overrides=overrides,
+                    declared_extensions=result.declared_extensions,
+                    transport_context=transport_context,
+                    before_handler_settlement=result.before_handler_settlement,
                 )
 
                 if not settle_result.success:
@@ -382,6 +427,7 @@ def payment_middleware(
                 # Add settlement headers
                 headers = dict(response.headers)
                 headers.update(settle_result.headers)
+                headers["Cache-Control"] = with_private_cache_control(headers.get("Cache-Control"))
 
                 return Response(
                     content=body,
@@ -393,7 +439,32 @@ def payment_middleware(
             except FacilitatorResponseError as error:
                 return _facilitator_error_response(error)
             except Exception:
-                return JSONResponse(content={}, status_code=402)
+                # An unexpected error here (RPC failure, bug, ...) is a
+                # server-side failure, not a payment problem. Log it so
+                # operators get a signal (the module otherwise logs nothing),
+                # and surface it as a settle failure (402 + PAYMENT-RESPONSE,
+                # success=False) - consistent with the not-settle_result.success
+                # path and distinguishable from a genuine "payment required".
+                logger.exception("x402: unexpected error while settling a verified payment")
+                settle_response = SettleResponse(
+                    success=False,
+                    error_reason="unexpected_settle_error",
+                    error_message="unexpected error while settling the verified payment",
+                    transaction="",
+                    network=result.payment_requirements.network,
+                )
+                settle_headers = http_server._create_settlement_headers(
+                    settle_response, result.payment_requirements
+                )
+                return JSONResponse(
+                    content={},
+                    status_code=402,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Cache-Control": PAYMENT_REQUIRED_CACHE_CONTROL,
+                        **settle_headers,
+                    },
+                )
 
         # Fallthrough - should not happen
         return await call_next(request)
@@ -434,7 +505,7 @@ def payment_middleware_from_config(
         schemes: Scheme registrations for server-side processing.
         paywall_config: Optional paywall UI configuration.
         paywall_provider: Optional custom paywall provider.
-        sync_facilitator_on_start: Fetch facilitator support on first request.
+        sync_facilitator_on_start: Fetch facilitator support when the middleware is created.
 
     Returns:
         FastAPI middleware function.

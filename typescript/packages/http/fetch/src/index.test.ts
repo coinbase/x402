@@ -9,6 +9,7 @@ vi.mock("@x402/core/client", () => {
   MockX402HTTPClient.prototype.getPaymentRequiredResponse = vi.fn();
   MockX402HTTPClient.prototype.encodePaymentSignatureHeader = vi.fn();
   MockX402HTTPClient.prototype.handlePaymentRequired = vi.fn();
+  MockX402HTTPClient.prototype.processPaymentResult = vi.fn();
 
   const MockX402Client = vi.fn() as ReturnType<typeof vi.fn> & {
     fromConfig: ReturnType<typeof vi.fn>;
@@ -94,6 +95,9 @@ describe("wrapFetchWithPayment()", () => {
     (
       MockX402HTTPClient.prototype.handlePaymentRequired as ReturnType<typeof vi.fn>
     ).mockResolvedValue(null);
+    (
+      MockX402HTTPClient.prototype.processPaymentResult as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ recovered: false });
 
     wrappedFetch = wrapFetchWithPayment(mockFetch, mockClient);
   });
@@ -329,6 +333,29 @@ describe("wrapFetchWithPayment()", () => {
     expect(retryRequest.headers.get("Custom-Header")).toBe("custom-value");
   });
 
+  it("should pass a header getter that reads payment-required headers", async () => {
+    const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
+    const successResponse = createResponse(200, { data: "success" });
+    (
+      MockX402HTTPClient.prototype.getPaymentRequiredResponse as ReturnType<typeof vi.fn>
+    ).mockImplementation((getHeader: (name: string) => string | null) => {
+      expect(getHeader("PAYMENT-REQUIRED")).toBe("encoded-from-header");
+      expect(getHeader("X-Missing")).toBeNull();
+      return validPaymentRequired;
+    });
+
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, undefined, { "PAYMENT-REQUIRED": "encoded-from-header" }),
+      )
+      .mockResolvedValueOnce(successResponse);
+
+    const result = await wrappedFetch("https://api.example.com", { method: "GET" });
+
+    expect(result).toBe(successResponse);
+    expect(MockX402HTTPClient.prototype.getPaymentRequiredResponse).toHaveBeenCalled();
+  });
+
   it("should handle empty response body gracefully", async () => {
     const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
     const successResponse = createResponse(200, { data: "success" });
@@ -404,6 +431,85 @@ describe("wrapFetchWithPayment()", () => {
     expect(retryBody).toBe(bodyContent);
   });
 
+  it("should preserve a Request body during payment recovery", async () => {
+    const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
+    (
+      MockX402HTTPClient.prototype.processPaymentResult as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce({ recovered: true });
+
+    const bodyContent = JSON.stringify({ test: "recovery" });
+    const observedBodies: string[] = [];
+    const successResponse = createResponse(200, { data: "success" });
+
+    mockFetch.mockImplementation(async (request: Request) => {
+      observedBodies.push(await request.text());
+      if (observedBodies.length < 3) {
+        return createResponse(402, validPaymentRequired);
+      }
+      return successResponse;
+    });
+
+    const input = new Request("https://api.example.com", {
+      method: "POST",
+      body: bodyContent,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const result = await wrappedFetch(input);
+
+    expect(result).toBe(successResponse);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(observedBodies).toEqual([bodyContent, bodyContent, bodyContent]);
+    expect(mockClient.createPaymentPayload).toHaveBeenCalledTimes(2);
+
+    const recoveryRequest = mockFetch.mock.calls[2][0] as Request;
+    expect(recoveryRequest.headers.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
+  });
+
+  it("should return immediately when hook retry succeeds with a non-402 status", async () => {
+    const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
+    const hookResponse = createResponse(200, { data: "hook-success" });
+
+    (
+      MockX402HTTPClient.prototype.handlePaymentRequired as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ "X-HOOK": "handled" });
+    mockFetch
+      .mockResolvedValueOnce(createResponse(402, validPaymentRequired))
+      .mockResolvedValueOnce(hookResponse);
+
+    const result = await wrappedFetch("https://api.example.com", { method: "GET" });
+
+    expect(result).toBe(hookResponse);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockClient.createPaymentPayload).not.toHaveBeenCalled();
+    const hookRequest = mockFetch.mock.calls[1][0] as Request;
+    expect(hookRequest.headers.get("X-HOOK")).toBe("handled");
+  });
+
+  it("should fall through to paid retry when hook retry returns 402", async () => {
+    const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
+    const successResponse = createResponse(200, { data: "success" });
+
+    (
+      MockX402HTTPClient.prototype.handlePaymentRequired as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ "X-HOOK": "handled", "X-TRACE": "abc" });
+    mockFetch
+      .mockResolvedValueOnce(createResponse(402, validPaymentRequired))
+      .mockResolvedValueOnce(createResponse(402, validPaymentRequired))
+      .mockResolvedValueOnce(successResponse);
+
+    const result = await wrappedFetch("https://api.example.com", { method: "GET" });
+
+    expect(result).toBe(successResponse);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockClient.createPaymentPayload).toHaveBeenCalledWith(validPaymentRequired);
+    const hookRequest = mockFetch.mock.calls[1][0] as Request;
+    expect(hookRequest.headers.get("X-HOOK")).toBe("handled");
+    expect(hookRequest.headers.get("X-TRACE")).toBe("abc");
+    const paidRequest = mockFetch.mock.calls[2][0] as Request;
+    expect(paidRequest.headers.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
+  });
+
   it("should preserve headers from Request object input", async () => {
     const successResponse = createResponse(200, { data: "success" });
 
@@ -451,6 +557,9 @@ describe("wrapFetchWithPaymentFromConfig()", () => {
     (
       MockX402HTTPClient.prototype.handlePaymentRequired as ReturnType<typeof vi.fn>
     ).mockResolvedValue(null);
+    (
+      MockX402HTTPClient.prototype.processPaymentResult as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ recovered: false });
   });
 
   it("should create client from config and wrap fetch", async () => {

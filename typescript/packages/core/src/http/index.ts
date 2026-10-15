@@ -61,7 +61,10 @@ export function decodePaymentRequiredHeader(paymentRequiredHeader: string): Paym
  * @returns Base64 encoded string representation of the payment response
  */
 export function encodePaymentResponseHeader(paymentResponse: SettleResponse): string {
-  return safeBase64Encode(JSON.stringify(paymentResponse));
+  // Strip server-internal facilitator sidechannel; never forward to buyers.
+  const buyerFacing = { ...paymentResponse };
+  delete buyerFacing.extensionResponses;
+  return safeBase64Encode(JSON.stringify(buyerFacing));
 }
 
 /**
@@ -77,7 +80,6 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
   return JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse;
 }
 
-// Export HTTP service and types
 export {
   x402HTTPResourceServer,
   HTTPAdapter,
@@ -102,11 +104,29 @@ export {
   RouteValidationError,
   RouteConfigurationError,
   ProtectedRequestHook,
+  HTTPResourceServerExtensionHooks,
+  ResourceServerTransportExtensionHooks,
+  SETTLEMENT_OVERRIDES_HEADER,
+  PAYMENT_REQUIRED_CACHE_CONTROL,
+  withPrivateCacheControl,
 } from "./x402HTTPResourceServer";
 export {
   HTTPFacilitatorClient,
   FacilitatorClient,
   FacilitatorConfig,
 } from "./httpFacilitatorClient";
-export { FacilitatorResponseError, getFacilitatorResponseError } from "../types";
-export { x402HTTPClient, PaymentRequiredContext, PaymentRequiredHook } from "./x402HTTPClient";
+export {
+  FacilitatorResponseError,
+  FacilitatorTimeoutError,
+  FacilitatorCapabilityError,
+  getFacilitatorResponseError,
+} from "../types";
+export { attachBackgroundInitHandler, isFatalStartupInitError } from "./backgroundInit";
+export {
+  x402HTTPClient,
+  PaymentRequiredContext,
+  PaymentRequiredHook,
+  HTTPClientExtensionHooks,
+  HTTPResourceResponse,
+  HTTPPaymentStatus,
+} from "./x402HTTPClient";

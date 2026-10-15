@@ -15,9 +15,10 @@ uv add x402[requests]   # requests client
 uv add x402[fastapi]    # FastAPI middleware
 uv add x402[flask]      # Flask middleware
 
-# Blockchain mechanisms (pick one or both)
+# Blockchain mechanisms (pick one or more)
 uv add x402[evm]        # EVM/Ethereum
 uv add x402[svm]        # Solana
+uv add x402[tvm]        # TON/TVM
 
 # Multiple extras
 uv add x402[fastapi,httpx,evm]
@@ -51,6 +52,34 @@ client = x402ClientSync()
 client.register("eip155:*", ExactEvmScheme(signer=my_signer))
 
 payload = client.create_payment_payload(payment_required)
+```
+
+### TVM Client (Async)
+
+```python
+import os
+
+from x402 import x402Client
+from x402.mechanisms.tvm import (
+    TVM_PROVIDER_TONAPI,
+    TVM_TESTNET,
+    WalletV5R1Config,
+    WalletV5R1MnemonicSigner,
+)
+from x402.mechanisms.tvm.exact import ExactTvmScheme
+
+tvm_config = WalletV5R1Config.from_private_key(
+    TVM_TESTNET,
+    os.environ["TVM_PRIVATE_KEY"],
+)
+tvm_config.api_key = os.environ.get("TONCENTER_API_KEY")
+# Optional: use TonAPI instead of Toncenter.
+# tvm_config.provider = TVM_PROVIDER_TONAPI
+# tvm_config.api_key = os.environ.get("TONAPI_API_KEY")
+# tvm_config.provider_base_url = os.environ.get("TONAPI_BASE_URL")
+
+client = x402Client()
+client.register(TVM_TESTNET, ExactTvmScheme(WalletV5R1MnemonicSigner(tvm_config)))
 ```
 
 ### Server (Async)
@@ -149,24 +178,58 @@ Mismatched variants raise `TypeError` at runtime.
 
 ## Client Configuration
 
-Use `from_config()` for declarative setup:
+Use `from_config()` for declarative setup. Accept selection runs in three stages: **`spend_controls`** enforce built-in safety caps, **`policies`** filter the remaining list, and **`payment_requirements_selector`** picks one accept (default: first remaining).
 
 ```python
 from x402 import x402Client, x402ClientConfig, SchemeRegistration
+from x402 import prefer_network
+from x402.mechanisms.evm.exact import ExactEvmScheme
+from x402.mechanisms.svm.exact import ExactSvmScheme
+from x402.mechanisms.tvm.exact import ExactTvmScheme
 
 config = x402ClientConfig(
     schemes=[
         SchemeRegistration(network="eip155:*", client=ExactEvmScheme(signer)),
         SchemeRegistration(network="solana:*", client=ExactSvmScheme(signer)),
+        SchemeRegistration(network="tvm:*", client=ExactTvmScheme(tvm_signer)),
     ],
+    spend_controls={"max_amount_per_payment": "$5"},
     policies=[prefer_network("eip155:8453")],
 )
 client = x402Client.from_config(config)
 ```
 
+### Spend controls
+
+Built-in safety rails applied before policies. Use these for amount and asset bounds—not for network preference.
+
+By default only assets `find_default_asset` recognizes are allowed, with a **`$1`** USD ceiling. Opt into other tokens via `allowed_assets`, or pass `spend_controls=False` to disable all spend controls.
+
+```python
+spend_controls = {
+    "max_amount_per_payment": "$5",  # USD cap on default assets; False to remove
+    "allowed_assets": [
+        # opt-in non-default with atomic cap
+        {"network": "eip155:8453", "asset": "0xCustomToken", "max_amount_per_payment": "2000000"},
+        # opt-in non-default uncapped
+        {"network": "eip155:8453", "asset": "0xOtherToken"},
+        # override USD cap for a default asset by ticker (or on-chain id)
+        {"network": "eip155:8453", "asset": "PYUSD", "max_amount_per_payment": "500000"},
+    ],
+    # or: "allowed_assets": True  # allow any asset (USD cap still applies to defaults)
+}
+# or: spend_controls=False  # disable all spend controls (any asset, no caps)
+```
+
+| Control | Purpose |
+|---------|---------|
+| `spend_controls: False` | Disable all spend controls (any asset, no caps). Useful for UI-confirmed flows (paywall) and tests. |
+| `max_amount_per_payment` | USD ceiling on payments in recognized USD-pegged assets (default **`$1`**). Set a higher value to raise the cap, or **`False`** to remove it. |
+| `allowed_assets` | Opt-in for non-default tokens. Omit for default assets only; `True` to allow any asset; or a list of `{ network, asset }` with optional integer atomic `max_amount_per_payment` per entry (e.g. `"2000000"`, not `"$1"`). |
+
 ## Policies
 
-Filter or prioritize payment requirements:
+Filter or prioritize payment requirements. Policies run **after** spend controls and before the selector. Do not use policies for USD caps or asset allowlists—that is what `spend_controls` is for.
 
 ```python
 from x402 import prefer_network, prefer_scheme, max_amount
@@ -183,16 +246,20 @@ client.register_policy(max_amount(1_000_000))  # 1 USDC max
 ```python
 from x402 import AbortResult, RecoveredPayloadResult
 
+
 def before_payment(ctx):
     print(f"Creating payment for: {ctx.selected_requirements.network}")
     # Return AbortResult(reason="...") to cancel
 
+
 def after_payment(ctx):
     print(f"Payment created: {ctx.payment_payload}")
+
 
 def on_failure(ctx):
     print(f"Payment failed: {ctx.error}")
     # Return RecoveredPayloadResult(payload=...) to recover
+
 
 client.on_before_payment_creation(before_payment)
 client.on_after_payment_creation(after_payment)
@@ -256,6 +323,7 @@ client.register("eip155:8453", CustomScheme())
 - `x402.http` - HTTP clients, middleware, and facilitator client
 - `x402.mechanisms.evm` - EVM/Ethereum implementation
 - `x402.mechanisms.svm` - Solana implementation
+- `x402.mechanisms.tvm` - TON/TVM implementation
 - `x402.extensions` - Protocol extensions (Bazaar discovery)
 
 ## Examples

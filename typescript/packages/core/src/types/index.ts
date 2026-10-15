@@ -4,11 +4,14 @@ export type {
   SettleRequest,
   SettleResponse,
   SupportedResponse,
+  SupportedKind,
 } from "./facilitator";
 export {
   VerifyError,
   SettleError,
   FacilitatorResponseError,
+  FacilitatorTimeoutError,
+  FacilitatorCapabilityError,
   getFacilitatorResponseError,
 } from "./facilitator";
 export type {
@@ -19,20 +22,42 @@ export type {
 } from "./payments";
 export type {
   SchemeNetworkClient,
+  SchemeClientHooks,
   SchemeNetworkFacilitator,
   SchemeNetworkServer,
+  SchemeServerHooks,
   MoneyParser,
   PaymentPayloadResult,
   PaymentPayloadContext,
   FacilitatorContext,
+  SchemePaymentRequiredContext,
+  SchemeEnrichPaymentRequiredResponseHook,
+  PaymentFlowName,
+  PaymentFlowPhases,
+  PaymentFlowConfig,
+  DefaultAsset,
+  DefaultAssetTable,
+  GetDefaultAsset,
+  FindDefaultAsset,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
 export type {
   FacilitatorExtension,
   ResourceServerExtension,
+  ResourceServerExtensionHooks,
   PaymentRequiredContext,
+  ResourceServerTransportExtensionHooks,
+  HTTPResourceServerExtensionHooks,
   SettleResultContext,
+  VerifyContext,
+  VerifyResultContext,
+  VerifyFailureContext,
+  SettleContext,
+  SettleFailureContext,
+  VerifiedPaymentCanceledContext,
 } from "./extensions";
+
+export type { DeepReadonly } from "./readonly";
 
 export type Network = `${string}:${string}`;
 

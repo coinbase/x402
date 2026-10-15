@@ -1,5 +1,7 @@
 import { BaseProxy, RunConfig } from '../proxy-base';
+import { loadComponentConfig } from '../component';
 import { ClientConfig, ClientProxy } from '../types';
+import { forwardConfigEnv, forwardRoleCredentials, injectNetworkEnv } from '../env';
 
 export interface ClientCallResult {
   success: boolean;
@@ -18,18 +20,39 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
 
   async call(config: ClientConfig): Promise<ClientCallResult> {
     try {
+      const isV1Client = this.directory.includes('legacy/');
+
+      const baseEnv: Record<string, string> = {
+        ...forwardRoleCredentials('client'),
+        ...injectNetworkEnv(config.networks, { legacyV1: isV1Client }),
+        RESOURCE_SERVER_URL: config.serverUrl,
+        ENDPOINT_PATH: config.endpointPath,
+        ...(config.batchSettlement
+          ? {
+              // Family-neutral names; the EVM_ aliases stay for the Go and
+              // Python clients, which only run batch-settlement on EVM.
+              BATCH_SETTLEMENT_CHANNEL: config.batchSettlement.channelSalt,
+              BATCH_SETTLEMENT_PHASE: config.batchSettlement.phase,
+              EVM_BATCH_SETTLEMENT_CHANNEL: config.batchSettlement.channelSalt,
+              EVM_BATCH_SETTLEMENT_PHASE: config.batchSettlement.phase,
+              ...(config.batchSettlement.voucherSignerPrivateKey
+                ? {
+                    CLIENT_EVM_BATCH_SETTLEMENT_VOUCHER_SIGNER_PRIVATE_KEY:
+                      config.batchSettlement.voucherSignerPrivateKey,
+                  }
+                : {}),
+              ...(config.batchSettlement.svmServerSignedOperators
+                ? {
+                    CLIENT_SVM_SERVER_SIGNED_OPERATORS:
+                      config.batchSettlement.svmServerSignedOperators,
+                  }
+                : {}),
+            }
+          : {}),
+      };
+
       const runConfig: RunConfig = {
-        env: {
-          EVM_PRIVATE_KEY: config.evmPrivateKey,
-          SVM_PRIVATE_KEY: config.svmPrivateKey,
-          AVM_PRIVATE_KEY: config.avmPrivateKey,
-          APTOS_PRIVATE_KEY: config.aptosPrivateKey,
-          STELLAR_PRIVATE_KEY: config.stellarPrivateKey,
-          RESOURCE_SERVER_URL: config.serverUrl,
-          ENDPOINT_PATH: config.endpointPath,
-          EVM_NETWORK: config.evmNetwork,
-          EVM_RPC_URL: config.evmRpcUrl,
-        }
+        env: forwardConfigEnv(this.loadConfig(), baseEnv),
       };
 
       // For clients, we run the process and wait for it to complete
@@ -42,28 +65,21 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
           data: result.data.data,
           status_code: result.data.status_code,
           payment_response: result.data.payment_response,
-          exitCode: result.exitCode
-        };
-      } else {
-        return {
-          success: false,
-          error: result.error,
-          exitCode: result.exitCode
+          exitCode: result.exitCode,
         };
       }
+
+      return {
+        success: false,
+        error: result.error,
+        exitCode: result.exitCode,
+      };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
-  }
-
-  /**
-   * Check if the client process is currently running
-   */
-  isRunning(): boolean {
-    return this.process !== null && !this.process.killed;
   }
 
   /**
@@ -72,4 +88,8 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
   async forceStop(): Promise<void> {
     await this.stopProcess();
   }
-} 
+
+  private loadConfig(): any {
+    return loadComponentConfig(this.directory);
+  }
+}

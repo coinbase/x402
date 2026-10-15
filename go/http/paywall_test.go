@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/x402-foundation/x402/go/types"
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 // mockPaywallProvider is a test PaywallProvider that returns configurable HTML.
@@ -272,6 +272,18 @@ func TestRegisterPaywallProvider(t *testing.T) {
 			t.Error("expected built-in template with window.x402 injection")
 		}
 	})
+
+	t.Run("no provider passes RPCURLs to the built-in template", func(t *testing.T) {
+		server := Newx402HTTPResourceServer(routes)
+		network := "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+		config := &PaywallConfig{RPCURLs: map[string]string{network: "https://rpc.example.com"}}
+
+		got := server.generatePaywallHTMLV2(makePaymentRequired(network), config, "")
+		want := `rpcUrls: {"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp":"https://rpc.example.com"}`
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in built-in template output", want)
+		}
+	})
 }
 
 // --- injectPaywallConfig tests ---
@@ -320,6 +332,52 @@ func TestInjectPaywallConfig(t *testing.T) {
 		got := injectPaywallConfig(template, paymentReq, nil)
 		if !strings.Contains(got, "/api/test") {
 			t.Error("expected resource URL as currentUrl fallback")
+		}
+	})
+
+	t.Run("injects FaucetURLs map when set", func(t *testing.T) {
+		config := &PaywallConfig{
+			FaucetURLs: map[string]string{
+				"eip155:84532":  "https://example.com/base-sepolia",
+				"eip155:421614": "https://example.com/arb-sepolia",
+			},
+		}
+		got := injectPaywallConfig(template, paymentReq, config)
+		if !strings.Contains(got, "faucetUrls:") {
+			t.Errorf("expected faucetUrls in output, got %q", got)
+		}
+		if !strings.Contains(got, "https://example.com/base-sepolia") {
+			t.Errorf("expected per-chain faucet URL in output, got %q", got)
+		}
+		if !strings.Contains(got, "https://example.com/arb-sepolia") {
+			t.Errorf("expected per-chain faucet URL in output, got %q", got)
+		}
+	})
+
+	t.Run("emits faucetUrls: undefined when FaucetURLs unset", func(t *testing.T) {
+		got := injectPaywallConfig(template, paymentReq, nil)
+		if !strings.Contains(got, "faucetUrls: undefined") {
+			t.Errorf("expected faucetUrls: undefined in output, got %q", got)
+		}
+	})
+
+	t.Run("injects RPCURLs map when set", func(t *testing.T) {
+		config := &PaywallConfig{
+			RPCURLs: map[string]string{
+				"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "https://rpc.example.com/?key=k",
+			},
+		}
+		got := injectPaywallConfig(template, paymentReq, config)
+		want := `rpcUrls: {"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp":"https://rpc.example.com/?key=k"}`
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in output, got %q", want, got)
+		}
+	})
+
+	t.Run("emits rpcUrls: undefined when RPCURLs unset", func(t *testing.T) {
+		got := injectPaywallConfig(template, paymentReq, nil)
+		if !strings.Contains(got, "rpcUrls: undefined") {
+			t.Errorf("expected rpcUrls: undefined in output, got %q", got)
 		}
 	})
 }
