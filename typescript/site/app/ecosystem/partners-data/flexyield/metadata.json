@@ -1,0 +1,7 @@
+{
+  "name": "FlexYield",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/flexyield.png",
+  "description": "Multi-chain RPC gateway for humans and agents: one key, one meter, one bill across six mainnets with automatic multi-provider failover. Agents pay per call with x402 (USDC on Base) at published ladder prices, or fetch a capability key with no signup; MCP server with the same tools as the API; publicly measured status.",
+  "websiteUrl": "https://flexyield.io"
+}
