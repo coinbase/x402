@@ -1,0 +1,7 @@
+{
+  "name": "Fleet x402 Microservices",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/fleet-x402.png",
+  "description": "Agent-payable AI services on Base: SEO Audit ($0.05 USDC) and Competitive Intel Pack ($0.50 USDC). Discoverable via /.well-known/x402-listing. Zero auth, instant response.",
+  "websiteUrl": "https://fleet-x402-audit.fly.dev"
+}
