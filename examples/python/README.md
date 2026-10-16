@@ -17,6 +17,7 @@ uv run python main.py
 ### Clients
 - **[clients/httpx/](./clients/httpx/)** - Async HTTP client with httpx
 - **[clients/requests/](./clients/requests/)** - Sync HTTP client with requests
+- **[clients/emailiq/](./clients/emailiq/)** - Live seller: pay EmailIQ (`POST /email/intelligence`, 0.01 USDC on Base)
 - **[clients/custom/](./clients/custom/)** - Manual payment handling
 - **[clients/advanced/](./clients/advanced/)** - Hooks, selectors, and builder patterns
 
