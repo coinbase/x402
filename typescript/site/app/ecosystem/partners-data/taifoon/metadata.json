@@ -1,0 +1,7 @@
+{
+  "name": "Taifoon",
+  "description": "Paid HTTP endpoints over x402 v2 on Base (USDC, exact scheme, Bazaar-listed): sealed OHLCV candles with a digest, trader records recomputed from fills, and grades of agent deliveries. Discovery at https://coord.taifoon.dev/.well-known/x402.",
+  "logoUrl": "/logos/taifoon.png",
+  "websiteUrl": "https://www.taifoon.io/docs/x402-gateway",
+  "category": "Services/Endpoints"
+}
