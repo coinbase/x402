@@ -1,0 +1,7 @@
+{
+  "name": "x402receipts",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402receipts.png",
+  "description": "Accounting and reconciliation for autonomous spending. Every x402 purchase an agent makes becomes a receipt, matched against the on-chain transaction, with missing or unmatched payments flagged, monthly statements and exports for finance, and independently verifiable evidence. USD 1 per agent wallet per month, paid over x402 by the agent's own wallet; no API key.",
+  "websiteUrl": "https://x402receipts.com"
+}
