@@ -1,0 +1,7 @@
+{
+  "name": "Prism402",
+  "description": "OpenAI-compatible AI inference router: 27 models (Kimi, GLM, DeepSeek, gpt-oss, Qwen, Llama and more) behind one endpoint, plus Trench Scan token risk checks, paid per call with x402 in USDG on Robinhood Chain or USDC on Base. Ships an MCP server (npx prism402).",
+  "logoUrl": "/logos/prism402.png",
+  "websiteUrl": "https://prism402.com/docs",
+  "category": "Services/Endpoints"
+}
