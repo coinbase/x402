@@ -1,0 +1,19 @@
+{
+  "name": "AgentCredit",
+  "description": "Flash micro-loans ($1–$5) for autonomous AI agents using x402. When an agent cannot cover an HTTP 402 payment, AgentCredit extends instant credit, settles the payment, and collects repayment from the agent's subsequent revenue — no human intervention required.",
+  "logoUrl": "/logos/agentcredit.png",
+  "websiteUrl": "https://agentlending.spekn.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://agentlending.spekn.com",
+    "networks": ["base"],
+    "schemes": ["exact", "upto"],
+    "assets": ["EIP-3009"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
