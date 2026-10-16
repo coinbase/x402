@@ -1,0 +1,7 @@
+{
+  "name": "Solana Agent Toolbox",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/solana-agent-toolbox.png",
+  "description": "Pay-per-call Solana tools for AI agents over x402 (USDC on Solana): token risk score, transaction-failure explainer, preflight before signing, wallet activity, new pump.fun launches. Includes an MCP server.",
+  "websiteUrl": "https://github.com/biff-cloud/solana-agent-toolbox"
+}
