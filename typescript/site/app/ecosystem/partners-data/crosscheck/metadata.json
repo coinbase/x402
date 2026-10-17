@@ -1,0 +1,7 @@
+{
+  "name": "crosscheck",
+  "description": "Independent checks for AI agents, paid per call. accept verifies work another agent hands back before payment; skillcheck scans a skill or MCP server before install; check reviews a draft. $0.02 to $0.03, signed receipts.",
+  "logoUrl": "/logos/crosscheck.png",
+  "websiteUrl": "https://github.com/maxugc/crosscheck",
+  "category": "Services/Endpoints"
+}
