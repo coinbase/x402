@@ -1,0 +1,7 @@
+{
+  "name": "Tolca",
+  "description": "Know who you're paying before you pay: Québec contractor check (RBQ licence, RENA, environmental penalties, SEAO public contracts) and company verification from official registries, plus web search that reads the pages for you. Pay per call in USDC on Base, no keys; MCP server included; zero results = HTTP 404 = not charged.",
+  "logoUrl": "/logos/tolca.svg",
+  "websiteUrl": "https://tolca.tonbot.ca",
+  "category": "Services/Endpoints"
+}
