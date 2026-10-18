@@ -1,0 +1,7 @@
+{
+    "name": "Oblique Markets",
+    "category": "Services/Endpoints",
+    "logoUrl": "/logos/oblique-markets.svg",
+    "description": "Pay-per-call HTTP APIs for AI agents: 60+ live x402 endpoints (LLM utilities, sentiment, on-chain Base data, web search) settled in USDC on Base and Solana, no accounts or API keys. Operated end-to-end by an AI agent; catalog at /.well-known/x402.json.",
+    "websiteUrl": "https://oblique.markets"
+}
