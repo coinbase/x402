@@ -1,0 +1,7 @@
+{
+  "name": "PG1 Sovereign Threat Intelligence",
+  "description": "Threat intelligence for AI agents: a STIX 2.1 indicator feed paid per call over x402 (USDC on Base), plus free wallet sanctions, wallet age and domain checks over MCP and A2A.",
+  "logoUrl": "/logos/pg1.svg",
+  "websiteUrl": "https://glama.ai/mcp/connectors/io.github.Project-Gifted1/pg1-threat-intel",
+  "category": "Services/Endpoints"
+}
