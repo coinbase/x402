@@ -1,0 +1,7 @@
+{
+  "name": "Grey Ridge Signals",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/grey-ridge-signals.png",
+  "description": "Base-native pay-per-call data for AI agents: token trade-safety verdicts (SAFE/CAUTION/AVOID), honeypot/token-security checks, Base RPC reads (balances, gas, block number), Polymarket market data and domain tech-risk enrichment. From $0.001 USDC per call via x402 on Base, no account or key.",
+  "websiteUrl": "https://x402-data-api.sigrunner.workers.dev"
+}
