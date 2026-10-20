@@ -1,0 +1,7 @@
+{
+  "name": "bilbop",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/bilbop.png",
+  "description": "Pay-per-call Solana tools for agents: on-chain mint info, token briefs and text summaries ($0.01), Piper TTS WAV ($0.025), and human brand feedback ($0.50). x402 exact, USDC on Solana, no API keys.",
+  "websiteUrl": "https://bilbop-portfolio.pages.dev/"
+}
