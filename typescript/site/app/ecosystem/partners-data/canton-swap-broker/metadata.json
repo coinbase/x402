@@ -1,0 +1,7 @@
+{
+  "name": "Canton Swap Broker",
+  "description": "Pay-per-call x402 wrapper around the OneSwap escrow-swap SDK on Canton Network. Live market catalogs, CC/token swap quotes, escrowed cross-user swap creation and lifecycle tracking ($0.02-\$0.05 per call, USDC on Base). No API keys - agents pay per call via x402 v2. Three settled mainnet swaps as proof, live 24/7.",
+  "logoUrl": "/logos/canton-swap-broker.png",
+  "websiteUrl": "https://leohoudinisanders-byte.github.io/canton-swap-broker/",
+  "category": "Services/Endpoints"
+}
