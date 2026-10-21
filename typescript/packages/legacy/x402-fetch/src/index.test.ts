@@ -108,6 +108,49 @@ describe("fetchWithPayment()", () => {
     } as RequestInitWithRetry);
   });
 
+  it("should skip accepts entries it cannot parse and pay via a supported one", async () => {
+    // A 402 may advertise multiple rails; entries with e.g. CAIP-2 network ids that this
+    // client does not know must not prevent paying via a supported rail.
+    const unknownRailEntry = {
+      ...validPaymentRequirements[0],
+      network: "eip155:137",
+    };
+    const paymentResponse = createResponse(200, { data: "paid" });
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, {
+          accepts: [unknownRailEntry, ...validPaymentRequirements],
+          x402Version: 1,
+        }),
+      )
+      .mockResolvedValueOnce(paymentResponse);
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue("payment-header");
+
+    const result = await wrappedFetch("https://api.example.com/resource", {});
+
+    expect(result).toBe(paymentResponse);
+    // Only the parseable entry reaches the selector.
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(
+      validPaymentRequirements,
+      undefined,
+      "exact",
+    );
+  });
+
+  it("should reject with a clear error when no accepts entry is parseable", async () => {
+    mockFetch.mockResolvedValue(
+      createResponse(402, {
+        accepts: [{ ...validPaymentRequirements[0], network: "eip155:137" }],
+        x402Version: 1,
+      }),
+    );
+
+    await expect(wrappedFetch("https://api.example.com/resource", {})).rejects.toThrow(
+      "No supported payment requirements in 402 response",
+    );
+  });
+
   it("should not retry if already retried", async () => {
     const errorResponse = createResponse(402, {
       accepts: validPaymentRequirements,
