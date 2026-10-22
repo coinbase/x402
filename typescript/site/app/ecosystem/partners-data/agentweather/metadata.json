@@ -1,0 +1,7 @@
+{
+  "name": "AgentWeather",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agentweather.png",
+  "description": "Pay-per-request conditions reports on the AI-agent economy of the XRP Ledger, served over x402.",
+  "websiteUrl": "https://api.agentweather.io"
+}
