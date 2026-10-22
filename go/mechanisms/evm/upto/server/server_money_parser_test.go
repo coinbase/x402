@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	x402 "github.com/x402-foundation/x402/go/v2"
+	"github.com/x402-foundation/x402/go/v2/mechanisms/evm"
 )
 
 func decimalGreaterThan(amount string, n int64) bool {
@@ -183,5 +184,65 @@ func TestEnhancePaymentRequirements_SetsPermit2(t *testing.T) {
 	}
 	if enhanced.Extra["version"] == nil {
 		t.Error("Expected version in extra")
+	}
+}
+
+func TestPaymentFlowsSupportPermit2AndEIP3009(t *testing.T) {
+	flows := NewUptoEvmScheme().PaymentFlows()
+	for _, method := range []evm.AssetTransferMethod{
+		evm.AssetTransferMethodPermit2,
+		evm.AssetTransferMethodEIP3009,
+	} {
+		flow, ok := flows[string(method)]
+		if !ok {
+			t.Fatalf("missing payment flow for %s", method)
+		}
+		if len(flow.Supported) != 1 ||
+			flow.Supported[0] != x402.PaymentFlowAuthorization ||
+			flow.Default != x402.PaymentFlowAuthorization {
+			t.Fatalf("unexpected flow for %s: %#v", method, flow)
+		}
+	}
+}
+
+func TestEnhancePaymentRequirements_PreservesExplicitEIP3009AndInjectsSettler(t *testing.T) {
+	server := NewUptoEvmScheme()
+	requirements := x402.PaymentRequirements{
+		Scheme:  evm.SchemeUpto,
+		Network: "eip155:84532",
+		Amount:  "1000",
+		Asset:   "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		PayTo:   "0x1234567890123456789012345678901234567890",
+		Extra: map[string]interface{}{
+			"assetTransferMethod": string(evm.AssetTransferMethodEIP3009),
+			"name":                "Custom USDC",
+			"version":             "7",
+		},
+	}
+	supportedKind := x402.SupportedKind{
+		Scheme: evm.SchemeUpto, Network: "eip155:84532",
+		Extra: map[string]interface{}{
+			"facilitatorAddress": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"settlerAddress":     "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+		},
+	}
+
+	enhanced, err := server.EnhancePaymentRequirements(
+		context.Background(), requirements, supportedKind, nil,
+	)
+	if err != nil {
+		t.Fatalf("EnhancePaymentRequirements failed: %v", err)
+	}
+	if enhanced.Extra["assetTransferMethod"] != string(evm.AssetTransferMethodEIP3009) {
+		t.Fatalf("explicit ATM was not preserved: %#v", enhanced.Extra)
+	}
+	if enhanced.Extra["settlerAddress"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Fatalf("settlerAddress was not injected: %#v", enhanced.Extra)
+	}
+	if _, ok := enhanced.Extra["facilitatorAddress"]; ok {
+		t.Fatalf("EIP-3009 requirements must not inject facilitatorAddress: %#v", enhanced.Extra)
+	}
+	if enhanced.Extra["name"] != "Custom USDC" || enhanced.Extra["version"] != "7" {
+		t.Fatalf("explicit domain metadata was not preserved: %#v", enhanced.Extra)
 	}
 }

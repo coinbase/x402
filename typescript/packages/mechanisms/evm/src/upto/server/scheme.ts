@@ -20,8 +20,9 @@ export class UptoEvmScheme implements SchemeNetworkServer {
   readonly scheme = "upto";
   readonly defaultAssetTransferMethod: AssetTransferMethod = "permit2";
   readonly paymentFlows = {
+    eip3009: { supported: ["authorization"], default: "authorization" },
     permit2: { supported: ["authorization"], default: "authorization" },
-  } as const satisfies Record<"permit2", PaymentFlowConfig>;
+  } as const satisfies Record<AssetTransferMethod, PaymentFlowConfig>;
   private moneyParsers: MoneyParser[] = [];
 
   /**
@@ -100,13 +101,20 @@ export class UptoEvmScheme implements SchemeNetworkServer {
     extensionKeys: string[],
   ): Promise<PaymentRequirements> {
     void extensionKeys;
+    const assetTransferMethod =
+      (paymentRequirements.extra?.assetTransferMethod as AssetTransferMethod | undefined) ??
+      "permit2";
+    const settlementAddressKey =
+      assetTransferMethod === "eip3009" ? "settlerAddress" : "facilitatorAddress";
+    const settlementAddress = supportedKind.extra?.[settlementAddressKey];
+
     return Promise.resolve({
       ...paymentRequirements,
       extra: {
         ...paymentRequirements.extra,
-        assetTransferMethod: "permit2",
-        ...(supportedKind.extra?.facilitatorAddress
-          ? { facilitatorAddress: getAddress(supportedKind.extra.facilitatorAddress as string) }
+        assetTransferMethod,
+        ...(typeof settlementAddress === "string"
+          ? { [settlementAddressKey]: getAddress(settlementAddress) }
           : {}),
       },
     });

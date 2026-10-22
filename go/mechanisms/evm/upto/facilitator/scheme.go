@@ -11,11 +11,11 @@ import (
 )
 
 type UptoEvmSchemeConfig struct {
+	// Simulate Permit2 settlement during settle. ERC-3009 always simulates the actual amount.
 	SimulateInSettle bool
 }
 
 // UptoEvmScheme implements the SchemeNetworkFacilitator interface for EVM upto payments (V2).
-// Only supports Permit2 (no EIP-3009 path).
 type UptoEvmScheme struct {
 	signer       evm.FacilitatorEvmSigner
 	config       UptoEvmSchemeConfig
@@ -53,14 +53,16 @@ func (f *UptoEvmScheme) CaipFamily() string {
 }
 
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
-// For upto, returns the facilitatorAddress so clients include it in their signed witness.
+// For upto, returns one selected signer under both method-specific keys.
 func (f *UptoEvmScheme) GetExtra(_ x402.Network) map[string]interface{} {
 	addresses := f.signer.GetAddresses()
 	if len(addresses) == 0 {
 		return nil
 	}
+	address := addresses[rand.Intn(len(addresses))]
 	return map[string]interface{}{
-		"facilitatorAddress": addresses[rand.Intn(len(addresses))],
+		"facilitatorAddress": address,
+		"settlerAddress":     address,
 	}
 }
 
@@ -76,8 +78,15 @@ func (f *UptoEvmScheme) Verify(
 	requirements types.PaymentRequirements,
 	fctx *x402.FacilitatorContext,
 ) (*x402.VerifyResponse, error) {
+	if evm.IsUptoEIP3009Payload(payload.Payload) {
+		eip3009Payload, err := evm.UptoEIP3009PayloadFromMap(payload.Payload)
+		if err != nil {
+			return nil, x402.NewVerifyError(ErrUptoInvalidPayload, "", fmt.Sprintf("failed to parse upto EIP-3009 payload: %s", err.Error()))
+		}
+		return VerifyUptoEIP3009(ctx, f.signer, payload, requirements, eip3009Payload, true)
+	}
 	if !evm.IsUptoPermit2Payload(payload.Payload) {
-		return nil, x402.NewVerifyError(ErrUptoInvalidPayload, "", "unsupported payload type: expected upto permit2 payload")
+		return nil, x402.NewVerifyError(ErrUptoInvalidPayload, "", "unsupported payload type")
 	}
 
 	permit2Payload, err := evm.UptoPermit2PayloadFromMap(payload.Payload)
@@ -95,9 +104,17 @@ func (f *UptoEvmScheme) Settle(
 	requirements types.PaymentRequirements,
 	fctx *x402.FacilitatorContext,
 ) (*x402.SettleResponse, error) {
+	if evm.IsUptoEIP3009Payload(payload.Payload) {
+		eip3009Payload, err := evm.UptoEIP3009PayloadFromMap(payload.Payload)
+		if err != nil {
+			network := x402.Network(payload.Accepted.Network)
+			return nil, x402.NewSettleError(ErrUptoInvalidPayload, "", network, "", fmt.Sprintf("failed to parse upto EIP-3009 payload: %s", err.Error()))
+		}
+		return SettleUptoEIP3009(ctx, f.signer, payload, requirements, eip3009Payload, fctx, f.pendingStore)
+	}
 	if !evm.IsUptoPermit2Payload(payload.Payload) {
 		network := x402.Network(payload.Accepted.Network)
-		return nil, x402.NewSettleError(ErrUptoInvalidPayload, "", network, "", "unsupported payload type: expected upto permit2 payload")
+		return nil, x402.NewSettleError(ErrUptoInvalidPayload, "", network, "", "unsupported payload type")
 	}
 
 	permit2Payload, err := evm.UptoPermit2PayloadFromMap(payload.Payload)

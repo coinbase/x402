@@ -109,6 +109,26 @@ export type UptoPermit2Payload = {
   };
 };
 
+/** Upto ERC-3009 authorization signed with ReceiveWithAuthorization. */
+export type UptoEIP3009Payload = {
+  signature: `0x${string}`;
+  authorization: {
+    from: `0x${string}`;
+    to: `0x${string}`;
+    value: string;
+    validAfter: string;
+    validBefore: string;
+    nonce: `0x${string}`;
+  };
+  paymentInfo: {
+    payTo: `0x${string}`;
+    settler: `0x${string}`;
+    salt: `0x${string}`;
+  };
+};
+
+export type UptoEvmPayloadV2 = UptoEIP3009Payload | UptoPermit2Payload;
+
 // Batch-settlement EVM scheme payload types
 export type {
   AuthorizerSigner,
@@ -151,7 +171,9 @@ export {
 export function isUptoPermit2Payload(
   payload: Record<string, unknown>,
 ): payload is UptoPermit2Payload {
+  if (typeof payload !== "object" || payload === null) return false;
   if (typeof payload.signature !== "string") return false;
+  if ("authorization" in payload || "paymentInfo" in payload) return false;
   if (!("permit2Authorization" in payload)) return false;
 
   const auth = payload.permit2Authorization;
@@ -176,5 +198,45 @@ export function isUptoPermit2Payload(
     typeof w.facilitator === "string" &&
     typeof w.to === "string" &&
     typeof w.validAfter === "string"
+  );
+}
+
+/**
+ * Type guard for the upto ERC-3009 payload.
+ *
+ * The ERC-3009 and Permit2 payload shapes are mutually exclusive. A payload
+ * containing fields from both paths is rejected instead of selecting one.
+ *
+ * @param payload - The payload to check.
+ * @returns True when the payload is exclusively a complete upto ERC-3009 payload.
+ */
+export function isUptoEIP3009Payload(
+  payload: Record<string, unknown>,
+): payload is UptoEIP3009Payload {
+  if (typeof payload !== "object" || payload === null) return false;
+  if (typeof payload.signature !== "string") return false;
+  if ("permit2Authorization" in payload) return false;
+
+  const authorization = payload.authorization;
+  if (typeof authorization !== "object" || authorization === null) return false;
+  const auth = authorization as Record<string, unknown>;
+  if (
+    typeof auth.from !== "string" ||
+    typeof auth.to !== "string" ||
+    typeof auth.value !== "string" ||
+    typeof auth.validAfter !== "string" ||
+    typeof auth.validBefore !== "string" ||
+    typeof auth.nonce !== "string"
+  ) {
+    return false;
+  }
+
+  const paymentInfo = payload.paymentInfo;
+  if (typeof paymentInfo !== "object" || paymentInfo === null) return false;
+  const info = paymentInfo as Record<string, unknown>;
+  return (
+    typeof info.payTo === "string" &&
+    typeof info.settler === "string" &&
+    typeof info.salt === "string"
   );
 }

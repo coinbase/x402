@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 
 from x402.mechanisms.evm.types import TypedDataDomain, TypedDataField
-from x402.mechanisms.evm.verify import verify_typed_data_strict
+from x402.mechanisms.evm.verify import _hash_typed_data, verify_typed_data_strict
 
 SAMPLE_DOMAIN = TypedDataDomain(
     name="USDC",
@@ -97,6 +97,7 @@ class TestVerifyTypedDataStrict:
     def test_contract_1271_accepts(self):
         """Deployed contract whose isValidSignature returns magic → accepted."""
         signer = _mock_signer(code=b"\x60\x80", is_valid_sig_result=EIP1271_MAGIC)
+        signature = b"\x7a" * 65
         result = verify_typed_data_strict(
             signer,
             "0x1234567890123456789012345678901234567890",
@@ -104,9 +105,15 @@ class TestVerifyTypedDataStrict:
             SAMPLE_TYPES,
             "TransferWithAuthorization",
             SAMPLE_MESSAGE,
-            b"\x00" * 65,
+            signature,
         )
         assert result is True
+        call_args = signer.read_contract.call_args.args
+        assert call_args[2] == "isValidSignature"
+        assert call_args[3] == _hash_typed_data(
+            SAMPLE_DOMAIN, SAMPLE_TYPES, "TransferWithAuthorization", SAMPLE_MESSAGE
+        )
+        assert call_args[4] == signature
 
     def test_contract_1271_rejects(self):
         """Deployed contract whose isValidSignature returns failure → rejected."""

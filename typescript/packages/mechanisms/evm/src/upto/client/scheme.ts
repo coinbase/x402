@@ -6,16 +6,18 @@ import {
 } from "@x402/core/types";
 import { ClientEvmSigner } from "../../signer";
 import { createUptoPermit2Payload } from "./permit2";
+import { createUptoEIP3009Payload } from "./eip3009";
 import {
   trySignEip2612PermitExtension,
   trySignErc20ApprovalExtension,
 } from "../../shared/extensions";
 import { findDefaultAsset } from "../../defaultAssets";
 import { UptoEvmSchemeOptions } from "./rpc";
+import type { AssetTransferMethod } from "../../types";
 
 /**
  * EVM client implementation for the Upto payment scheme.
- * Handles Permit2-based payment payload creation and gas-sponsoring extensions.
+ * Handles ERC-3009 and Permit2 payment payload creation.
  */
 export class UptoEvmScheme implements SchemeNetworkClient {
   readonly scheme = "upto";
@@ -33,7 +35,7 @@ export class UptoEvmScheme implements SchemeNetworkClient {
   ) {}
 
   /**
-   * Creates a payment payload for the Upto scheme using Permit2.
+   * Creates a payment payload for the selected asset transfer method.
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
@@ -45,6 +47,13 @@ export class UptoEvmScheme implements SchemeNetworkClient {
     paymentRequirements: PaymentRequirements,
     context?: PaymentPayloadContext,
   ): Promise<PaymentPayloadResult> {
+    const assetTransferMethod =
+      (paymentRequirements.extra?.assetTransferMethod as AssetTransferMethod | undefined) ??
+      "permit2";
+    if (assetTransferMethod === "eip3009") {
+      return createUptoEIP3009Payload(this.signer, x402Version, paymentRequirements);
+    }
+
     const result = await createUptoPermit2Payload(this.signer, x402Version, paymentRequirements);
 
     const eip2612Extensions = await trySignEip2612PermitExtension(

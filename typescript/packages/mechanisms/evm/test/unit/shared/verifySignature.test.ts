@@ -102,13 +102,18 @@ describe("verifyECDSA", () => {
 describe("verifyERC1271", () => {
   it("accepts when isValidSignature returns the magic value", async () => {
     const signer = mockSigner({ code: "0x6080604052", isValidSignatureResult: ERC1271_MAGIC });
-    const result = await verifyERC1271(
-      signer,
-      "0x1234567890123456789012345678901234567890",
-      ("0x" + "0".repeat(64)) as `0x${string}`,
-      ("0x" + "f".repeat(130)) as `0x${string}`,
-    );
+    const address = "0x1234567890123456789012345678901234567890";
+    const digest = ("0x" + "1".repeat(64)) as `0x${string}`;
+    const signature = ("0x" + "f".repeat(130)) as `0x${string}`;
+    const result = await verifyERC1271(signer, address, digest, signature);
     expect(result).toBe(true);
+    expect(signer.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        address,
+        functionName: "isValidSignature",
+        args: [digest, signature],
+      }),
+    );
   });
 
   it("rejects when isValidSignature returns the failure value", async () => {

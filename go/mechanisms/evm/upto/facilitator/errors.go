@@ -16,6 +16,20 @@ const (
 	// Reserved wire value; do not reassign.
 	ErrUptoFailedToGetReceipt = "invalid_upto_evm_failed_to_get_receipt"
 	ErrUptoTransactionFailed  = "invalid_upto_evm_transaction_failed"
+	ErrUptoPendingMismatch    = "invalid_upto_evm_pending_mismatch"
+
+	ErrUptoEIP3009MissingDomain       = "invalid_upto_evm_eip3009_missing_domain"
+	ErrUptoEIP3009ReceiverMismatch    = "invalid_upto_evm_eip3009_receiver_mismatch"
+	ErrUptoEIP3009AmountMismatch      = "invalid_upto_evm_eip3009_amount_mismatch"
+	ErrUptoEIP3009RecipientMismatch   = "invalid_upto_evm_eip3009_recipient_mismatch"
+	ErrUptoEIP3009SettlerMismatch     = "invalid_upto_evm_eip3009_settler_mismatch"
+	ErrUptoEIP3009NonceMismatch       = "invalid_upto_evm_eip3009_nonce_mismatch"
+	ErrUptoEIP3009ValidBefore         = "invalid_upto_evm_eip3009_valid_before"
+	ErrUptoEIP3009ValidAfter          = "invalid_upto_evm_eip3009_valid_after"
+	ErrUptoEIP3009NonceAlreadyUsed    = "invalid_upto_evm_eip3009_nonce_already_used"
+	ErrUptoEIP3009InsufficientBalance = "invalid_upto_evm_eip3009_insufficient_balance"
+	ErrUptoEIP3009InvalidSignature    = "invalid_upto_evm_eip3009_signature"
+	ErrUptoEIP3009SimulationFailed    = "invalid_upto_evm_eip3009_simulation_failed"
 
 	ErrSettlementPending = evm.ErrSettlementPending
 

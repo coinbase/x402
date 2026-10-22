@@ -255,18 +255,123 @@ class UptoPermit2Payload:
         )
 
 
-def is_upto_permit2_payload(payload: dict[str, Any]) -> bool:
-    """Check if a raw payload dict is an upto Permit2 payload.
-
-    Distinguishes from exact Permit2 by checking for the facilitator field in witness.
-    """
+def is_upto_permit2_payload(payload: Any) -> bool:
+    """Check for an exclusively complete upto Permit2 payload."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("signature"), str):
+        return False
+    if "authorization" in payload or "paymentInfo" in payload:
+        return False
     auth = payload.get("permit2Authorization")
     if not isinstance(auth, dict):
+        return False
+    if not all(isinstance(auth.get(key), str) for key in ("from", "spender", "nonce", "deadline")):
+        return False
+    permitted = auth.get("permitted")
+    if not isinstance(permitted, dict):
+        return False
+    if not all(isinstance(permitted.get(key), str) for key in ("token", "amount")):
         return False
     witness = auth.get("witness")
     if not isinstance(witness, dict):
         return False
-    return "facilitator" in witness
+    return all(isinstance(witness.get(key), str) for key in ("to", "facilitator", "validAfter"))
+
+
+@dataclass
+class UptoEIP3009Authorization:
+    """ERC-3009 ReceiveWithAuthorization data for an upto payment."""
+
+    from_address: str
+    to: str
+    value: str
+    valid_after: str
+    valid_before: str
+    nonce: str
+
+
+@dataclass
+class UptoEIP3009PaymentInfo:
+    """Settlement commitment opened by the upto ERC-3009 proxy."""
+
+    pay_to: str
+    settler: str
+    salt: str
+
+
+@dataclass
+class UptoEIP3009Payload:
+    """Upto ERC-3009 payload signed with ReceiveWithAuthorization."""
+
+    signature: str
+    authorization: UptoEIP3009Authorization
+    payment_info: UptoEIP3009PaymentInfo
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize using the x402 wire field names."""
+        return {
+            "signature": self.signature,
+            "authorization": {
+                "from": self.authorization.from_address,
+                "to": self.authorization.to,
+                "value": self.authorization.value,
+                "validAfter": self.authorization.valid_after,
+                "validBefore": self.authorization.valid_before,
+                "nonce": self.authorization.nonce,
+            },
+            "paymentInfo": {
+                "payTo": self.payment_info.pay_to,
+                "settler": self.payment_info.settler,
+                "salt": self.payment_info.salt,
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "UptoEIP3009Payload":
+        """Parse a complete, unmixed upto ERC-3009 payload."""
+        if not is_upto_eip3009_payload(data):
+            raise ValueError("invalid upto EIP-3009 payload")
+        authorization = data["authorization"]
+        payment_info = data["paymentInfo"]
+        return cls(
+            signature=data["signature"],
+            authorization=UptoEIP3009Authorization(
+                from_address=authorization["from"],
+                to=authorization["to"],
+                value=authorization["value"],
+                valid_after=authorization["validAfter"],
+                valid_before=authorization["validBefore"],
+                nonce=authorization["nonce"],
+            ),
+            payment_info=UptoEIP3009PaymentInfo(
+                pay_to=payment_info["payTo"],
+                settler=payment_info["settler"],
+                salt=payment_info["salt"],
+            ),
+        )
+
+
+def is_upto_eip3009_payload(payload: Any) -> bool:
+    """Check for an exclusively complete upto ERC-3009 payload."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("signature"), str):
+        return False
+    if "permit2Authorization" in payload:
+        return False
+    authorization = payload.get("authorization")
+    if not isinstance(authorization, dict):
+        return False
+    if not all(
+        isinstance(authorization.get(key), str)
+        for key in ("from", "to", "value", "validAfter", "validBefore", "nonce")
+    ):
+        return False
+    payment_info = payload.get("paymentInfo")
+    if not isinstance(payment_info, dict):
+        return False
+    return all(isinstance(payment_info.get(key), str) for key in ("payTo", "settler", "salt"))
 
 
 def is_eip3009_payload(payload: dict[str, Any]) -> bool:
@@ -324,6 +429,17 @@ class ERC6492SignatureData:
 # EIP-712 authorization types for signing
 AUTHORIZATION_TYPES: dict[str, list[dict[str, str]]] = {
     "TransferWithAuthorization": [
+        {"name": "from", "type": "address"},
+        {"name": "to", "type": "address"},
+        {"name": "value", "type": "uint256"},
+        {"name": "validAfter", "type": "uint256"},
+        {"name": "validBefore", "type": "uint256"},
+        {"name": "nonce", "type": "bytes32"},
+    ]
+}
+
+RECEIVE_AUTHORIZATION_TYPES: dict[str, list[dict[str, str]]] = {
+    "ReceiveWithAuthorization": [
         {"name": "from", "type": "address"},
         {"name": "to", "type": "address"},
         {"name": "value", "type": "uint256"},

@@ -2,7 +2,7 @@
 
 The **upto** scheme enables usage-based billing on EVM networks. The client authorizes a **maximum** payment amount, but the server settles **only what was actually used**. This is ideal for variable-cost endpoints like LLM token generation, compute time, or bandwidth metering.
 
-Uses **Permit2** exclusively (no EIP-3009 path). The on-chain proxy contract accepts a variable `amount` parameter at settlement time, so the facilitator can settle any amount up to the authorized maximum.
+Permit2 is the default asset transfer method. Services can explicitly select **EIP-3009**, which signs `ReceiveWithAuthorization` to the canonical `x402UptoERC3009Proxy`. Both proxies accept the actual `amount` at settlement time, so the facilitator can settle any amount up to the authorized maximum.
 
 ## Import Paths
 
@@ -31,9 +31,26 @@ x402Client := x402.Newx402Client().
     Register("eip155:*", uptoevm.NewUptoEvmScheme(evmSigner, nil))    // usage-based services
 ```
 
-### Key Difference from Exact
+### Asset Transfer Methods
 
-The upto client requires `PaymentRequirements.Extra["facilitatorAddress"]` (provided automatically by the facilitator via `GetExtra()`). This address is embedded in the Permit2 witness so only the designated facilitator can settle the payment.
+- **Permit2 (default):** Requires `PaymentRequirements.Extra["facilitatorAddress"]`. The address is embedded in the Permit2 witness.
+- **EIP-3009 (explicit):** Set `extra.assetTransferMethod` to `"eip3009"`. This flow requires token `name` and `version`, plus `extra.settlerAddress`. It signs `ReceiveWithAuthorization` to `0x40203Fa50150e6ec970DE91F3330e82cDF640006`.
+
+The facilitator advertises one selected signer under both `facilitatorAddress` and `settlerAddress`; the server copies only the key needed by the selected transfer method.
+
+To select EIP-3009 explicitly, use an asset amount with token domain metadata:
+
+```go
+Price: map[string]interface{}{
+    "amount": "100000",
+    "asset":  "0xYourEIP3009Token",
+    "extra": map[string]interface{}{
+        "assetTransferMethod": "eip3009",
+        "name":                "USDC",
+        "version":             "2",
+    },
+},
+```
 
 ## Server Usage
 
@@ -98,14 +115,14 @@ import (
     uptoevm "github.com/x402-foundation/x402/go/v2/mechanisms/evm/upto/facilitator"
 )
 
-scheme := uptoevm.NewUptoEvmScheme(config)
+scheme := uptoevm.NewUptoEvmScheme(evmSigner, nil)
 ```
 
-The upto facilitator's `GetExtra()` returns a `facilitatorAddress` that the client embeds in the signed Permit2 witness. Only this address can call `settle()` on the upto proxy contract.
+The upto facilitator's `GetExtra()` returns both a `facilitatorAddress` and `settlerAddress` with the same signer address. Only that signer can call the selected upto proxy's `settle()` function.
 
 ## Supported Networks
 
-Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy contracts deployed:
+Works on EIP-155 compatible networks where the proxy for the selected transfer method is deployed:
 
 | Network | CAIP-2 ID |
 |---------|-----------|
@@ -115,7 +132,7 @@ Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy
 ## How It Works
 
 1. Server advertises `scheme: "upto"` with a max `price`
-2. Client signs a Permit2 authorization for the max amount, with a witness containing the `facilitator` address
+2. Client signs either a Permit2 authorization or an EIP-3009 `ReceiveWithAuthorization` for the maximum
 3. Server performs work, calculates actual cost
 4. Server calls `SetSettlementOverrides` with the actual amount
 5. Facilitator settles on-chain for the actual amount (≤ max)
@@ -123,7 +140,7 @@ Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy
 
 ## Gas Sponsoring Extensions
 
-Since the upto scheme uses Permit2 exclusively, it fully supports both gas sponsoring extensions. These let the **facilitator** pay for the client's Permit2 approval transaction, removing all gas costs from the client. The client SDK detects advertised extensions automatically.
+The gas sponsoring extensions apply only to the Permit2 flow. They let the **facilitator** pay for the client's Permit2 approval transaction, removing all gas costs from the client. Explicit EIP-3009 payloads do not attach Permit2 approval extensions.
 
 ### EIP-2612 Gas Sponsoring
 

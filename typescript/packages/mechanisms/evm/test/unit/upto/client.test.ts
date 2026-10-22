@@ -7,8 +7,13 @@ import {
 import { createUptoPermit2Payload } from "../../../src/upto/client/permit2";
 import type { ClientEvmSigner } from "../../../src/signer";
 import { PaymentRequirements } from "@x402/core/types";
-import { PERMIT2_ADDRESS, x402UptoPermit2ProxyAddress } from "../../../src/constants";
-import { isUptoPermit2Payload } from "../../../src/types";
+import {
+  PERMIT2_ADDRESS,
+  x402UptoErc3009ProxyAddress,
+  x402UptoPermit2ProxyAddress,
+} from "../../../src/constants";
+import { isUptoEIP3009Payload, isUptoPermit2Payload } from "../../../src/types";
+import { createUptoEIP3009Nonce } from "../../../src/upto/client/eip3009";
 
 const FACILITATOR_ADDRESS = "0xFAC11174700123456789012345678901234aBCDe" as `0x${string}`;
 
@@ -54,6 +59,58 @@ describe("UptoEvmScheme (Client)", () => {
       expect(payload.signature).toBeDefined();
       expect(payload.permit2Authorization).toBeDefined();
       expect(isUptoPermit2Payload(payload)).toBe(true);
+    });
+
+    it("defaults to Permit2 when assetTransferMethod is omitted", async () => {
+      const requirements = makeRequirements({
+        extra: { facilitatorAddress: FACILITATOR_ADDRESS },
+      });
+
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isUptoPermit2Payload(result.payload)).toBe(true);
+    });
+
+    it("creates an explicit ERC-3009 ReceiveWithAuthorization payload", async () => {
+      const requirements = makeRequirements({
+        extra: {
+          assetTransferMethod: "eip3009",
+          name: "USD Coin",
+          version: "2",
+          settlerAddress: FACILITATOR_ADDRESS,
+        },
+      });
+
+      const result = await client.createPaymentPayload(2, requirements);
+
+      expect(isUptoEIP3009Payload(result.payload)).toBe(true);
+      expect(result.payload.authorization.to).toBe(x402UptoErc3009ProxyAddress);
+      expect(result.payload.authorization.value).toBe(requirements.amount);
+      expect(result.payload.paymentInfo.payTo.toLowerCase()).toBe(requirements.payTo.toLowerCase());
+      expect(result.payload.paymentInfo.settler.toLowerCase()).toBe(
+        FACILITATOR_ADDRESS.toLowerCase(),
+      );
+      expect(result.payload.authorization.nonce).toBe(
+        createUptoEIP3009Nonce(
+          result.payload.paymentInfo.payTo,
+          result.payload.paymentInfo.settler,
+          result.payload.paymentInfo.salt,
+        ),
+      );
+
+      const callArgs = (mockSigner.signTypedData as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(callArgs.primaryType).toBe("ReceiveWithAuthorization");
+      expect(callArgs.message.to).toBe(x402UptoErc3009ProxyAddress);
+    });
+
+    it("requires settlerAddress for explicit ERC-3009", async () => {
+      const requirements = makeRequirements({
+        extra: { assetTransferMethod: "eip3009", name: "USD Coin", version: "2" },
+      });
+
+      await expect(client.createPaymentPayload(2, requirements)).rejects.toThrow(
+        "upto eip3009 requires settlerAddress",
+      );
     });
 
     it("should set spender to x402UptoPermit2ProxyAddress", async () => {

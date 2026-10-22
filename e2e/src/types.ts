@@ -181,6 +181,8 @@ export interface TestEndpoint {
   /** Omitted or `authorization` is the default (verify → resource → settle). */
   paymentFlow?: PaymentFlow;
   schemeOptions?: SchemeOptions;
+  /** Expected atomic settlement amount for upto scenarios. */
+  settlementOverride?: { amount: string };
   extensions?: string[];
   /** Merged catalog `schemeExtra` for harness branching (auth-capture modes, etc.). */
   schemeExtra?: Record<string, string | number | boolean>;
