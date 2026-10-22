@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -84,6 +85,12 @@ func main() {
 
 	r.GET("/health", func(c *ginfw.Context) {
 		c.JSON(http.StatusOK, e2eserver.HealthBody())
+	})
+
+	r.POST(e2eserver.AuthCaptureE2eCapturePath, func(c *ginfw.Context) {
+		body, _ := io.ReadAll(c.Request.Body)
+		status, payload := e2eserver.HandleAuthCaptureE2eCapture(facilitatorClient, body)
+		c.JSON(status, payload)
 	})
 
 	r.POST("/close", func(c *ginfw.Context) {

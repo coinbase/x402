@@ -1,5 +1,16 @@
 # @x402/evm Changelog
 
+## 2.28.0
+
+### Minor Changes
+
+- [dd89698](https://github.com/x402-foundation/x402/commit/dd89698): Add Arc mainnet (chain ID 5042) and Arc Testnet (chain ID 5042002) with native USDC as the default stablecoin ([#3590](https://github.com/x402-foundation/x402/pull/3590)) - Thanks [@NotMcAfee](https://github.com/NotMcAfee)!
+
+### Patch Changes
+
+- [a9955ae](https://github.com/x402-foundation/x402/commit/a9955ae): Add Monad testnet USDC (`0x534b2f3A21130d7a60830c2Df862319e593943A3`, EIP-3009) as the default asset for `eip155:10143` so `"$0.10"` dollar-string pricing resolves on Monad testnet. Register v1 network name `monad-testnet`. ([#3570](https://github.com/x402-foundation/x402/pull/3570)) - Thanks [@phdargen](https://github.com/phdargen) and [@cursoragent](https://github.com/cursoragent)!
+  - @x402/core@2.28.0
+
 ## 2.27.0
 
 ### Minor Changes

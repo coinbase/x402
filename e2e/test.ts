@@ -6,16 +6,17 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther, 
 import { privateKeyToAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { TestDiscovery } from './src/discovery';
-import { ClientConfig, ScenarioResult, ServerConfig, TestScenario, endpointAssetTransferMethod, endpointPaymentFlow, endpointPaymentScheme, endpointUsesBatchSettlement } from './src/types';
+import { ClientConfig, ScenarioResult, ServerConfig, TestScenario, endpointAssetTransferMethod, endpointAuthCaptureCoverageBranch, endpointAuthCaptureNeedsDeferredCapture, endpointPaymentFlow, endpointPaymentScheme, endpointUsesBatchSettlement } from './src/types';
+import { AUTH_CAPTURE_E2E_CAPTURE_PATH } from './src/mechanisms';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger, createComboLogger } from './src/logger';
 import { handleDiscoveryValidation, shouldRunDiscoveryValidation, type TestedDiscoveryScenario } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
-import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
+import { filterScenarios, TestFilters, shouldShowExtensionOutput, getUniquePaymentSchemes } from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
 import { getNetworkSet, NetworkMode, NetworkConfig, getNetworkModeDescription, resolveEvmPermit2Asset, PROTOCOL_FAMILIES, requiredEnvForFamily, requiredRpcEnvForFamily, protocolFamilyForCredentialKey } from './src/networks/networks';
 import { injectNetworkEnv } from './src/env';
-import { FACILITATOR_ENV_PREFLIGHT_ALLOWLIST } from './src/mechanisms';
+import { FACILITATOR_ENV_PREFLIGHT_ALLOWLIST, runRouteFilterForHarness } from './src/mechanisms';
 import { GenericServerProxy } from './src/servers/generic-server';
 import { Semaphore, ResourceLock } from './src/concurrency';
 import { FacilitatorManager } from './src/facilitators/facilitator-manager';
@@ -535,7 +536,10 @@ async function startServer(
 
   if (options?.transport !== 'mcp') {
     if (typeof server.verifyPaidRoutes === 'function') {
-      const { ok, problems } = await server.verifyPaidRoutes(serverConfig.enabledFamilies);
+      const { ok, problems } = await server.verifyPaidRoutes(
+        serverConfig.enabledFamilies,
+        serverConfig.runRouteFilter,
+      );
       if (!ok) {
         errorLog(
           `  ❌ Server does not mount every paid route it declares in the mechanisms catalog:\n     ${problems.join('\n     ')}`,
@@ -821,8 +825,6 @@ async function runTest() {
   // Env keys used below (preflight + funding use catalog/process.env directly)
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
-  const facilitatorHederaAccountId = process.env.FACILITATOR_HEDERA_ACCOUNT_ID;
-  const facilitatorHederaPrivateKey = process.env.FACILITATOR_HEDERA_PRIVATE_KEY;
   // Discover all servers, clients, and facilitators (always include legacy)
   const discovery = new TestDiscovery('.');
 
@@ -939,6 +941,8 @@ async function runTest() {
   }
 
   const selectedProtocolFamilies = new Set(filteredScenarios.map(scenario => scenario.protocolFamily));
+  const selectedPaymentSchemes = new Set(getUniquePaymentSchemes(filteredScenarios));
+  const runRouteFilter = runRouteFilterForHarness(selectedProtocolFamilies, selectedPaymentSchemes);
   const missingRequiredEnv = new Set<string>();
   for (const family of selectedProtocolFamilies) {
     for (const [name, value] of requiredEnvByFamily[family] || []) {
@@ -1053,6 +1057,21 @@ async function runTest() {
     log('');
   }
 
+  const authCaptureScenarios = filteredScenarios.filter(
+    s => endpointPaymentScheme(s.endpoint) === 'auth-capture',
+  );
+  if (authCaptureScenarios.length > 0) {
+    const branchSelected = (branch: string) =>
+      authCaptureScenarios.some(s => endpointAuthCaptureCoverageBranch(s.endpoint) === branch);
+    log('🔍 Auth-capture branch coverage (--min requires each branch once; one permit2 globally):');
+    log(`   Self-managed sync EIP-3009:    ${branchSelected('self-sync-eip3009') ? '✅' : '⚠️  not in selected set'}`);
+    log(`   Self-managed sync Permit2:     ${branchSelected('self-sync-permit2') ? '✅' : '⚠️  not in selected set'}`);
+    log(`   Facilitator-authorizer sync:   ${branchSelected('facilitator-sync') ? '✅' : '⚠️  not in selected set'}`);
+    log(`   Deferred delegated:            ${branchSelected('deferred-delegated') ? '✅' : '⚠️  not in selected set'}`);
+    log(`   Custom forwarding (collect):   ${branchSelected('custom-forwarding') ? '✅' : '⚠️  not in selected set'}`);
+    log('');
+  }
+
   // Auto-detect Permit2 scenarios (upto uses Permit2 under the hood)
   const hasPermit2Scenarios = filteredScenarios.some(s => endpointAssetTransferMethod(s.endpoint) === 'permit2');
 
@@ -1085,6 +1104,15 @@ async function runTest() {
     uniqueServers.set(scenario.server.name, scenario.server);
     uniqueClients.set(scenario.client.name, scenario.client);
   });
+
+  for (const facilitator of uniqueFacilitators.values()) {
+    const families = facilitator.config?.protocolFamilies as string[] | undefined;
+    if (families?.length) {
+      facilitator.config.protocolFamilies = families.filter(family =>
+        selectedProtocolFamilies.has(family),
+      );
+    }
+  }
 
   // Validate facilitator and client env against catalog-declared requirements.
   log('\n🔍 Validating facilitator and client environment variables...\n');
@@ -1538,6 +1566,43 @@ async function runTest() {
 
       const result = await runClientTest(scenario.client.proxy, baseClientConfig);
 
+      let deferredCaptureError: string | undefined;
+      let captureTransaction: string | undefined;
+      if (result.success && endpointAuthCaptureNeedsDeferredCapture(scenario.endpoint)) {
+        try {
+          const captureResponse = await fetch(
+            `http://localhost:${port}${AUTH_CAPTURE_E2E_CAPTURE_PATH}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: scenario.endpoint.path }),
+            },
+          );
+          const captureBody = (await captureResponse.json()) as {
+            success?: boolean;
+            transaction?: string;
+            error?: string;
+            errorReason?: string;
+          };
+          if (!captureResponse.ok) {
+            deferredCaptureError =
+              captureBody.error || `Deferred capture HTTP ${captureResponse.status}`;
+          } else if (!captureBody.success) {
+            deferredCaptureError =
+              captureBody.errorReason || captureBody.error || 'Deferred capture settle failed';
+          } else if (!captureBody.transaction) {
+            deferredCaptureError = 'Deferred capture succeeded but no transaction hash returned';
+          } else {
+            captureTransaction = captureBody.transaction;
+            cLog.verboseLog(`  🔗 Deferred capture transaction: ${captureTransaction}`);
+          }
+        } catch (error) {
+          deferredCaptureError =
+            error instanceof Error ? error.message : 'Deferred capture request failed';
+        }
+      }
+
+      const passed = result.success && !deferredCaptureError;
       const detailedResult: DetailedTestResult = {
         testNumber: localTestNumber,
         client: scenario.client.name,
@@ -1546,16 +1611,16 @@ async function runTest() {
         facilitator: scenario.facilitator?.name || 'none',
         protocolFamily: scenario.protocolFamily,
         ...scenarioDimensions(scenario),
-        passed: result.success,
-        error: result.error,
-        transaction: result.payment_response?.transaction,
+        passed,
+        error: deferredCaptureError || result.error,
+        transaction: captureTransaction || result.payment_response?.transaction,
         network: result.payment_response?.network,
       };
 
-      if (result.success) {
+      if (passed) {
         cLog.log(`  ✅ Test passed`);
       } else {
-        cLog.log(`  ❌ Test failed: ${result.error}`);
+        cLog.log(`  ❌ Test failed: ${detailedResult.error}`);
         if (result.verboseLogs && result.verboseLogs.length > 0) {
           cLog.log(`  🔍 Verbose logs:`);
           result.verboseLogs.forEach(logLine => cLog.log(logLine));
@@ -1610,17 +1675,7 @@ async function runTest() {
 
     cLog.log(`🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
 
-    const facilitatorConfig = facilitatorName ? uniqueFacilitators.get(facilitatorName)?.config : undefined;
-
-    const enabledFamilies: import('./src/types').ProtocolFamily[] = ['evm', 'svm'];
-    for (const family of PROTOCOL_FAMILIES) {
-      if (family === 'evm' || family === 'svm') continue;
-      if (!(facilitatorConfig?.protocolFamilies?.includes(family) ?? false)) continue;
-      if (family === 'hedera' && (!facilitatorHederaAccountId || !facilitatorHederaPrivateKey)) {
-        continue;
-      }
-      enabledFamilies.push(family);
-    }
+    const enabledFamilies = Array.from(selectedProtocolFamilies) as import('./src/types').ProtocolFamily[];
 
     // Optional SERVER_EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY (server role only) opts
     // into self-managed batch-settlement claim/refund signing; omit to delegate
@@ -1629,6 +1684,7 @@ async function runTest() {
       port,
       networks,
       enabledFamilies,
+      runRouteFilter,
       facilitatorUrl,
       mockFacilitatorUrl,
     };

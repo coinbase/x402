@@ -138,3 +138,16 @@ export function voucherSignerFor(
     }
   }
 }
+
+/**
+ * A client voucher must cover `settled + charge` and stay strictly above `settled`.
+ * A zero price still has to move the watermark.
+ *
+ * @param cumulative - Signed `maxClaimableAmount`
+ * @param settled - Onchain settled watermark
+ * @param charge - `PaymentRequirements.amount`
+ * @returns Whether the voucher clears the settled watermark
+ */
+export function advancesSettled(cumulative: bigint, settled: bigint, charge: bigint): boolean {
+  return cumulative > settled && cumulative >= settled + charge;
+}

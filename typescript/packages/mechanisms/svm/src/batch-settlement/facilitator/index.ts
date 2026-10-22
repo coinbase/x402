@@ -1,9 +1,15 @@
 export { BatchSvmScheme } from "./scheme";
 export { MAX_CHANNELS_PER_SETTLE_TX } from "./constants";
 export type { BatchSvmFacilitatorConfig } from "./scheme";
-export { InMemoryPaymentChannelStorage as InMemoryBatchChannelStorage } from "../../payment-channels/storage";
+export {
+  InMemoryPaymentChannelStorage,
+  InMemoryPaymentChannelStorage as InMemoryBatchChannelStorage,
+} from "../../payment-channels/storage";
 export type {
+  PaymentChannelOpenWrite,
+  PaymentChannelRecord,
   PaymentChannelRecord as BatchChannelRecord,
+  PaymentChannelStorage,
   PaymentChannelStorage as BatchChannelStorage,
 } from "../../payment-channels/storage";
 export {
@@ -28,26 +34,10 @@ export type {
 
 export { InMemoryBatchPendingSettlementStore } from "./recovery";
 export type { BatchPendingSettlementStore } from "./recovery";
-export {
-  BatchDelegatedAuthIdentityConflictError,
-  InMemoryBatchDelegatedAuthStore,
-} from "./delegatedAuthStore";
-export type {
-  BatchDelegatedAuthBinding,
-  BatchDelegatedAuthStore,
-  BatchDelegatedReceiverAuth,
-  BatchDelegatedSettleContext,
-} from "./delegatedAuthStore";
-export {
-  BatchReceiverAuthorizerConflictError,
-  InMemoryBatchReceiverAuthorizerStore,
-} from "./receiverAuthorizerStore";
-export type {
-  BatchReceiverAuthorizerBinding,
-  BatchReceiverAuthorizerStore,
-} from "./receiverAuthorizerStore";
 export { createReceiverBindingHistoryReader } from "./receiverBindingHistoryReader";
 export type {
+  BatchDelegatedReceiverAuth,
+  BatchDelegatedSettleContext,
   BatchReceiverBindingHistoryReader,
   BatchReceiverBindingHistorySignature,
 } from "./types";

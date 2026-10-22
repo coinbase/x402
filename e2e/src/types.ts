@@ -2,7 +2,7 @@ import type { NetworkSet, ProtocolFamily } from './networks/networks';
 
 export type { ProtocolFamily } from './networks/networks';
 export type Transport = 'http' | 'mcp';
-export type PaymentScheme = 'exact' | 'upto' | 'batch-settlement';
+export type PaymentScheme = 'exact' | 'upto' | 'batch-settlement' | 'auth-capture';
 export type AssetTransferMethod = 'eip3009' | 'permit2' | 'sequence' | 'ticketSequence';
 /** Payment ordering on the accept. Omitted on an endpoint means `authorization`. */
 export type PaymentFlow = 'authorization' | 'upfront' | 'escrow';
@@ -56,6 +56,71 @@ export function endpointUsesBatchSettlement(endpoint: TestEndpoint): boolean {
   return endpoint.scheme === 'batch-settlement';
 }
 
+function authCaptureExtra(endpoint: TestEndpoint): Record<string, string | number | boolean> | undefined {
+  return endpoint.schemeExtra;
+}
+
+export function endpointAuthCaptureCaptureMode(endpoint: TestEndpoint): string | undefined {
+  const mode = authCaptureExtra(endpoint)?.captureMode;
+  return mode != null ? String(mode) : undefined;
+}
+
+export function endpointAuthCaptureOperatorType(endpoint: TestEndpoint): string | undefined {
+  const operatorType = authCaptureExtra(endpoint)?.operatorType;
+  return operatorType != null ? String(operatorType) : undefined;
+}
+
+/** Deferred delegated escrow: harness must POST capture after the client authorize GET. */
+export function endpointAuthCaptureNeedsDeferredCapture(endpoint: TestEndpoint): boolean {
+  return (
+    endpointPaymentScheme(endpoint) === 'auth-capture' &&
+    endpointAuthCaptureCaptureMode(endpoint) === 'deferred' &&
+    endpointAuthCaptureOperatorType(endpoint) === 'delegated'
+  );
+}
+
+/**
+ * Auth-capture branch id for coverage / minimization (not the HTTP path).
+ * Used by `--min` to require every catalog branch at least once; EIP-3009 paths
+ * also share one endpoint slot per server (`auth-capture~eip3009`).
+ */
+export function endpointAuthCaptureCoverageBranch(endpoint: TestEndpoint): string | undefined {
+  if (endpointPaymentScheme(endpoint) !== 'auth-capture') {
+    return undefined;
+  }
+  const method = endpointAssetTransferMethod(endpoint) ?? 'eip3009';
+  if (method === 'permit2') {
+    return 'self-sync-permit2';
+  }
+  const path = endpoint.path;
+  if (path.startsWith('/auth-capture-custom-forwarding/')) {
+    return 'custom-forwarding';
+  }
+  if (path.startsWith('/auth-capture-deferred/')) {
+    return 'deferred-delegated';
+  }
+  if (path.startsWith('/auth-capture-facilitator-authorizer/')) {
+    return 'facilitator-sync';
+  }
+  if (path.startsWith('/auth-capture/')) {
+    return 'self-sync-eip3009';
+  }
+  return 'other';
+}
+
+/**
+ * Endpoint path used for coverage-based minimization. Auth-capture collapses to
+ * one slot per server per asset method; branch coverage is tracked separately
+ * ({@link endpointAuthCaptureCoverageBranch}).
+ */
+export function endpointPathForCoverageMinimization(endpoint: TestEndpoint): string {
+  if (endpointPaymentScheme(endpoint) === 'auth-capture') {
+    const method = endpointAssetTransferMethod(endpoint) ?? 'eip3009';
+    return `auth-capture~${method}`;
+  }
+  return endpoint.path;
+}
+
 export interface ClientResult {
   success: boolean;
   data?: any;
@@ -89,6 +154,8 @@ export interface ServerConfig {
   networks: NetworkSet;
   /** When set, only forward SERVER_* addresses for these families */
   enabledFamilies?: ProtocolFamily[];
+  /** Narrows catalog routes mounted by the server for this run (from scenario filters). */
+  runRouteFilter?: { excludeSchemes?: string[]; excludeNetworks?: string[] };
   facilitatorUrl?: string;
   mockFacilitatorUrl?: string;
 }
@@ -115,6 +182,8 @@ export interface TestEndpoint {
   paymentFlow?: PaymentFlow;
   schemeOptions?: SchemeOptions;
   extensions?: string[];
+  /** Merged catalog `schemeExtra` for harness branching (auth-capture modes, etc.). */
+  schemeExtra?: Record<string, string | number | boolean>;
   /** For MCP tools: the tool name used in tools/call. Defaults to path if not specified. */
   toolName?: string;
   /** For MCP tools: expected MCP wire transport for discovery metadata. */

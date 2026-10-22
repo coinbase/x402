@@ -21,6 +21,7 @@ import (
 	e2eclient "github.com/x402-foundation/x402/e2e/clients/go"
 	mcp402 "github.com/x402-foundation/x402/go/v2/mcp"
 	batchedclient "github.com/x402-foundation/x402/go/v2/mechanisms/evm/batch-settlement/client"
+	batchsvmclient "github.com/x402-foundation/x402/go/v2/mechanisms/svm/batch-settlement/client"
 	"github.com/x402-foundation/x402/go/v2/types"
 )
 
@@ -87,9 +88,16 @@ func main() {
 	// dependency onto MCP tool calls, so the same cooperative-refund code path
 	// used by the go-http client works unmodified over the MCP transport.
 	refundTransport := &mcpRefundTransport{x402Mcp: x402Mcp, toolName: toolName}
+	refundHTTPClient := &http.Client{Transport: refundTransport}
+	useSvmBatch := strings.Contains(toolName, "/svm") || strings.Contains(toolName, "_svm")
 	refund := func(ctx context.Context) e2eclient.StepResult {
-		return e2eclient.IssueRefund(ctx, pc.BatchedScheme, toolResourceURL, &batchedclient.RefundOptions{
-			HTTPClient: &http.Client{Transport: refundTransport},
+		if useSvmBatch && pc.BatchedSvmScheme != nil {
+			return e2eclient.IssueSvmRefund(ctx, pc.BatchedSvmScheme, toolResourceURL, &batchsvmclient.BatchRefundOptions{
+				HTTPClient: refundHTTPClient,
+			})
+		}
+		return e2eclient.IssueRefund(ctx, pc.BatchedEvmScheme, toolResourceURL, &batchedclient.RefundOptions{
+			HTTPClient: refundHTTPClient,
 		})
 	}
 

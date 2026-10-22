@@ -25,6 +25,7 @@ import {
   withPendingSettlementStore,
 } from "../../shared/settleReceipt";
 import {
+  parseRequirementsAmount,
   readChannelState,
   toContractChannelConfig,
   validateChannelConfig,
@@ -216,6 +217,19 @@ async function verifySharedDepositState(
     return { ok: false, response: { isValid: false, invalidReason: configErr, payer } };
   }
 
+  const price = parseRequirementsAmount(requirements.amount);
+  if (price === undefined) {
+    return {
+      ok: false,
+      response: {
+        isValid: false,
+        invalidReason: Errors.ErrInvalidDepositPayload,
+        invalidMessage: "invalid requirements amount",
+        payer,
+      },
+    };
+  }
+
   const voucherOk = await verifyBatchSettlementVoucherTypedData(
     signer,
     {
@@ -297,7 +311,8 @@ async function verifySharedDepositState(
     };
   }
 
-  if (maxClaimableAmount <= chTotalClaimed) {
+  // The voucher must advance the claimed total by at least this request's price.
+  if (maxClaimableAmount < chTotalClaimed + price || maxClaimableAmount <= chTotalClaimed) {
     return {
       ok: false,
       response: { isValid: false, invalidReason: Errors.ErrCumulativeAmountBelowClaimed, payer },

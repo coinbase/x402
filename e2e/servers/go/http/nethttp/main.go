@@ -51,6 +51,8 @@ func main() {
 		})
 	}
 
+	e2eserver.RegisterAuthCaptureE2eCapture(mux, facilitatorClient)
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, e2eserver.HealthBody())
 	})

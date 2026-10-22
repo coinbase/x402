@@ -68,7 +68,7 @@ claim promptly.
 |---|---|
 | One-time escrow deposit | Payment-channels `open` deposits escrow, records `withdrawDelay`, fixes `payee`, `authorized_signer`, `rent_payer`, and commits `distribution_hash`. |
 | Per-request authorization | Client mode: an Ed25519 voucher signed by `payerAuthorizer`. Server mode: an expiring payer proof plus a single-use request identifier; the advertised amount is a ceiling and the operator signs the actual cumulative charge after serving. |
-| Monotonic amount | Server-owned offchain watermark plus onchain `settled < maxClaimableAmount <= deposit` at redemption. |
+| Monotonic amount | Server-owned offchain watermark plus onchain `settled < maxClaimableAmount <= deposit` at redemption. For client-signed `voucher` verify and for the client-signed voucher on a top-up `deposit`, the facilitator MUST require `maxClaimableAmount >= Channel.settled + PaymentRequirements.amount` and `maxClaimableAmount > Channel.settled`, so a zero-price route cannot be satisfied by a voucher equal to `Channel.settled`. |
 | Batched redemption | One `settle` per channel, packed transaction-size permitting; `distribute` pays settled deltas. |
 | Recipient binding | `distribution_hash` fixed at `open` sends funds to `payTo`; program re-checks it at `distribute`. |
 | Recovery of unused deposit | Section 3. |
@@ -169,9 +169,12 @@ back into the store. Deposit broadcast depends on which sources are configured:
   different key, MUST NOT send the open. The first writer wins; a different
   key MUST be rejected with
   `invalid_batch_settlement_svm_receiver_authorizer_mismatch`.
-- Store and history: the facilitator attempts the bind. A failed write MUST
-  NOT abort the open; the deposit is still broadcast, and history remains the
-  fallback at close.
+- Store and history: the facilitator MUST bind the open's key and read that row
+  back before broadcasting. A failed write, or a read-back that is missing or a
+  different key, MUST NOT send the open. The first writer wins; a different
+  key MUST be rejected with
+  `invalid_batch_settlement_svm_receiver_authorizer_mismatch`. History remains
+  the fallback at close.
 - History only: the facilitator does not write a store row, because the
   transaction is the record, and the open proceeds.
 
@@ -1541,9 +1544,11 @@ request, the server MUST:
 6. Enforce replay protection. Reject stale or already accepted client vouchers,
    and atomically create at most one server-mode operation for each
    `(channelId, requestId)`. Any duplicate operation, whether running or
-   completed, MUST be rejected with `duplicate_settlement` and MUST NOT execute
-   the handler. The scheme does not replay either the settlement response or
-   the application resource body.
+   completed, MUST be rejected with `duplicate_settlement` (or
+   `invalid_batch_settlement_svm_operation_ceiling_changed` when its ceiling
+   differs from the recorded one) and MUST NOT execute the handler. The scheme
+   does not replay either the settlement response or the application resource
+   body.
 7. Execute the resource handler. In client mode, the actual charge is the
    advertised amount. In server mode, after metering completes, choose an actual
    charge satisfying `0 <= chargedAmount <= PaymentRequirements.amount` and set
@@ -1641,7 +1646,9 @@ duplicate request from executing but is not an HTTP response-recovery protocol:
 
 - **Server-mode paid requests.** The operation record is the authoritative
   replay defense. Reuse of a running or completed `(channelId, requestId)` MUST
-  return `duplicate_settlement`; it MUST NOT replay a settlement response or
+  return `duplicate_settlement`, or
+  `invalid_batch_settlement_svm_operation_ceiling_changed` when the reuse
+  carries a different ceiling; it MUST NOT replay a settlement response or
   execute the handler. Applications that need to recover a resource body after
   a lost response SHOULD use the payment identifier extension.
 - **Client-mode paid requests.** The per-channel lock and charged watermark are
@@ -1841,9 +1848,13 @@ Standard x402 codes apply. The facilitator reports verification failures in
   returned escrow to a payer or treasury that aliases `payTo`. The facilitator
   returns the confirmed signature with this reason instead of an `amount`;
   the server reconciles from onchain state.
+- `invalid_batch_settlement_svm_operation_ceiling_changed` - a server-mode
+  `requestId` was already reserved or completed with a different ceiling. The
+  reuse is a duplicate operation: the handler did not run, and the earlier
+  request's outcome is not reported.
 - `duplicate_settlement` - a server-mode `requestId` was already reserved or
-  completed, or the same client-supplied setup or refund transaction is already
-  being settled.
+  completed with the same ceiling, or the same client-supplied setup or refund
+  transaction is already being settled.
 
 ## 8. Security Properties
 

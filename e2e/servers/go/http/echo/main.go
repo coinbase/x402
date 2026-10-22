@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -81,6 +82,12 @@ func main() {
 			return c.JSON(http.StatusOK, e2eserver.RouteBody())
 		})
 	}
+
+	e.POST(e2eserver.AuthCaptureE2eCapturePath, func(c echo.Context) error {
+		body, _ := io.ReadAll(c.Request().Body)
+		status, payload := e2eserver.HandleAuthCaptureE2eCapture(facilitatorClient, body)
+		return c.JSON(status, payload)
+	})
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, e2eserver.HealthBody())

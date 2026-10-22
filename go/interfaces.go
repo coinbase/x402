@@ -127,6 +127,14 @@ type PaymentResponseResult struct {
 	Recovered bool
 }
 
+// PaymentCreationFailureHandler is an optional interface that SchemeNetworkClient
+// implementations satisfy to recover from a failed payload build. The client
+// invokes it after user-registered creation-failure hooks. The first recovered
+// payload wins.
+type PaymentCreationFailureHandler interface {
+	OnPaymentCreationFailure(ctx context.Context, failure PaymentCreationFailureContext) (*PaymentCreationFailureHookResult, error)
+}
+
 // PaymentResponseHandler is an optional interface that SchemeNetworkClient
 // implementations satisfy to reconcile local state after a paid response.
 // HTTP (PaymentRoundTripper) and MCP (X402MCPClient) invoke this hook

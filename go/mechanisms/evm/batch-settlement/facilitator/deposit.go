@@ -66,6 +66,12 @@ func VerifyDeposit(
 		return nil, err
 	}
 
+	// The server-supplied price floors the voucher; reject malformed values up front.
+	price, ok := parseRequirementsAmount(requirements.Amount)
+	if !ok {
+		return nil, x402.NewVerifyError(ErrInvalidDepositPayload, config.Payer, "invalid requirements amount")
+	}
+
 	// Validate deposit amount
 	depositAmount, ok := new(big.Int).SetString(payload.Deposit.Amount, 10)
 	if !ok || depositAmount.Sign() <= 0 {
@@ -193,10 +199,13 @@ func VerifyDeposit(
 			fmt.Sprintf("maxClaimableAmount %s exceeds effective balance %s", maxClaimable.String(), effectiveBalance.String()))
 	}
 
-	// Validate maxClaimableAmount > totalClaimed (monotonic increase)
-	if maxClaimable.Cmp(state.TotalClaimed) < 0 {
+	// Validate maxClaimableAmount >= totalClaimed + price (each paid request advances by at least the price)
+	// The voucher must also be strictly above totalClaimed, even when the price is zero.
+	minMaxClaimable := new(big.Int).Add(state.TotalClaimed, price)
+	if maxClaimable.Cmp(minMaxClaimable) < 0 || maxClaimable.Cmp(state.TotalClaimed) <= 0 {
 		return nil, x402.NewVerifyError(ErrMaxClaimableTooLow, config.Payer,
-			fmt.Sprintf("maxClaimableAmount %s is below totalClaimed %s", maxClaimable.String(), state.TotalClaimed.String()))
+			fmt.Sprintf("maxClaimableAmount %s is below the required minimum %s (totalClaimed %s)",
+				maxClaimable.String(), minMaxClaimable.String(), state.TotalClaimed.String()))
 	}
 
 	// Simulate the deposit transaction to catch onchain errors early.

@@ -89,8 +89,27 @@ interface PaywallConfig {
   appLogo?: string;              // App logo URL
   currentUrl?: string;           // URL of protected resource
   testnet?: boolean;             // Use testnet (default: true)
+  rpcUrls?: Record<string, string>; // Browser RPC per CAIP-2 network (SVM only for now)
 }
 ```
+
+### Solana RPC
+
+The Solana paywall reads the payer's balance and builds the transaction from the browser. By default it uses the public endpoints (`https://api.mainnet-beta.solana.com`, `https://api.devnet.solana.com`). The public mainnet endpoint returns 403 to requests sent from a browser, so set `rpcUrls` for mainnet:
+
+```typescript
+const paywall = createPaywall()
+  .withNetwork(svmPaywall)
+  .withConfig({
+    testnet: false,
+    rpcUrls: {
+      'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'https://your-rpc.example.com',
+    },
+  })
+  .build();
+```
+
+> **Warning:** the URL is embedded in the paywall HTML and visible to every visitor. Use an endpoint that is safe to expose in a browser, such as a key restricted to your domain or your own RPC proxy. Never put a secret API key here.
 
 ## How It Works
 

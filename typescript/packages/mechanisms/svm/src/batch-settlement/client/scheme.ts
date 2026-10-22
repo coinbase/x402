@@ -42,7 +42,9 @@ import {
 } from "./constants";
 import {
   alignRefundRequirements,
+  clientSignedRefundRequirements,
   type BatchRefundOptions,
+  NoBatchChannelToRefundError,
   type RefundPayloadOptions,
   refundBatchChannel,
 } from "./refund";
@@ -397,18 +399,9 @@ export class BatchSvmScheme implements SchemeNetworkClient {
     options?: RefundPayloadOptions,
   ): Promise<Pick<PaymentPayload, "x402Version" | "payload">> {
     const cached = this.findCachedChannelForRoute(requirements);
-    const lookupRequirements = cached
-      ? this.requirementsForRefund(requirements, cached)
-      : requirements;
-    const terms = await this.resolveRefundTerms(lookupRequirements, cached);
-    const key = this.channelKey(lookupRequirements, terms.feePayer, terms.withdrawDelay);
-    // A client with no local record is exactly the one that needs to close a
-    // channel it can no longer pay from, so fall back to the chain.
-    const existing =
-      (await this.loadChannel(key)) ??
-      cached ??
-      (await this.discoverChannel(lookupRequirements, terms));
-    if (!existing) throw new Error("no batch-settlement channel to refund");
+    const located = await this.locateRefundChannel(requirements, cached);
+    if (!located) throw new NoBatchChannelToRefundError();
+    const { existing, lookupRequirements, terms } = located;
     const blockhash = options?.withTransaction
       ? await resolveBlockhash(
           createRpcClient(lookupRequirements.network, this.config.rpcUrl),
@@ -960,6 +953,62 @@ export class BatchSvmScheme implements SchemeNetworkClient {
       };
     }
     return this.resolveTerms(probed);
+  }
+
+  private async locateRefundChannel(
+    requirements: PaymentRequirements,
+    cached?: OpenChannel,
+  ): Promise<
+    | { existing: OpenChannel; lookupRequirements: PaymentRequirements; terms: ResolvedTerms }
+    | undefined
+  > {
+    let lookupRequirements = cached
+      ? this.requirementsForRefund(requirements, cached)
+      : requirements;
+    let searchLookup = lookupRequirements;
+    if (!cached && (searchLookup.extra?.voucherSigner ?? "client") === "server") {
+      searchLookup = clientSignedRefundRequirements(searchLookup);
+    }
+
+    let terms = await this.resolveRefundTerms(searchLookup, cached);
+    let existing = (await this.loadRefundChannel(searchLookup, terms, cached)) ?? undefined;
+    if (existing) {
+      if (!cached) {
+        lookupRequirements = this.requirementsForRefund(requirements, existing);
+        terms = await this.resolveRefundTerms(lookupRequirements, existing);
+      }
+      return { existing, lookupRequirements, terms };
+    }
+
+    if (!cached && (requirements.extra?.voucherSigner ?? "client") === "server") {
+      try {
+        const serverTerms = await this.resolveTerms(requirements);
+        const serverChannel = await this.loadRefundChannel(requirements, serverTerms);
+        if (serverChannel) {
+          lookupRequirements = this.requirementsForRefund(requirements, serverChannel);
+          terms = await this.resolveRefundTerms(lookupRequirements, serverChannel);
+          return { existing: serverChannel, lookupRequirements, terms };
+        }
+      } catch (error) {
+        if (!(error instanceof UntrustedOperatorError)) throw error;
+      }
+    }
+
+    return undefined;
+  }
+
+  private async loadRefundChannel(
+    lookupRequirements: PaymentRequirements,
+    terms: ResolvedTerms,
+    cached?: OpenChannel,
+  ): Promise<OpenChannel | null> {
+    const key = this.channelKey(lookupRequirements, terms.feePayer, terms.withdrawDelay);
+    return (
+      (await this.loadChannel(key)) ??
+      cached ??
+      (await this.discoverChannel(lookupRequirements, terms)) ??
+      null
+    );
   }
 
   private requirementsForRefund(

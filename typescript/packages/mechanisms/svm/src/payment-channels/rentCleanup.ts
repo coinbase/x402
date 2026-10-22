@@ -45,6 +45,7 @@ import {
   assertPaymentChannelFacilitatorSigner,
   type PaymentChannelFacilitatorSigner,
 } from "./signer";
+import type { PaymentChannelRecord, PaymentChannelStorage } from "./storage";
 
 /**
  * How an Open channel becomes an abandon candidate.
@@ -57,31 +58,10 @@ import {
 export type OpenAbandonPolicy = "expiry" | "idle";
 
 /**
- * Stored facts the cleanup pass reads. `lastActivityAt` is only consulted by
- * the `idle` policy; `upto` records omit it.
+ * How long a missing account keeps its index row. Longer than a blockhash
+ * lifetime, so cleanup does not drop an open that is still pending.
  */
-export interface RentCleanupChannelRecord {
-  channelId: string;
-  payTo: string;
-  tokenProgram: string;
-  firstSeenAt: number;
-  expiresAt: number;
-  lastActivityAt?: number;
-  network: Network;
-}
-
-/** Record discovery writes. `lastActivityAt` is always present. */
-export interface RentCleanupChannelWrite extends RentCleanupChannelRecord {
-  lastActivityAt: number;
-}
-
-/** Storage the cleanup pass lists, updates, and deletes. */
-export interface RentCleanupChannelStorage {
-  get?(channelId: string): Promise<RentCleanupChannelRecord | undefined>;
-  list(): Promise<RentCleanupChannelRecord[]>;
-  upsert(record: RentCleanupChannelWrite): Promise<void>;
-  delete(channelId: string): Promise<void>;
-}
+export const OPEN_INDEX_GRACE_SECS = 300;
 
 /** Reclaim work item: storage key plus live rent_payer from the channel account. */
 interface ReclaimCandidate {
@@ -96,7 +76,7 @@ interface ReclaimCandidate {
  * @param b - Second record
  * @returns Negative, zero, or positive per `Array.prototype.sort`
  */
-function compareChannelId(a: RentCleanupChannelRecord, b: RentCleanupChannelRecord): number {
+function compareChannelId(a: PaymentChannelRecord, b: PaymentChannelRecord): number {
   if (a.channelId < b.channelId) return -1;
   if (a.channelId > b.channelId) return 1;
   return 0;
@@ -116,10 +96,7 @@ function compareChannelId(a: RentCleanupChannelRecord, b: RentCleanupChannelReco
  * @param cursor - Channel id to resume from, or "" to scan from the start
  * @returns Records sorted, then rotated so `cursor` (if present) comes first
  */
-function orderForScan(
-  records: RentCleanupChannelRecord[],
-  cursor: string,
-): RentCleanupChannelRecord[] {
+function orderForScan(records: PaymentChannelRecord[], cursor: string): PaymentChannelRecord[] {
   const sorted = [...records].sort(compareChannelId);
   if (!cursor) return sorted;
   const index = sorted.findIndex(record => record.channelId === cursor);
@@ -200,7 +177,7 @@ function resolveCleanupCount(
  */
 function openChannelDue(
   policy: OpenAbandonPolicy,
-  record: RentCleanupChannelRecord,
+  record: PaymentChannelRecord,
   nowSecs: number,
   abandonGraceSecs: number,
   maxIdleSecs: number,
@@ -211,7 +188,7 @@ function openChannelDue(
     case "idle": {
       if (record.expiresAt !== 0) return nowSecs >= record.expiresAt + abandonGraceSecs;
       if (maxIdleSecs <= 0) return false;
-      const idleSinceSecs = Math.floor((record.lastActivityAt || record.firstSeenAt) / 1_000);
+      const idleSinceSecs = Math.floor(record.lastActivityAt / 1_000);
       return nowSecs >= idleSinceSecs + maxIdleSecs;
     }
     default: {
@@ -368,7 +345,7 @@ export interface RentCleanupStartConfig extends RentCleanupOptions {
 
 export interface PaymentChannelRentCleanupManagerConfig {
   signer: FacilitatorSvmSigner;
-  storage: RentCleanupChannelStorage;
+  storage: PaymentChannelStorage;
   network: Network;
   /**
    * `SetComputeUnitPrice` (microlamports per compute unit) attached to cleanup
@@ -417,7 +394,7 @@ export interface PaymentChannelRentCleanupManagerConfig {
 export class PaymentChannelRentCleanupManager {
   private readonly signer: PaymentChannelFacilitatorSigner;
   private readonly getKitSigner: (feePayer: Address) => FacilitatorSigningCapabilities;
-  private readonly storage: RentCleanupChannelStorage;
+  private readonly storage: PaymentChannelStorage;
   private readonly network: Network;
   private readonly computeUnitPriceMicroLamports: number | undefined;
   private readonly settleComputeUnitLimit: number | undefined;
@@ -592,7 +569,7 @@ export class PaymentChannelRentCleanupManager {
     const abort = passAbort(this.abortController?.signal, opts.signal);
 
     const rpc = accountFetchRpc(this.signer, this.network);
-    const records = orderForScan(await this.storage.list(), this.scanCursor);
+    const records = orderForScan(await this.storage.list(this.network), this.scanCursor);
     this.scanCursor = "";
     const nowSecs = Math.floor(Date.now() / 1_000);
     let currentSlot: bigint | undefined;
@@ -620,7 +597,7 @@ export class PaymentChannelRentCleanupManager {
           commitment: STATE_COMMITMENT,
         });
         if (!maybe.exists) {
-          await this.storage.delete(record.channelId);
+          await this.deleteIfPastOpenGrace(record);
           continue;
         }
 
@@ -739,7 +716,7 @@ export class PaymentChannelRentCleanupManager {
       );
     }
 
-    const known = new Set((await this.storage.list()).map(record => record.channelId));
+    const known = new Set((await this.storage.list(this.network)).map(record => record.channelId));
     const discovered: string[] = [];
     let currentSlot: bigint | undefined;
 
@@ -761,14 +738,16 @@ export class PaymentChannelRentCleanupManager {
         if (currentSlot <= channel.openSlot + OPEN_SLOT_WINDOW) continue;
 
         try {
-          await this.storage.upsert({
+          const now = Date.now();
+          await this.storage.recordActivity({
+            callerIdentity: "",
             channelId,
-            payTo: "",
-            tokenProgram: "",
-            firstSeenAt: Date.now(),
             expiresAt: 0,
-            lastActivityAt: Date.now(),
+            lastActivityAt: now,
             network: this.network,
+            payTo: "",
+            receiverAuthorizer: "",
+            tokenProgram: "",
           });
           discovered.push(channelId);
         } catch (error) {
@@ -827,7 +806,7 @@ export class PaymentChannelRentCleanupManager {
    */
   private async submitCloseOrDistribute(
     feePayerSigner: PaymentChannelSvmSigner,
-    record: RentCleanupChannelRecord,
+    record: PaymentChannelRecord,
     live: Channel,
     status: ChannelStatus,
   ): Promise<Signature> {
@@ -871,6 +850,17 @@ export class PaymentChannelRentCleanupManager {
   }
 
   /**
+   * Drop an index row whose account is missing, once the open grace has
+   * elapsed. A pending open is kept so a later confirmation still has its row.
+   *
+   * @param record - Stored channel whose account was absent
+   */
+  private async deleteIfPastOpenGrace(record: PaymentChannelRecord): Promise<void> {
+    if (Date.now() < record.lastActivityAt + OPEN_INDEX_GRACE_SECS * 1_000) return;
+    await this.storage.delete(record.network, record.channelId);
+  }
+
+  /**
    * After a close/distribute, delete the storage entry if the PDA is gone.
    *
    * @param channelId - Channel PDA
@@ -882,7 +872,7 @@ export class PaymentChannelRentCleanupManager {
       { commitment: STATE_COMMITMENT },
     );
     if (!maybe.exists) {
-      await this.storage.delete(channelId);
+      await this.storage.delete(this.network, channelId);
     }
   }
 
@@ -987,7 +977,7 @@ export class PaymentChannelRentCleanupManager {
             commitment: STATE_COMMITMENT,
           });
           if (!maybe.exists) {
-            await this.storage.delete(candidate.channelId);
+            await this.storage.delete(this.network, candidate.channelId);
             continue;
           }
           if (maybe.data.status !== ChannelStatus.Distributed) continue;
@@ -1019,7 +1009,7 @@ export class PaymentChannelRentCleanupManager {
           transaction: signature,
         });
         for (const candidate of liveBatch) {
-          await this.storage.delete(candidate.channelId);
+          await this.storage.delete(this.network, candidate.channelId);
         }
       } catch (error) {
         // Every channel in the batch is stuck, not just the first.

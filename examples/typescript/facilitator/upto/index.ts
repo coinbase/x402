@@ -20,7 +20,7 @@ import { toFacilitatorEvmSigner } from "@x402/evm";
 import { UptoEvmScheme } from "@x402/evm/upto/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import {
-  InMemoryUptoChannelStorage,
+  InMemoryPaymentChannelStorage,
   UptoSvmRentCleanupManager,
   UptoSvmScheme,
 } from "@x402/svm/upto/facilitator";
@@ -61,7 +61,7 @@ const maxChannelLifetimeSecs = Number.parseInt(
   10,
 );
 
-const channelStorage = new InMemoryUptoChannelStorage();
+const channelStorage = new InMemoryPaymentChannelStorage();
 const facilitator = new x402Facilitator()
   .onBeforeVerify(async (context) => {
     console.log("Before verify", context);

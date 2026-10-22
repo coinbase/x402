@@ -23,7 +23,7 @@ import { validateChannelConfig } from "../facilitator/utils";
 import * as Errors from "../errors";
 import type { BatchSettlementEvmScheme } from "./scheme";
 import type { Channel, ChannelUpdateResult, PendingRequest } from "./storage";
-import { readExtraNumber, readExtraString } from "./utils";
+import { readExtraNumber, readExtraString, readExtraUintString } from "./utils";
 
 // Framework cleanup hooks clear pending reservations for normal failures
 // This bounded TTL releases channels when cleanup cannot run or complete
@@ -84,7 +84,8 @@ function verificationStateUnavailable(): {
  * the existing `chargedCumulativeAmount`.
  *
  * When no local channel record exists, verification is delegated to the facilitator (which checks onchain state);
- * `handleAfterVerify` then creates the reservation and rebuilds the channel record from the verify response.
+ * `handleAfterVerify` then checks the voucher against the onchain `totalClaimed` baseline, creates the
+ * reservation and rebuilds the channel record from the verify response.
  *
  * @param scheme - Owning `BatchSettlementEvmScheme` instance for storage access.
  * @param ctx - Verify lifecycle context (payload, requirements, and related state).
@@ -137,27 +138,21 @@ export async function handleBeforeVerify(
 
     const channelSnapshot = await scheme.getStorage().get(channelId);
 
-    const chargedCumulativeAmount =
-      channelSnapshot?.chargedCumulativeAmount ??
-      inferMissingLocalChargedAmount(
-        raw.voucher.maxClaimableAmount,
-        requirements.amount,
-        isPaidPayload,
-      );
-    const expectedMaxClaimable = isZeroChargePayload
-      ? BigInt(chargedCumulativeAmount)
-      : BigInt(chargedCumulativeAmount) + BigInt(requirements.amount);
+    // Without a local record the charge baseline is the onchain totalClaimed, which is only known
+    // after the facilitator verifies; `handleAfterVerify` performs this check in that case.
+    if (channelSnapshot) {
+      const expectedMaxClaimable = isZeroChargePayload
+        ? BigInt(channelSnapshot.chargedCumulativeAmount)
+        : BigInt(channelSnapshot.chargedCumulativeAmount) + BigInt(requirements.amount);
 
-    if (BigInt(raw.voucher.maxClaimableAmount) !== expectedMaxClaimable) {
-      scheme.rememberChannelSnapshot(
-        paymentPayload,
-        channelSnapshot ?? buildProvisionalChannel(raw, chargedCumulativeAmount),
-      );
-      return {
-        abort: true,
-        reason: Errors.ErrCumulativeAmountMismatch,
-        message: "Client voucher base does not match server state",
-      };
+      if (BigInt(raw.voucher.maxClaimableAmount) !== expectedMaxClaimable) {
+        scheme.rememberChannelSnapshot(paymentPayload, channelSnapshot);
+        return {
+          abort: true,
+          reason: Errors.ErrCumulativeAmountMismatch,
+          message: "Client voucher base does not match server state",
+        };
+      }
     }
 
     scheme.mergeRequestContext(paymentPayload, {
@@ -308,10 +303,15 @@ export async function handleAfterVerify(
 
   const ex = result.extra ?? {};
   const balance = readExtraString(ex, "balance", "0");
-  const totalClaimed = readExtraString(ex, "totalClaimed", "0");
+  const totalClaimed = readExtraUintString(ex, "totalClaimed");
   const withdrawRequestedAt = readExtraNumber(ex, "withdrawRequestedAt", 0);
   const refundNonce = readExtraNumber(ex, "refundNonce", 0);
   const now = Date.now();
+
+  // The onchain totalClaimed is the charge baseline when no local record exists; fail closed without it.
+  if (totalClaimed === undefined) {
+    return verificationStateUnavailable();
+  }
 
   const storage = scheme.getStorage();
   const requestContext = scheme.readRequestContext(paymentPayload);
@@ -335,14 +335,22 @@ export async function handleAfterVerify(
         return current;
       }
 
-      const base =
-        current?.chargedCumulativeAmount ??
-        inferMissingLocalChargedAmount(signedMaxClaimable, requirements.amount, !isRefundVoucher);
+      const base = current?.chargedCumulativeAmount ?? totalClaimed;
       const expectedMaxClaimable = isRefundVoucher
         ? BigInt(base)
         : BigInt(base) + BigInt(requirements.amount);
       if (BigInt(signedMaxClaimable) !== expectedMaxClaimable) {
-        outcome = { status: "stale", channel: current ?? buildProvisionalChannel(raw, base) };
+        outcome = {
+          status: "stale",
+          channel:
+            current ??
+            buildProvisionalChannel(raw, base, {
+              balance,
+              totalClaimed,
+              withdrawRequestedAt,
+              refundNonce,
+            }),
+        };
         return current;
       }
 
@@ -560,15 +568,26 @@ function invalidVerifyResponse(payer: `0x${string}`, invalidReason: string): Ver
 }
 
 /**
- * Builds the minimal local channel record needed to reserve missing state.
+ * Builds the local channel record used to return server state in a corrective 402.
  *
  * @param raw - Batch-settlement payload containing channel config and voucher.
- * @param chargedCumulativeAmount - Local charged base inferred before facilitator verification.
+ * @param chargedCumulativeAmount - Charge baseline (onchain `totalClaimed` when no local record existed).
+ * @param onchain - Facilitator-verified onchain channel state.
+ * @param onchain.balance - Onchain channel balance.
+ * @param onchain.totalClaimed - Onchain cumulative claimed amount.
+ * @param onchain.withdrawRequestedAt - Onchain withdrawal request timestamp.
+ * @param onchain.refundNonce - Onchain refund nonce.
  * @returns Provisional channel state.
  */
 function buildProvisionalChannel(
   raw: BatchSettlementVoucherPayload | BatchSettlementDepositPayload | BatchSettlementRefundPayload,
   chargedCumulativeAmount: string,
+  onchain: {
+    balance: string;
+    totalClaimed: string;
+    withdrawRequestedAt: number;
+    refundNonce: number;
+  },
 ): Channel {
   return {
     channelId: raw.voucher.channelId,
@@ -576,35 +595,7 @@ function buildProvisionalChannel(
     chargedCumulativeAmount,
     signedMaxClaimable: raw.voucher.maxClaimableAmount,
     signature: raw.voucher.signature,
-    balance: "0",
-    totalClaimed: "0",
-    withdrawRequestedAt: 0,
-    refundNonce: 0,
+    ...onchain,
     lastRequestTimestamp: Date.now(),
   };
-}
-
-/**
- * Infers the local charged base when storage has no channel record.
- *
- * @param signedMaxClaimable - Client-signed cumulative voucher cap.
- * @param price - Current request amount.
- * @param isPaidPayload - Whether the payload should add `price` to the local base.
- * @returns Inferred charged base as a decimal string.
- */
-function inferMissingLocalChargedAmount(
-  signedMaxClaimable: string,
-  price: string,
-  isPaidPayload: boolean,
-): string {
-  if (!isPaidPayload) {
-    return signedMaxClaimable;
-  }
-
-  const signed = BigInt(signedMaxClaimable);
-  const amount = BigInt(price);
-  if (signed < amount) {
-    return "0";
-  }
-  return (signed - amount).toString();
 }

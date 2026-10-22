@@ -2,6 +2,7 @@ import { ExactAvmScheme } from "@x402/avm/exact/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { UptoEvmScheme } from "@x402/evm/upto/server";
 import { BatchSettlementEvmScheme } from "@x402/evm/batch-settlement/server";
+import { AuthCaptureEvmScheme } from "@x402/evm/auth-capture/server";
 import { BatchSvmScheme as BatchSettlementSvmScheme } from "@x402/svm/batch-settlement/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { UptoSvmScheme } from "@x402/svm/upto/server";
@@ -23,7 +24,15 @@ import {
   declareEip2612GasSponsoringExtension,
   declareErc20ApprovalGasSponsoringExtension,
 } from "@x402/extensions";
-import { HTTPFacilitatorClient, type RoutesConfig, type x402ResourceServer } from "@x402/core/server";
+import {
+  HTTPFacilitatorClient,
+  type RoutesConfig,
+  type x402ResourceServer,
+} from "@x402/core/server";
+import {
+  createAuthCaptureLifecycleManager,
+  setAuthCaptureLifecycleManager,
+} from "./auth-capture-e2e";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Caip2Network, ServerEnvConfig } from "../../src/server-env";
 import {
@@ -39,6 +48,7 @@ import {
   networkCaip2Pattern,
   routeDiscoveryOutput,
   mcpToolName,
+  schemesForSdkNetwork,
   type RouteTransport,
 } from "../../src/mechanisms";
 
@@ -62,6 +72,7 @@ async function registerFamilySchemes(
   server: x402ResourceServer,
   family: ProtocolFamily,
   cfg: ServerEnvConfig,
+  primaryFacilitator?: HTTPFacilitatorClient,
 ): Promise<void> {
   const pattern = networkCaip2Pattern(family);
 
@@ -101,6 +112,24 @@ async function registerFamilySchemes(
           ...(receiverAuthorizerSigner ? { receiverAuthorizerSigner } : {}),
         }),
       );
+      if (schemesForSdkNetwork("typescript", "evm").includes("auth-capture")) {
+        const authCaptureScheme = new AuthCaptureEvmScheme(
+          receiverAuthorizerSigner
+            ? { receiverAuthorizerSigner }
+            : { collectOnlyRoutes: true },
+        );
+        if (receiverAuthorizerSigner) {
+          console.info(`Auth-capture receiver authorizer (self-managed): ${receiverAuthorizerSigner.address}`);
+        } else {
+          console.info("Auth-capture receiver authorizer: facilitator-delegated (collect-only routes enabled)");
+        }
+        server.register(pattern, authCaptureScheme);
+        if (primaryFacilitator) {
+          setAuthCaptureLifecycleManager(
+            createAuthCaptureLifecycleManager(authCaptureScheme, primaryFacilitator),
+          );
+        }
+      }
       return;
     }
     case "svm": {
@@ -165,10 +194,14 @@ async function registerFamilySchemes(
  * Registers e2e schemes + bazaar extension for every family with a payee address
  * configured (catalog-driven via {@link isFamilyConfigured}).
  */
-export async function configureResourceServer(server: x402ResourceServer, cfg: ServerEnvConfig): Promise<void> {
+export async function configureResourceServer(
+  server: x402ResourceServer,
+  cfg: ServerEnvConfig,
+  primaryFacilitator?: HTTPFacilitatorClient,
+): Promise<void> {
   for (const family of PROTOCOL_FAMILIES) {
     if (isFamilyConfigured(cfg, family)) {
-      await registerFamilySchemes(server, family, cfg);
+      await registerFamilySchemes(server, family, cfg, primaryFacilitator);
     }
   }
 

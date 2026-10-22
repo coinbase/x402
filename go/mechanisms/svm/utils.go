@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -12,6 +13,9 @@ import (
 	bin "github.com/gagliardetto/binary"
 	solana "github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
+
+	"github.com/x402-foundation/x402/go/v2/types"
 )
 
 var (
@@ -312,6 +316,76 @@ func GetTokenPayerFromTransaction(tx *solana.Transaction) (string, error) {
 	}
 
 	return "", fmt.Errorf("no TransferChecked instruction found in transaction")
+}
+
+// ResolveBlockhash prefers extra.recentBlockhash. A missing or malformed hint
+// is fetched from rpc at finalized commitment.
+func ResolveBlockhash(ctx context.Context, rpcClient *rpc.Client, requirements types.PaymentRequirements) (solana.Hash, error) {
+	if hint, ok := requirements.Extra["recentBlockhash"].(string); ok && hint != "" {
+		if blockhash, err := solana.HashFromBase58(hint); err == nil {
+			return blockhash, nil
+		}
+	}
+	latest, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return solana.Hash{}, fmt.Errorf("failed to get latest blockhash: %w", err)
+	}
+	return latest.Value.Blockhash, nil
+}
+
+// ResolveOpenSlot prefers extra.recentSlot. A missing or malformed hint is
+// fetched from rpc at finalized commitment.
+func ResolveOpenSlot(ctx context.Context, rpcClient *rpc.Client, requirements types.PaymentRequirements) (uint64, error) {
+	if slot, ok := parseHintUint64(requirements.Extra["recentSlot"]); ok {
+		return slot, nil
+	}
+	slot, err := rpcClient.GetSlot(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get slot: %w", err)
+	}
+	return slot, nil
+}
+
+func parseHintUint64(value any) (uint64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		if typed < 0 || typed != float64(uint64(typed)) {
+			return 0, false
+		}
+		return uint64(typed), true
+	case int:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case int64:
+		if typed < 0 {
+			return 0, false
+		}
+		return uint64(typed), true
+	case uint64:
+		return typed, true
+	case string:
+		parsed, err := strconv.ParseUint(typed, 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+// CreateRPCClient dials rpcURL, or the network's default endpoint when rpcURL is empty.
+func CreateRPCClient(network, rpcURL string) (*rpc.Client, error) {
+	if rpcURL != "" {
+		return rpc.New(rpcURL), nil
+	}
+	config, err := GetNetworkConfig(network)
+	if err != nil {
+		return nil, err
+	}
+	return rpc.New(config.RPCURL), nil
 }
 
 // EncodeTransaction encodes a Solana transaction to base64

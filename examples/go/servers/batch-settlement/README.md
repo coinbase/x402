@@ -1,36 +1,30 @@
 # Batch-Settlement Server (Go)
 
-Demo resource server using the batch-settlement scheme: a client opens a payment channel with a single deposit; subsequent paid requests update an off-chain voucher. The `ChannelManager` periodically claims and settles onchain.
+Demo resource server using the batch-settlement scheme on Base Sepolia and/or Solana Devnet. A client opens a payment channel with a single deposit; subsequent paid requests update an off-chain voucher. Channel managers periodically claim and settle onchain.
 
-The route demonstrates **dynamic pricing**: the client authorizes up to `$0.01` per request, and the handler bills a random fraction of that via `Settlement-Overrides`. Every 402 also includes `extra.minDeposit` (SDK default `10 × amount`) so clients can size the channel deposit. Override per route with `accepts.extra.minDeposit` (`"$0.10"` on the default asset, or an atomic string). The server announces the hint only; it does not reject smaller deposits unless you set `EnforceMinDeposit: true`.
+The route demonstrates **dynamic pricing on EVM**: the client authorizes up to `$0.01` per request, and the handler bills a random fraction via `Settlement-Overrides`. SVM batch-settlement is fixed-price by default; set `SVM_OPERATOR_PRIVATE_KEY` to also offer the route **server-signed** (metered charge signed by the operator, with a client-signed accept at the ceiling for untrusted clients).
 
 ## Run
 
 ```bash
 cp .env-example .env
-# fill in EVM_ADDRESS (the receiver) and FACILITATOR_URL
+# fill in at least one of EVM_ADDRESS or SVM_ADDRESS, plus FACILITATOR_URL
 
 go run .
 ```
 
-The server listens on `http://localhost:4021` and exposes `GET /weather`. Pair with `examples/go/clients/batch-settlement` and `examples/go/facilitator/batch-settlement`.
+The server listens on `http://localhost:4021` and exposes `GET /weather`. Pair with `examples/go/clients/batch-settlement` and `examples/go/facilitator/batch-settlement`. Env keys match `examples/typescript/servers/batch-settlement/.env-local`.
 
 ## Environment
 
-| Variable                              | Required | Description |
-|---------------------------------------|----------|-------------|
-| `EVM_ADDRESS`                         | yes      | `payTo` address (channel receiver) |
-| `FACILITATOR_URL`                     | yes      | Batch-settlement facilitator endpoint (e.g. `http://localhost:4022`) |
-| `EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY` | no       | Self-managed authorizer key. **Recommended** — channels survive facilitator changes when you control this key. Omit to delegate to the facilitator's advertised authorizer (existing channels must be drained before switching facilitators). |
-| `STORAGE_DIR`                         | no       | If set, persists channel sessions under `${STORAGE_DIR}/server/` |
-| `DEFERRED_WITHDRAW_DELAY_SECONDS`     | no       | Channel `withdrawDelay`; defaults to `86400` (1 day) |
-
-## Auto-settlement
-
-The example wires up a `ChannelManager` with simple local-demo triggers:
-
-- **Claim** every 60 s.
-- **Settle** every 120 s (sweeps claimed funds to `payTo`).
-- **Refund** channels idle for 180 s (cooperative — claims first, then refunds the unclaimed remainder to the payer).
-
-For production, choose a `withdrawDelay` greater than your claim cadence plus an operational safety margin.
+| Variable | Description |
+|----------|-------------|
+| `EVM_ADDRESS` | EVM `payTo` (optional if `SVM_ADDRESS` is set) |
+| `SVM_ADDRESS` | Solana `payTo` (optional if `EVM_ADDRESS` is set) |
+| `FACILITATOR_URL` | Batch-settlement facilitator (e.g. `http://localhost:4022`) |
+| `EVM_RECEIVER_AUTHORIZER_PRIVATE_KEY` | Optional EVM cooperative claim/refund signer |
+| `SVM_RECEIVER_AUTHORIZER_PRIVATE_KEY` | Required when `SVM_ADDRESS` is set (base58) |
+| `SVM_OPERATOR_PRIVATE_KEY` | Optional SVM operator for server-signed metering (base58) |
+| `SVM_RPC_URL` | Solana RPC for redemption worker (optional) |
+| `STORAGE_DIR` | EVM file-backed channel storage (optional) |
+| `DEFERRED_WITHDRAW_DELAY_SECONDS` | Channel withdraw delay (default `86400`) |

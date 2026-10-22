@@ -1,5 +1,12 @@
 # @x402/paywall Changelog
 
+## 2.28.0
+
+### Patch Changes
+
+- [dd89698](https://github.com/x402-foundation/x402/commit/dd89698): Add Arc mainnet (chain ID 5042) and Arc Testnet (chain ID 5042002) with native USDC as the default stablecoin ([#3590](https://github.com/x402-foundation/x402/pull/3590)) - Thanks [@NotMcAfee](https://github.com/NotMcAfee)!
+  - @x402/core@2.28.0
+
 ## 2.27.0
 
 ### Minor Changes

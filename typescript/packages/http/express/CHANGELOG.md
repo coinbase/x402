@@ -1,5 +1,14 @@
 # @x402/express Changelog
 
+## 2.28.0
+
+### Minor Changes
+
+- Updated dependencies [dd89698](https://github.com/x402-foundation/x402/commit/dd89698)
+  - @x402/paywall@2.28.0
+  - @x402/core@2.28.0
+  - @x402/extensions@2.28.0
+
 ## 2.27.0
 
 ### Minor Changes
