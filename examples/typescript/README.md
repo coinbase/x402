@@ -52,6 +52,7 @@ Servers that put a paywall in front of a resource. See [`servers/`](./servers/).
 | [`batch-settlement/`](./servers/batch-settlement/) | Off-chain vouchers claimed and settled in batches by a `ChannelManager` |
 | [`auth-capture/`](./servers/auth-capture/) | Refundable escrow: delegated sync/deferred and custom-operator collect |
 | [`bazaar/`](./servers/bazaar/) | Makes a paid API discoverable via the Bazaar extension |
+| [`cloudflare-worker-bazaar/`](./servers/cloudflare-worker-bazaar/) | Worker that advertises Bazaar and fills a missing client echo |
 | [`builder-code/`](./servers/builder-code/) | ERC-8021 builder-code attribution on paid endpoints |
 | [`offer-receipt/`](./servers/offer-receipt/) | Signed offers (payment terms) and receipts (proof of delivery) |
 | [`payment-identifier/`](./servers/payment-identifier/) | Idempotency via the `payment-identifier` extension |
