@@ -70,7 +70,7 @@ _MEMO_PUBKEY = Pubkey.from_string(MEMO_PROGRAM_ADDRESS)
 
 
 def _lighthouse_instruction() -> Instruction:
-    return Instruction(_LIGHTHOUSE_PUBKEY, bytes([0x01]), [])
+    return Instruction(_LIGHTHOUSE_PUBKEY, bytes([0x02]), [])
 
 
 def _build_exact_fixture(
@@ -325,6 +325,124 @@ class TestVerifyPath1InstructionLayout:
 
         assert result.is_valid is False
         assert result.invalid_reason == ERR_UNKNOWN_INSTRUCTION
+
+
+class TestInstructionSecurity:
+    def test_invalid_guard_after_unknown_wrapper(self):
+        from x402.mechanisms.svm.constants import ERR_INVALID_LIGHTHOUSE_INSTRUCTION
+
+        payload, requirements, address = _build_exact_fixture(
+            before=[
+                Instruction(Pubkey.default(), b"\x00", []),
+                Instruction(_LIGHTHOUSE_PUBKEY, b"\x00", []),
+            ]
+        )
+        result = ExactSvmFacilitatorScheme(MockFacilitatorSigner([address])).verify(
+            payload, requirements
+        )
+        assert result.invalid_reason == ERR_INVALID_LIGHTHOUSE_INSTRUCTION
+
+    @pytest.mark.parametrize(
+        "data", [b"", b"\x00\x00\x00\x00\x00", b"\x01", b"\x12", b"\xff", b"\x02", b"\x11"]
+    )
+    @pytest.mark.parametrize("reference", [False, True])
+    @pytest.mark.parametrize("postflight", [False, True])
+    @pytest.mark.parametrize("allowlisted", [False, True])
+    def test_lighthouse_policy(self, data, reference, postflight, allowlisted):
+        from x402.mechanisms.svm.constants import (
+            ERR_FEE_PAYER_TRANSFERRING,
+            ERR_INVALID_LIGHTHOUSE_INSTRUCTION,
+        )
+
+        facilitator = Keypair()
+        instruction = Instruction(
+            _LIGHTHOUSE_PUBKEY,
+            data,
+            [AccountMeta(facilitator.pubkey(), True, True)] if reference else [],
+        )
+        payload, requirements, address = _build_exact_fixture(
+            before=[] if postflight else [instruction],
+            after=[instruction] if postflight else [],
+            facilitator=facilitator,
+        )
+        options = {}
+        if allowlisted:
+            options[
+                "postflight_instruction_allowlist"
+                if postflight
+                else "preflight_instruction_allowlist"
+            ] = [[InstructionIdentity(_LIGHTHOUSE_PUBKEY, data or b"\x00")]]
+        signer = MockFacilitatorSigner([address])
+        with (
+            patch.object(signer, "sign_transaction") as sign,
+            patch.object(signer, "simulate_transaction") as simulate,
+        ):
+            result = ExactSvmFacilitatorScheme(signer, **options).verify(payload, requirements)
+        invalid = not data or not 2 <= data[0] <= 17
+        expected = (
+            ERR_INVALID_LIGHTHOUSE_INSTRUCTION
+            if invalid
+            else ERR_FEE_PAYER_TRANSFERRING
+            if reference
+            else None
+        )
+        assert result.invalid_reason == expected
+        assert result.is_valid is (expected is None)
+        if expected:
+            sign.assert_not_called()
+            simulate.assert_not_called()
+
+    @pytest.mark.parametrize("discriminator", range(2, 18))
+    def test_all_assertion_discriminators(self, discriminator):
+        payload, requirements, address = _build_exact_fixture(
+            after=[Instruction(_LIGHTHOUSE_PUBKEY, bytes([discriminator]), [])]
+        )
+        assert (
+            ExactSvmFacilitatorScheme(MockFacilitatorSigner([address]))
+            .verify(payload, requirements)
+            .is_valid
+        )
+
+    @pytest.mark.parametrize("postflight", [False, True])
+    @pytest.mark.parametrize(
+        "token_program", [TOKEN_PROGRAM_ADDRESS, "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"]
+    )
+    def test_allowlisted_duplicate_transfer(self, postflight, token_program):
+        from x402.mechanisms.svm.constants import ERR_PREFLIGHT_POSTFLIGHT_TRANSFER_NOT_ALLOWED
+
+        payload, requirements, address = _build_exact_fixture()
+        tx = VersionedTransaction.from_bytes(base64.b64decode(payload.payload["transaction"]))
+        instructions = list(tx.message.instructions)
+        transfer = instructions[2]
+        keys = list(tx.message.account_keys)
+        keys[transfer.program_id_index] = Pubkey.from_string(token_program)
+        instructions = instructions + [transfer] if postflight else [transfer] + instructions
+        message = MessageV0(
+            tx.message.header,
+            keys,
+            tx.message.recent_blockhash,
+            instructions,
+            tx.message.address_table_lookups,
+        )
+        payload.payload["transaction"] = base64.b64encode(
+            bytes(VersionedTransaction.populate(message, tx.signatures))
+        ).decode()
+        options = {
+            "postflight_instruction_allowlist"
+            if postflight
+            else "preflight_instruction_allowlist": [
+                [InstructionIdentity(Pubkey.from_string(token_program), b"\x0c")]
+            ]
+        }
+        signer = MockFacilitatorSigner([address])
+        with (
+            patch.object(signer, "sign_transaction") as sign,
+            patch.object(signer, "simulate_transaction") as simulate,
+        ):
+            result = ExactSvmFacilitatorScheme(signer, **options).verify(payload, requirements)
+        assert result.invalid_reason == ERR_PREFLIGHT_POSTFLIGHT_TRANSFER_NOT_ALLOWED
+        sign.assert_not_called()
+        simulate.assert_not_called()
 
 
 class TestExactSvmSchemeConstructor:

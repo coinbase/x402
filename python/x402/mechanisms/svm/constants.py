@@ -80,6 +80,10 @@ ERR_UNKNOWN_SIXTH_INSTRUCTION = "invalid_exact_svm_payload_unknown_sixth_instruc
 # covers protocol instructions (compute limit/price, transfer, memo) found out
 # of relative order or duplicated. Guard (Lighthouse) instructions are exempt
 # from ordering and may appear anywhere.
+ERR_INVALID_LIGHTHOUSE_INSTRUCTION = "invalid_exact_svm_payload_invalid_lighthouse_instruction"
+ERR_PREFLIGHT_POSTFLIGHT_TRANSFER_NOT_ALLOWED = (
+    "invalid_exact_svm_preflight_postflight_transfer_not_allowed"
+)
 ERR_UNKNOWN_INSTRUCTION = "invalid_exact_svm_payload_unknown_instruction"
 ERR_PROTOCOL_INSTRUCTION_ORDER = "invalid_exact_svm_payload_transaction_instructions_order"
 ERR_INVALID_COMPUTE_LIMIT = (

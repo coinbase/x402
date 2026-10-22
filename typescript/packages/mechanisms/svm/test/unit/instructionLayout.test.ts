@@ -27,7 +27,7 @@ const limit = ix(COMPUTE_BUDGET_PROGRAM_ADDRESS, [2, 0, 0, 0, 0]);
 const price = ix(COMPUTE_BUDGET_PROGRAM_ADDRESS, [3, 0, 0, 0, 0, 0, 0, 0, 0]);
 const transfer = ix(TOKEN_PROGRAM_ADDRESS, [12, 0, 0, 0, 0, 0, 0, 0, 0, 6]);
 const memo = ix(MEMO_PROGRAM_ADDRESS, [0x61]);
-const guard = ix(LIGHTHOUSE_PROGRAM_ADDRESS, [1]);
+const guard = ix(LIGHTHOUSE_PROGRAM_ADDRESS, [2]);
 const protocol = [limit, price, transfer];
 
 const layout = (
@@ -40,6 +40,30 @@ const layout = (
 const reason = (result: object) => ("errorReason" in result ? result.errorReason : undefined);
 
 describe("resolveProtocolLayout", () => {
+  it.each(Array.from({ length: 16 }, (_, i) => i + 2))(
+    "accepts assertion discriminator %s",
+    discriminator => {
+      expect(
+        reason(layout([ix(LIGHTHOUSE_PROGRAM_ADDRESS, [discriminator]), ...protocol])),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([[], [0], [1], [18], [255]].map(data => [data]))(
+    "rejects invalid Lighthouse data %j without an allowlist",
+    data => {
+      expect(reason(layout([...protocol, ix(LIGHTHOUSE_PROGRAM_ADDRESS, data)]))).toBe(
+        Errors.ErrInvalidLighthouseInstruction,
+      );
+    },
+  );
+
+  it("isolates guards outside allowlisted blocks", () => {
+    expect(reason(layout([...protocol, ix(LIGHTHOUSE_PROGRAM_ADDRESS, [2], [FEE_PAYER])]))).toBe(
+      Errors.ErrFeePayerTransferringFunds,
+    );
+  });
+
   it("finds protocol instructions regardless of guard placement", () => {
     const result = layout([guard, limit, guard, price, transfer, guard, memo]);
     expect(result).toMatchObject({ memoCount: 1 });
@@ -133,12 +157,14 @@ describe("resolveProtocolLayout", () => {
       ],
       [
         "interspersed guard",
-        [ix(LIGHTHOUSE_PROGRAM_ADDRESS, [1], [FEE_PAYER]), setup(), ...protocol],
+        [ix(LIGHTHOUSE_PROGRAM_ADDRESS, [2], [FEE_PAYER]), setup(), ...protocol],
         { preflightInstructionAllowlist: [setupTuple] },
       ],
     ])("rejects a matched %s block that references the fee payer", (_name, instructions, lists) => {
       expect(reason(layout(instructions, lists))).toBe(
-        Errors.ErrPreflightPostflightFeePayerNotIsolated,
+        _name === "interspersed guard"
+          ? Errors.ErrFeePayerTransferringFunds
+          : Errors.ErrPreflightPostflightFeePayerNotIsolated,
       );
     });
 

@@ -65,7 +65,9 @@ func classifyProtocolInstruction(tx *solana.Transaction, inst solana.CompiledIns
 	case progID.Equals(memoProgramID):
 		return kindMemo
 	case progID.Equals(lighthouseProgramID):
-		return kindGuard
+		if len(inst.Data) > 0 && inst.Data[0] >= 2 && inst.Data[0] <= 17 {
+			return kindGuard
+		}
 	}
 	return kindUnknown
 }
@@ -162,6 +164,20 @@ func matchTuple(
 // verification and the settle-time path re-derivation.
 func (f *ExactSvmScheme) resolveProtocolLayout(tx *solana.Transaction, feePayer solana.PublicKey) (*partitionedInstructions, error) {
 	instructions := tx.Message.Instructions
+	// Validate every Lighthouse instruction before tuple matching so an allowlist
+	// or recoverable layout error cannot bypass assertion-only guard policy.
+	for _, inst := range instructions {
+		progID, err := tx.Message.Program(inst.ProgramIDIndex)
+		if err != nil || !progID.Equals(lighthouseProgramID) {
+			continue
+		}
+		if classifyProtocolInstruction(tx, inst) != kindGuard {
+			return nil, errors.New(ErrInvalidLighthouseInstruction)
+		}
+		if err := assertFeePayerIsolatedFromInstructions(tx, []solana.CompiledInstruction{inst}, feePayer); err != nil {
+			return nil, errors.New(ErrFeePayerTransferringFunds)
+		}
+	}
 	for _, block := range []struct {
 		tuples  []InstructionTuple
 		fromEnd bool
@@ -173,6 +189,12 @@ func (f *ExactSvmScheme) resolveProtocolLayout(tx *solana.Transaction, feePayer 
 			matched, rest, ok := matchTuple(tx, instructions, tuple, block.fromEnd)
 			if !ok {
 				continue
+			}
+			for _, inst := range matched {
+				progID, err := tx.Message.Program(inst.ProgramIDIndex)
+				if err == nil && isTokenProgram(progID) && len(inst.Data) > 0 && inst.Data[0] == ixTokenTransferChecked {
+					return nil, errors.New(ErrPreflightPostflightTransferNotAllowed)
+				}
 			}
 			if err := assertFeePayerIsolatedFromInstructions(tx, matched, feePayer); err != nil {
 				return nil, errors.New(ErrPreflightPostflightFeePayerNotIsolated)

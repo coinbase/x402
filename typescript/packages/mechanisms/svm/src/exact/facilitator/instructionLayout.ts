@@ -40,7 +40,12 @@ function classify(ix: Ix): Role {
     }
   } else if (program === MEMO_PROGRAM_ADDRESS) {
     return "memo";
-  } else if (program === LIGHTHOUSE_PROGRAM_ADDRESS) {
+  } else if (
+    program === LIGHTHOUSE_PROGRAM_ADDRESS &&
+    discriminator !== undefined &&
+    discriminator >= 2 &&
+    discriminator <= 17
+  ) {
     return "guard";
   }
   return "unknown";
@@ -131,6 +136,19 @@ export function resolveProtocolLayout(
     | undefined,
   feePayerAddress: string,
 ): PartitionedInstructions | { errorReason: string } {
+  // Validate all Lighthouse instructions before stripping tuples or returning a
+  // recoverable layout error, including ones explicitly configured in an allowlist.
+  for (const ix of instructions) {
+    if (ix.programAddress.toString() !== LIGHTHOUSE_PROGRAM_ADDRESS) continue;
+    if (classify(ix) !== "guard") {
+      return { errorReason: Errors.ErrInvalidLighthouseInstruction };
+    }
+    try {
+      assertFeePayerIsolatedFromInstructions([ix], feePayerAddress);
+    } catch {
+      return { errorReason: Errors.ErrFeePayerTransferringFunds };
+    }
+  }
   let rest = instructions;
   for (const [tuples, fromEnd] of [
     [options?.preflightInstructionAllowlist, false],
@@ -139,6 +157,16 @@ export function resolveProtocolLayout(
     for (const tuple of tuples ?? []) {
       const match = matchTuple(rest, tuple, fromEnd);
       if (!match) continue;
+      if (
+        match.matched.some(
+          ix =>
+            (ix.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString() ||
+              ix.programAddress.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) &&
+            ix.data?.[0] === IX_TOKEN_TRANSFER_CHECKED,
+        )
+      ) {
+        return { errorReason: Errors.ErrPreflightPostflightTransferNotAllowed };
+      }
       try {
         assertFeePayerIsolatedFromInstructions(match.matched, feePayerAddress);
       } catch {

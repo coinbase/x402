@@ -40,6 +40,10 @@ export const ErrComputeLimitInstructionTooHigh =
 // limit/price, transfer) found out of relative order or duplicated, or a memo
 // before the transfer. Guard (Lighthouse) instructions are exempt from
 // ordering and may appear anywhere.
+export const ErrInvalidLighthouseInstruction =
+  "invalid_exact_svm_payload_invalid_lighthouse_instruction";
+export const ErrPreflightPostflightTransferNotAllowed =
+  "invalid_exact_svm_preflight_postflight_transfer_not_allowed";
 export const ErrUnknownInstruction = "invalid_exact_svm_payload_unknown_instruction";
 export const ErrProtocolInstructionOrder =
   "invalid_exact_svm_payload_transaction_instructions_order";

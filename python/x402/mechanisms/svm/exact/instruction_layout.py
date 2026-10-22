@@ -14,8 +14,11 @@ from solders.pubkey import Pubkey
 
 from ..constants import (
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
+    ERR_FEE_PAYER_TRANSFERRING,
+    ERR_INVALID_LIGHTHOUSE_INSTRUCTION,
     ERR_NO_TRANSFER_INSTRUCTION,
     ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED,
+    ERR_PREFLIGHT_POSTFLIGHT_TRANSFER_NOT_ALLOWED,
     ERR_PROTOCOL_INSTRUCTION_ORDER,
     ERR_UNKNOWN_INSTRUCTION,
     LIGHTHOUSE_PROGRAM_ADDRESS,
@@ -81,7 +84,7 @@ def _classify(static_accounts: list[Pubkey], ix: CompiledInstruction) -> Instruc
             return InstructionRole.TRANSFER
     elif program == _MEMO:
         return InstructionRole.MEMO
-    elif program == _LIGHTHOUSE:
+    elif program == _LIGHTHOUSE and discriminator is not None and 2 <= discriminator <= 17:
         return InstructionRole.GUARD
     return InstructionRole.UNKNOWN
 
@@ -182,12 +185,28 @@ def resolve_protocol_layout(
     Raises:
         LayoutError: with the invalid reason.
     """
+    # Validate all Lighthouse instructions before tuples or a recoverable layout
+    # error can bypass assertion-only guard policy.
+    for ix in instructions:
+        if static_accounts[ix.program_id_index] != _LIGHTHOUSE:
+            continue
+        if _classify(static_accounts, ix) is not InstructionRole.GUARD:
+            raise LayoutError(ERR_INVALID_LIGHTHOUSE_INSTRUCTION)
+        if not _is_fee_payer_isolated(static_accounts, [ix], fee_payer):
+            raise LayoutError(ERR_FEE_PAYER_TRANSFERRING)
     for tuples, from_end in ((preflight, False), (postflight, True)):
         for tuple_ in tuples:
             match = _match_tuple(static_accounts, instructions, tuple_, from_end)
             if match is None:
                 continue
             block, instructions = match
+            if any(
+                static_accounts[ix.program_id_index] in _TOKEN_PROGRAMS
+                and ix.data
+                and ix.data[0] == _IX_TOKEN_TRANSFER_CHECKED
+                for ix in block
+            ):
+                raise LayoutError(ERR_PREFLIGHT_POSTFLIGHT_TRANSFER_NOT_ALLOWED)
             if not _is_fee_payer_isolated(static_accounts, block, fee_payer):
                 raise LayoutError(ERR_PREFLIGHT_POSTFLIGHT_FEE_PAYER_NOT_ISOLATED)
             break

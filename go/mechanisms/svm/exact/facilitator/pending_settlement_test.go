@@ -100,7 +100,7 @@ func lighthouseInstruction() solana.Instruction {
 	return solana.NewInstruction(
 		solana.MustPublicKeyFromBase58(svm.LighthouseProgramAddress),
 		solana.AccountMetaSlice{},
-		[]byte{0x01},
+		[]byte{0x02},
 	)
 }
 

@@ -1103,7 +1103,7 @@ describe("ExactSvmScheme smart wallet fallback path", () => {
     // Lighthouse assertions in the optional tail = 7 instructions total (see #2097).
     const lighthouse: IInstruction = {
       programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
-      data: new Uint8Array([0]),
+      data: new Uint8Array([2]),
     };
     const txBase64 = await buildStaticTransferPayload({
       feePayer: feePayer.address,

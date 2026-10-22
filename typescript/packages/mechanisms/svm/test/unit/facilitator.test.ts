@@ -636,7 +636,7 @@ describe("ExactSvmScheme", () => {
       const guardIx = {
         programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
         accounts: [] as const,
-        data: new Uint8Array([0x01]),
+        data: new Uint8Array([0x02]),
       };
       const memoIx = (text: string): Ix => ({
         programAddress: MEMO_PROGRAM_ADDRESS as Address,
@@ -649,15 +649,23 @@ describe("ExactSvmScheme", () => {
         {
           options,
           extra,
-        }: { options?: ExactSvmSchemeOptions; extra?: Record<string, unknown> } = {},
+          duplicateTransfer,
+          tokenProgram,
+        }: {
+          options?: ExactSvmSchemeOptions;
+          extra?: Record<string, unknown>;
+          duplicateTransfer?: "pre" | "post";
+          tokenProgram?: Address;
+        } = {},
       ) => {
         const feePayer = await generateKeyPairSigner();
         const payer = await generateKeyPairSigner();
         const payTo = await generateKeyPairSigner();
         const { before, after } = layout(feePayer.address);
-        const transaction = await buildExactPaymentTransaction({
+        let transaction = await buildExactPaymentTransaction({
           amount: 100000n,
           beforeInstructions: before,
+          tokenProgram,
           extraInstructions: after,
           feePayer: feePayer.address,
           includeMemo: false,
@@ -667,6 +675,13 @@ describe("ExactSvmScheme", () => {
         });
         mockSigner.getAddresses = vi.fn().mockReturnValue([feePayer.address]) as never;
         mockSigner.simulateTransaction = vi.fn().mockResolvedValue(undefined) as never;
+        if (duplicateTransfer) {
+          transaction = await resignMutatedTransaction(payer, transaction, compiled => {
+            const transfer = compiled.instructions[2];
+            if (duplicateTransfer === "pre") compiled.instructions.unshift(transfer);
+            else compiled.instructions.push(transfer);
+          });
+        }
         const requirementsExtra = { feePayer: feePayer.address, ...extra };
         return new ExactSvmScheme(mockSigner, undefined, options).verify(
           v2Payment(transaction, { extra: requirementsExtra, payTo: payTo.address }),
@@ -681,6 +696,117 @@ describe("ExactSvmScheme", () => {
       ])("accepts Lighthouse guard instructions %s", async (_name, before, after) => {
         expect((await verifyLayout(() => ({ before, after }))).isValid).toBe(true);
       });
+
+      it("rejects an invalid guard even after an unknown wrapper without fallback", async () => {
+        mockSigner.simulateTransactionWithInnerInstructions = vi.fn() as never;
+        mockSigner.getConfirmedTransactionInnerInstructions = vi.fn() as never;
+        mockSigner.getTokenAccountBalance = vi.fn() as never;
+        mockSigner.fetchAddressLookupTables = vi.fn() as never;
+        const result = await verifyLayout(
+          () => ({
+            before: [
+              {
+                programAddress: "11111111111111111111111111111111" as Address,
+                data: new Uint8Array([0]),
+                accounts: [],
+              },
+              { ...guardIx, data: new Uint8Array([0]) },
+            ],
+          }),
+          { options: { enableSmartWalletVerification: true } },
+        );
+        expect(result.invalidReason).toBe(Errors.ErrInvalidLighthouseInstruction);
+        expect(mockSigner.simulateTransactionWithInnerInstructions).not.toHaveBeenCalled();
+      });
+
+      const lighthouseCases = [[], [0, 0, 0, 0, 0], [1], [18], [255], [2], [17]];
+      it.each(lighthouseCases.map(data => [data]))(
+        "enforces Lighthouse assertion-only policy for data %j before fallback or allowlists",
+        async data => {
+          for (const reference of [false, true]) {
+            for (const side of ["pre", "post"] as const) {
+              for (const fallback of [false, true]) {
+                mockSigner.simulateTransactionWithInnerInstructions = vi.fn() as never;
+                mockSigner.getConfirmedTransactionInnerInstructions = vi.fn() as never;
+                mockSigner.getTokenAccountBalance = vi.fn() as never;
+                mockSigner.fetchAddressLookupTables = vi.fn() as never;
+                const result = await verifyLayout(
+                  feePayer => {
+                    const instruction: Ix = {
+                      programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
+                      data: new Uint8Array(data),
+                      accounts: reference
+                        ? [{ address: feePayer, role: AccountRole.WRITABLE_SIGNER }]
+                        : [],
+                    };
+                    return side === "pre" ? { before: [instruction] } : { after: [instruction] };
+                  },
+                  {
+                    options: {
+                      enableSmartWalletVerification: fallback,
+                      smartWalletAllowedPrograms: [LIGHTHOUSE_PROGRAM_ADDRESS],
+                      [side === "pre"
+                        ? "preflightInstructionAllowlist"
+                        : "postflightInstructionAllowlist"]: [
+                        [
+                          {
+                            programAddress: LIGHTHOUSE_PROGRAM_ADDRESS,
+                            discriminator: new Uint8Array(data.length ? data : [0]),
+                          },
+                        ],
+                      ],
+                    },
+                  },
+                );
+                const invalid = !data.length || data[0] < 2 || data[0] > 17;
+                expect(result.invalidReason).toBe(
+                  invalid
+                    ? Errors.ErrInvalidLighthouseInstruction
+                    : reference
+                      ? Errors.ErrFeePayerTransferringFunds
+                      : undefined,
+                );
+                expect(result.isValid).toBe(!invalid && !reference);
+                expect(mockSigner.simulateTransactionWithInnerInstructions).not.toHaveBeenCalled();
+                if (invalid || reference)
+                  expect(mockSigner.simulateTransaction).not.toHaveBeenCalled();
+              }
+            }
+          }
+        },
+      );
+
+      it.each(["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", TOKEN_2022_PROGRAM_ADDRESS])(
+        "rejects an allowlisted duplicate TransferChecked for %s without fallback",
+        async tokenProgram => {
+          for (const side of ["pre", "post"] as const) {
+            mockSigner.simulateTransactionWithInnerInstructions = vi.fn() as never;
+            mockSigner.getConfirmedTransactionInnerInstructions = vi.fn() as never;
+            mockSigner.getTokenAccountBalance = vi.fn() as never;
+            mockSigner.fetchAddressLookupTables = vi.fn() as never;
+            const result = await verifyLayout(() => ({}), {
+              tokenProgram: tokenProgram as Address,
+              duplicateTransfer: side,
+              options: {
+                enableSmartWalletVerification: true,
+                [side === "pre"
+                  ? "preflightInstructionAllowlist"
+                  : "postflightInstructionAllowlist"]: [
+                  [
+                    {
+                      programAddress: tokenProgram,
+                      discriminator: new Uint8Array([12]),
+                    },
+                  ],
+                ],
+              },
+            });
+            expect(result.invalidReason).toBe(Errors.ErrPreflightPostflightTransferNotAllowed);
+            expect(mockSigner.simulateTransactionWithInnerInstructions).not.toHaveBeenCalled();
+            expect(mockSigner.simulateTransaction).not.toHaveBeenCalled();
+          }
+        },
+      );
 
       it("accepts several Memo instructions when extra.memo is not set", async () => {
         const result = await verifyLayout(() => ({ after: [memoIx("one"), memoIx("two")] }));
@@ -820,7 +946,7 @@ describe("ExactSvmScheme", () => {
           {
             programAddress: LIGHTHOUSE_PROGRAM_ADDRESS as Address,
             accounts: [] as const,
-            data: new Uint8Array([0]),
+            data: new Uint8Array([2]),
           },
         ],
         feePayer: feePayer.address,

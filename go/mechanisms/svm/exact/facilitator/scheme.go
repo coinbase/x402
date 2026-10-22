@@ -484,10 +484,16 @@ func (f *ExactSvmScheme) Settle(
 			if f.config.EnableSmartWalletVerification {
 				feePayerStr, _ := requirements.Extra["feePayer"].(string)
 				feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
-				if err != nil {
-					return nil, x402.NewSettleError(ErrInvalidFeePayer, payer, network, "", err.Error())
+				// Reconciliation must not depend on retry-time requirements parsing.
+				// The broadcast transaction already records its actual fee payer.
+				isSmartWallet = true
+				if err != nil && len(tx.Message.AccountKeys) > 0 {
+					feePayer = tx.Message.AccountKeys[0]
+					err = nil
 				}
-				isSmartWallet = !f.hasStaticTransferLayout(tx, feePayer)
+				if err == nil {
+					isSmartWallet = !f.hasStaticTransferLayout(tx, feePayer)
+				}
 			}
 			return f.reconcilePendingSettlement(ctx, txKey, sigStr, payer, network, string(requirements.Network), isSmartWallet, requirements)
 		}
