@@ -17,7 +17,6 @@ import (
 )
 
 // UptoEvmScheme implements SchemeNetworkClient for EVM upto payments.
-// Always uses Permit2 (no EIP-3009 path).
 type UptoEvmScheme struct {
 	signer evm.ClientEvmSigner
 	config *UptoEvmSchemeConfig
@@ -42,7 +41,8 @@ func (c *UptoEvmScheme) FindDefaultAsset(asset string, network x402.Network) *x4
 	return &x402.DefaultAsset{Asset: info.Asset, Decimals: info.Decimals, Symbol: info.Symbol}
 }
 
-// CreatePaymentPayload creates a V2 payment payload for the upto scheme (always Permit2).
+// CreatePaymentPayload creates a V2 upto payload. Permit2 is the default;
+// requirements can explicitly select EIP-3009.
 // If the server advertises eip2612GasSponsoring and the signer supports ReadContract,
 // automatically signs an EIP-2612 permit when Permit2 allowance is insufficient.
 func (c *UptoEvmScheme) CreatePaymentPayload(
@@ -51,6 +51,16 @@ func (c *UptoEvmScheme) CreatePaymentPayload(
 	payloadCtx x402.PaymentPayloadContext,
 ) (types.PaymentPayload, error) {
 	extensions := payloadCtx.Extensions
+	assetTransferMethod := evm.AssetTransferMethodPermit2
+	if requirements.Extra != nil {
+		if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
+			assetTransferMethod = evm.AssetTransferMethod(method)
+		}
+	}
+	if assetTransferMethod == evm.AssetTransferMethodEIP3009 {
+		return CreateUptoEIP3009Payload(ctx, c.signer, requirements)
+	}
+
 	result, err := CreateUptoPermit2Payload(ctx, c.signer, requirements)
 	if err != nil {
 		return types.PaymentPayload{}, err

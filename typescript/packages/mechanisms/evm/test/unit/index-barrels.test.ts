@@ -8,6 +8,8 @@ import * as exactFacilitator from "../../src/exact/facilitator/index";
 import * as exactServer from "../../src/exact/server/index";
 import * as exactV1Client from "../../src/exact/v1/client/index";
 import * as exactV1Facilitator from "../../src/exact/v1/facilitator/index";
+import * as uptoClient from "../../src/upto/client/index";
+import * as uptoFacilitator from "../../src/upto/facilitator/index";
 
 describe("package index barrels", () => {
   it("re-export scheme entrypoints", () => {
@@ -19,5 +21,9 @@ describe("package index barrels", () => {
     expect(exactServer.ExactEvmScheme).toBeTypeOf("function");
     expect(exactV1Client.ExactEvmSchemeV1).toBeTypeOf("function");
     expect(exactV1Facilitator.ExactEvmSchemeV1).toBeTypeOf("function");
+    expect(uptoClient.UptoEvmScheme).toBeTypeOf("function");
+    expect(uptoClient.createUptoEIP3009Payload).toBeTypeOf("function");
+    expect(uptoFacilitator.UptoEvmScheme).toBeTypeOf("function");
+    expect(uptoFacilitator.verifyUptoEIP3009).toBeTypeOf("function");
   });
 });

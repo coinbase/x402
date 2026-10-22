@@ -2,7 +2,13 @@
 
 The **upto** scheme enables usage-based billing on EVM networks. The client authorizes a **maximum** payment amount, but the server settles **only what was actually used**. This is ideal for variable-cost endpoints like LLM token generation, compute time, or bandwidth metering.
 
-Uses **Permit2** exclusively (no EIP-3009 path). The on-chain proxy contract accepts a variable `amount` parameter at settlement time, so the facilitator can settle any amount up to the authorized maximum.
+Supports two asset transfer methods:
+
+- **Permit2** (the default when `assetTransferMethod` is omitted) works with any ERC-20.
+- **EIP-3009** is selected explicitly with `assetTransferMethod: "eip3009"` and signs
+  `ReceiveWithAuthorization` to the canonical upto ERC-3009 proxy.
+
+Both proxy contracts accept the actual settlement amount, allowing the facilitator to settle any amount up to the signed maximum.
 
 ## Import Paths
 
@@ -31,7 +37,14 @@ client.register("eip155:*", new UptoEvmScheme(signer));  // usage-based services
 
 ### Key Difference from Exact
 
-The upto client requires `paymentRequirements.extra.facilitatorAddress` (provided automatically by the facilitator via `getExtra()`). This address is embedded in the Permit2 witness so only the designated facilitator can settle the payment.
+Permit2 requirements use `paymentRequirements.extra.facilitatorAddress`. Explicit EIP-3009
+requirements use the token EIP-712 `name` and `version` plus
+`paymentRequirements.extra.settlerAddress`. The facilitator provides both settlement-address keys
+through `getExtra()`.
+
+The EIP-3009 payload signs `ReceiveWithAuthorization` to
+`0x40203Fa50150e6ec970DE91F3330e82cDF640006`. Its nonce commits to `payTo`, `settler`, and a
+fresh salt, preventing any of those fields from being changed after signing.
 
 ## Server Usage
 
@@ -87,11 +100,13 @@ import { UptoEvmScheme } from "@x402/evm/upto/facilitator";
 const scheme = new UptoEvmScheme({ signers: [wallet] });
 ```
 
-The upto facilitator's `getExtra()` returns a `facilitatorAddress` that the client embeds in the signed Permit2 witness. Only this address can call `settle()` on the upto proxy contract.
+The upto facilitator's `getExtra()` selects one signer and returns it as both
+`facilitatorAddress` and `settlerAddress`. Permit2 embeds it in the witness; EIP-3009 commits to it
+through the authorization nonce. Only the selected address can settle.
 
 ## Supported Networks
 
-Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy contracts deployed:
+Works on EIP-155 networks where the proxy for the selected asset transfer method is deployed:
 
 | Network | CAIP-2 ID |
 |---------|-----------|
@@ -101,7 +116,7 @@ Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy
 ## How It Works
 
 1. Server advertises `scheme: "upto"` with a max `price`
-2. Client signs a Permit2 authorization for the max amount, with a witness containing the `facilitator` address
+2. Client signs either a Permit2 maximum or an EIP-3009 `ReceiveWithAuthorization` maximum
 3. Server performs work, calculates actual cost
 4. Server calls `setSettlementOverrides` with the actual amount
 5. Facilitator settles on-chain for the actual amount (≤ max)
@@ -109,7 +124,7 @@ Works on any EIP-155 compatible network that has the Permit2 and x402 upto proxy
 
 ## Gas Sponsoring Extensions
 
-Since the upto scheme uses Permit2 exclusively, it fully supports both gas sponsoring extensions. These let the **facilitator** pay for the client's Permit2 approval transaction, removing all gas costs from the client. The client SDK detects advertised extensions automatically.
+The Permit2 path supports both gas sponsoring extensions. These let the **facilitator** pay for the client's Permit2 approval transaction, removing all gas costs from the client. The client SDK detects advertised extensions automatically. The EIP-3009 path does not need an approval transaction and does not use these extensions.
 
 ### EIP-2612 Gas Sponsoring
 

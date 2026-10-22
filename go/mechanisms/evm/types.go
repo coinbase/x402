@@ -284,6 +284,15 @@ type FacilitatorEvmSigner interface {
 	GetCode(ctx context.Context, address string) ([]byte, error)
 }
 
+// FacilitatorEvmSignerWithFrom extends FacilitatorEvmSigner with calls from a
+// selected signer address. Upto ERC-3009 binds settlement to one settler, so
+// simulations and writes use this capability when it is available.
+type FacilitatorEvmSignerWithFrom interface {
+	FacilitatorEvmSigner
+	ReadContractFrom(ctx context.Context, from, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
+	WriteContractFrom(ctx context.Context, from, address string, abi []byte, functionName string, dataSuffix []byte, args ...interface{}) (string, error)
+}
+
 // TypedDataDomain represents the EIP-712 domain separator
 type TypedDataDomain struct {
 	Name              string   `json:"name"`
@@ -391,6 +400,131 @@ type UptoPermit2Payload struct {
 	Permit2Authorization UptoPermit2Authorization `json:"permit2Authorization"` // Authorization parameters
 }
 
+// UptoEIP3009Authorization is an EIP-3009 ReceiveWithAuthorization signed for
+// the upto ERC-3009 proxy.
+type UptoEIP3009Authorization struct {
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Value       string `json:"value"`
+	ValidAfter  string `json:"validAfter"`
+	ValidBefore string `json:"validBefore"`
+	Nonce       string `json:"nonce"`
+}
+
+// UptoEIP3009PaymentInfo commits the authorization to its recipient, settler,
+// and random salt.
+type UptoEIP3009PaymentInfo struct {
+	PayTo   string `json:"payTo"`
+	Settler string `json:"settler"`
+	Salt    string `json:"salt"`
+}
+
+// UptoEIP3009Payload is the explicit upto ERC-3009 wire payload.
+type UptoEIP3009Payload struct {
+	Signature     string                   `json:"signature"`
+	Authorization UptoEIP3009Authorization `json:"authorization"`
+	PaymentInfo   UptoEIP3009PaymentInfo   `json:"paymentInfo"`
+}
+
+// ToMap converts an UptoEIP3009Payload to its wire representation.
+func (p *UptoEIP3009Payload) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"signature": p.Signature,
+		"authorization": map[string]interface{}{
+			"from":        p.Authorization.From,
+			"to":          p.Authorization.To,
+			"value":       p.Authorization.Value,
+			"validAfter":  p.Authorization.ValidAfter,
+			"validBefore": p.Authorization.ValidBefore,
+			"nonce":       p.Authorization.Nonce,
+		},
+		"paymentInfo": map[string]interface{}{
+			"payTo":   p.PaymentInfo.PayTo,
+			"settler": p.PaymentInfo.Settler,
+			"salt":    p.PaymentInfo.Salt,
+		},
+	}
+}
+
+// UptoEIP3009PayloadFromMap parses a complete upto ERC-3009 payload.
+func UptoEIP3009PayloadFromMap(data map[string]interface{}) (*UptoEIP3009Payload, error) {
+	if _, mixed := data["permit2Authorization"]; mixed {
+		return nil, fmt.Errorf("payload contains both ERC-3009 and Permit2 fields")
+	}
+
+	signature, ok := data["signature"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid signature field")
+	}
+	authorization, ok := data["authorization"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid authorization field")
+	}
+	paymentInfo, ok := data["paymentInfo"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid paymentInfo field")
+	}
+
+	requiredString := func(values map[string]interface{}, field string) (string, error) {
+		value, ok := values[field].(string)
+		if !ok {
+			return "", fmt.Errorf("missing or invalid %s field", field)
+		}
+		return value, nil
+	}
+
+	from, err := requiredString(authorization, "from")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	to, err := requiredString(authorization, "to")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	value, err := requiredString(authorization, "value")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	validAfter, err := requiredString(authorization, "validAfter")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	validBefore, err := requiredString(authorization, "validBefore")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	nonce, err := requiredString(authorization, "nonce")
+	if err != nil {
+		return nil, fmt.Errorf("authorization.%w", err)
+	}
+	payTo, err := requiredString(paymentInfo, "payTo")
+	if err != nil {
+		return nil, fmt.Errorf("paymentInfo.%w", err)
+	}
+	settler, err := requiredString(paymentInfo, "settler")
+	if err != nil {
+		return nil, fmt.Errorf("paymentInfo.%w", err)
+	}
+	salt, err := requiredString(paymentInfo, "salt")
+	if err != nil {
+		return nil, fmt.Errorf("paymentInfo.%w", err)
+	}
+
+	return &UptoEIP3009Payload{
+		Signature: signature,
+		Authorization: UptoEIP3009Authorization{
+			From: from, To: to, Value: value, ValidAfter: validAfter, ValidBefore: validBefore, Nonce: nonce,
+		},
+		PaymentInfo: UptoEIP3009PaymentInfo{PayTo: payTo, Settler: settler, Salt: salt},
+	}, nil
+}
+
+// IsUptoEIP3009Payload checks for the complete, exclusive upto ERC-3009 shape.
+func IsUptoEIP3009Payload(data map[string]interface{}) bool {
+	_, err := UptoEIP3009PayloadFromMap(data)
+	return err == nil
+}
+
 // ToMap converts an UptoPermit2Payload to a map for JSON marshaling.
 func (p *UptoPermit2Payload) ToMap() map[string]interface{} {
 	return map[string]interface{}{
@@ -418,8 +552,16 @@ func (p *UptoPermit2Payload) ToMap() map[string]interface{} {
 func UptoPermit2PayloadFromMap(data map[string]interface{}) (*UptoPermit2Payload, error) {
 	payload := &UptoPermit2Payload{}
 
+	if _, mixed := data["authorization"]; mixed {
+		return nil, fmt.Errorf("payload contains both Permit2 and ERC-3009 fields")
+	}
+	if _, mixed := data["paymentInfo"]; mixed {
+		return nil, fmt.Errorf("payload contains both Permit2 and ERC-3009 fields")
+	}
 	if sig, ok := data["signature"].(string); ok {
 		payload.Signature = sig
+	} else {
+		return nil, fmt.Errorf("missing or invalid signature field")
 	}
 
 	auth, ok := data["permit2Authorization"].(map[string]interface{})
@@ -497,6 +639,12 @@ func UptoPermit2PayloadFromMap(data map[string]interface{}) (*UptoPermit2Payload
 // IsUptoPermit2Payload checks if a payload map is an upto Permit2 payload.
 // Validates structural presence of all required fields including witness.facilitator.
 func IsUptoPermit2Payload(data map[string]interface{}) bool {
+	if _, ok := data["authorization"]; ok {
+		return false
+	}
+	if _, ok := data["paymentInfo"]; ok {
+		return false
+	}
 	if _, ok := data["signature"].(string); !ok {
 		return false
 	}
@@ -508,6 +656,22 @@ func IsUptoPermit2Payload(data map[string]interface{}) bool {
 		return false
 	}
 	if _, ok := auth["spender"].(string); !ok {
+		return false
+	}
+	if _, ok := auth["nonce"].(string); !ok {
+		return false
+	}
+	if _, ok := auth["deadline"].(string); !ok {
+		return false
+	}
+	permitted, ok := auth["permitted"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	if _, ok := permitted["token"].(string); !ok {
+		return false
+	}
+	if _, ok := permitted["amount"].(string); !ok {
 		return false
 	}
 	witness, ok := auth["witness"].(map[string]interface{})

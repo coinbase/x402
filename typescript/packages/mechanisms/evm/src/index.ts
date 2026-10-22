@@ -33,8 +33,15 @@ export { isPermit2Payload, isEIP3009Payload } from "./types";
 export { UptoEvmScheme } from "./upto";
 
 // Upto types
-export type { UptoPermit2Payload, UptoPermit2Witness, UptoPermit2Authorization } from "./types";
-export { isUptoPermit2Payload } from "./types";
+export type {
+  UptoEIP3009Payload,
+  UptoEvmPayloadV2,
+  UptoPermit2Payload,
+  UptoPermit2Witness,
+  UptoPermit2Authorization,
+} from "./types";
+export { isUptoEIP3009Payload, isUptoPermit2Payload } from "./types";
+export { createUptoEIP3009Nonce, createUptoEIP3009Payload } from "./upto/client/eip3009";
 
 // Batch-settlement scheme client
 export { BatchSettlementEvmScheme } from "./batch-settlement";
@@ -114,12 +121,16 @@ export type { Erc6492Classification } from "./shared/verifySignature";
 export {
   PERMIT2_ADDRESS,
   x402ExactPermit2ProxyAddress,
+  x402UptoErc3009ProxyAddress,
   x402UptoPermit2ProxyAddress,
   permit2WitnessTypes,
+  receiveAuthorizationTypes,
   uptoPermit2WitnessTypes,
+  uptoErc3009NonceTypehash,
   authorizationTypes,
   eip3009ABI,
   x402ExactPermit2ProxyABI,
+  x402UptoErc3009ProxyABI,
   x402UptoPermit2ProxyABI,
 } from "./constants";
 

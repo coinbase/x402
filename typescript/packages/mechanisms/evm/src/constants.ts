@@ -57,6 +57,18 @@ export const authorizationTypes = {
   ],
 } as const;
 
+// EIP-3009 ReceiveWithAuthorization types for EIP-712 signing.
+export const receiveAuthorizationTypes = {
+  ReceiveWithAuthorization: [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+    { name: "nonce", type: "bytes32" },
+  ],
+} as const;
+
 /**
  * Permit2 EIP-712 types for signing PermitWitnessTransferFrom (exact scheme).
  * Must match the exact format expected by the Permit2 contract.
@@ -262,6 +274,62 @@ export const x402ExactPermit2ProxyAddress = "0x402085c248EeA27D92E8b30b2C58ed07f
  * - Contract bytecode + constructor args (PERMIT2_ADDRESS)
  */
 export const x402UptoPermit2ProxyAddress = "0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002" as const;
+
+/** Canonical x402 upto ERC-3009 proxy address. */
+export const x402UptoErc3009ProxyAddress = "0x40203Fa50150e6ec970DE91F3330e82cDF640006" as const;
+
+/** Typehash used by the upto ERC-3009 proxy's nonce commitment. */
+export const uptoErc3009NonceTypehash =
+  "0x792d454a3715baed5e67a6e950f30dcab7decc913c4c9b03efe1e00bdd81f03e" as const;
+
+/** x402UptoERC3009Proxy settle ABI. */
+export const x402UptoErc3009ProxyABI = [
+  {
+    type: "function",
+    name: "settle",
+    inputs: [
+      { name: "token", type: "address", internalType: "address" },
+      { name: "amount", type: "uint256", internalType: "uint256" },
+      {
+        name: "authorization",
+        type: "tuple",
+        internalType: "struct x402UptoERC3009Proxy.Authorization",
+        components: [
+          { name: "from", type: "address", internalType: "address" },
+          { name: "to", type: "address", internalType: "address" },
+          { name: "value", type: "uint256", internalType: "uint256" },
+          { name: "validAfter", type: "uint256", internalType: "uint256" },
+          { name: "validBefore", type: "uint256", internalType: "uint256" },
+          { name: "nonce", type: "bytes32", internalType: "bytes32" },
+        ],
+      },
+      {
+        name: "paymentInfo",
+        type: "tuple",
+        internalType: "struct x402UptoERC3009Proxy.PaymentInfo",
+        components: [
+          { name: "payTo", type: "address", internalType: "address" },
+          { name: "settler", type: "address", internalType: "address" },
+          { name: "salt", type: "bytes32", internalType: "bytes32" },
+        ],
+      },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  { type: "event", name: "Settled", inputs: [], anonymous: false },
+  { type: "error", name: "AmountExceedsAuthorization", inputs: [] },
+  { type: "error", name: "InvalidAuthorizationReceiver", inputs: [] },
+  { type: "error", name: "InvalidAmount", inputs: [] },
+  { type: "error", name: "InvalidDestination", inputs: [] },
+  { type: "error", name: "InvalidNonce", inputs: [] },
+  { type: "error", name: "InvalidOwner", inputs: [] },
+  { type: "error", name: "InvalidSettler", inputs: [] },
+  { type: "error", name: "InvalidToken", inputs: [] },
+  { type: "error", name: "ReceivedAmountMismatch", inputs: [] },
+  { type: "error", name: "UnauthorizedSettler", inputs: [] },
+] as const;
 
 /**
  * ABI components for the exact Permit2 witness tuple: Witness(address to, uint256 validAfter).

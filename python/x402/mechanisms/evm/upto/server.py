@@ -8,6 +8,7 @@ from ..constants import SCHEME_UPTO
 from ..default_assets import find_default_asset, get_default_asset
 from ..utils import (
     get_asset_info,
+    normalize_address,
     parse_amount,
 )
 
@@ -17,7 +18,7 @@ MoneyParser = Callable[[str | int | float, str], AssetAmount | None]
 class UptoEvmScheme:
     """EVM server implementation for the Upto payment scheme.
 
-    Always sets assetTransferMethod=permit2 and injects facilitatorAddress.
+    Defaults to Permit2 and preserves explicitly selected ERC-3009 requirements.
 
     Attributes:
         scheme: The scheme identifier ("upto").
@@ -26,6 +27,7 @@ class UptoEvmScheme:
     scheme = SCHEME_UPTO
     default_asset_transfer_method = "permit2"
     payment_flows = {
+        "eip3009": {"supported": ("authorization",), "default": "authorization"},
         "permit2": {"supported": ("authorization",), "default": "authorization"},
     }
 
@@ -72,7 +74,7 @@ class UptoEvmScheme:
         supported_kind: SupportedKind,
         extension_keys: list[str],
     ) -> PaymentRequirements:
-        """Add upto-specific enhancements: always permit2 + facilitatorAddress."""
+        """Add upto metadata for the selected asset transfer method."""
         if not requirements.asset:
             requirements.asset = get_default_asset(str(requirements.network))["asset"]
 
@@ -92,22 +94,20 @@ class UptoEvmScheme:
         if requirements.extra is None:
             requirements.extra = {}
 
-        # Upto always uses Permit2
-        requirements.extra["assetTransferMethod"] = "permit2"
+        asset_transfer_method = requirements.extra.get("assetTransferMethod") or "permit2"
+        requirements.extra["assetTransferMethod"] = asset_transfer_method
 
         if asset_info is not None:
             requirements.extra.setdefault("name", asset_info.get("name"))
             requirements.extra.setdefault("version", asset_info.get("version"))
 
-        # Copy facilitatorAddress from supportedKind.extra (required for upto)
         kind_extra = supported_kind.extra or {}
-        facilitator_address = kind_extra.get("facilitatorAddress")
-        if not facilitator_address:
-            raise ValueError(
-                "upto scheme requires facilitatorAddress in supported kinds. "
-                "Ensure facilitator get_extra() returns facilitatorAddress."
-            )
-        requirements.extra["facilitatorAddress"] = facilitator_address
+        settlement_address_key = (
+            "settlerAddress" if asset_transfer_method == "eip3009" else "facilitatorAddress"
+        )
+        settlement_address = kind_extra.get(settlement_address_key)
+        if isinstance(settlement_address, str):
+            requirements.extra[settlement_address_key] = normalize_address(settlement_address)
 
         # Copy extension data declared by the facilitator.
         for key in extension_keys:

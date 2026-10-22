@@ -38,6 +38,10 @@ X402_EXACT_PERMIT2_PROXY_ADDRESS = "0x402085c248EeA27D92E8b30b2C58ed07f9E20001"
 # x402UptoPermit2Proxy contract address
 X402_UPTO_PERMIT2_PROXY_ADDRESS = "0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002"
 
+# x402UptoERC3009Proxy contract address and nonce commitment typehash
+X402_UPTO_EIP3009_PROXY_ADDRESS = "0x40203Fa50150e6ec970DE91F3330e82cDF640006"
+UPTO_EIP3009_NONCE_TYPEHASH = "0x792d454a3715baed5e67a6e950f30dcab7decc913c4c9b03efe1e00bdd81f03e"
+
 # Permit2 EIP-712 witness types for PermitWitnessTransferFrom
 # Note: Types must be in alphabetical order after primary type (TokenPermissions < Witness)
 PERMIT2_WITNESS_TYPES: dict[str, list[dict[str, str]]] = {
@@ -318,6 +322,42 @@ X402_UPTO_PERMIT2_PROXY_SETTLE_WITH_PERMIT_ABI = [
     }
 ]
 
+# Minimal x402UptoERC3009Proxy ABI used for simulation and settlement.
+X402_UPTO_EIP3009_PROXY_ABI = [
+    {
+        "type": "function",
+        "name": "settle",
+        "inputs": [
+            {"name": "token", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+            {
+                "name": "authorization",
+                "type": "tuple",
+                "components": [
+                    {"name": "from", "type": "address"},
+                    {"name": "to", "type": "address"},
+                    {"name": "value", "type": "uint256"},
+                    {"name": "validAfter", "type": "uint256"},
+                    {"name": "validBefore", "type": "uint256"},
+                    {"name": "nonce", "type": "bytes32"},
+                ],
+            },
+            {
+                "name": "paymentInfo",
+                "type": "tuple",
+                "components": [
+                    {"name": "payTo", "type": "address"},
+                    {"name": "settler", "type": "address"},
+                    {"name": "salt", "type": "bytes32"},
+                ],
+            },
+            {"name": "signature", "type": "bytes"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    }
+]
+
 # Error codes
 ERR_ASSET_NOT_DEPLOYED_CONTRACT = "asset_not_deployed_contract"
 ERR_INVALID_SIGNATURE = "invalid_exact_evm_payload_signature"
@@ -367,6 +407,20 @@ ERR_UPTO_AMOUNT_EXCEEDS_PERMITTED = "upto_amount_exceeds_permitted"
 ERR_UPTO_UNAUTHORIZED_FACILITATOR = "upto_unauthorized_facilitator"
 ERR_UPTO_TRANSACTION_FAILED = "invalid_upto_evm_transaction_failed"
 ERR_UPTO_FAILED_TO_GET_NETWORK_CONFIG = "invalid_upto_evm_failed_to_get_network_config"
+ERR_UPTO_INVALID_PAYLOAD = "invalid_upto_evm_payload"
+ERR_UPTO_PENDING_MISMATCH = "invalid_upto_evm_pending_mismatch"
+ERR_UPTO_EIP3009_MISSING_DOMAIN = "invalid_upto_evm_eip3009_missing_domain"
+ERR_UPTO_EIP3009_RECEIVER_MISMATCH = "invalid_upto_evm_eip3009_receiver_mismatch"
+ERR_UPTO_EIP3009_AMOUNT_MISMATCH = "invalid_upto_evm_eip3009_amount_mismatch"
+ERR_UPTO_EIP3009_RECIPIENT_MISMATCH = "invalid_upto_evm_eip3009_recipient_mismatch"
+ERR_UPTO_EIP3009_SETTLER_MISMATCH = "invalid_upto_evm_eip3009_settler_mismatch"
+ERR_UPTO_EIP3009_NONCE_MISMATCH = "invalid_upto_evm_eip3009_nonce_mismatch"
+ERR_UPTO_EIP3009_VALID_BEFORE = "invalid_upto_evm_eip3009_valid_before"
+ERR_UPTO_EIP3009_VALID_AFTER = "invalid_upto_evm_eip3009_valid_after"
+ERR_UPTO_EIP3009_NONCE_ALREADY_USED = "invalid_upto_evm_eip3009_nonce_already_used"
+ERR_UPTO_EIP3009_INSUFFICIENT_BALANCE = "invalid_upto_evm_eip3009_insufficient_balance"
+ERR_UPTO_EIP3009_INVALID_SIGNATURE = "invalid_upto_evm_eip3009_signature"
+ERR_UPTO_EIP3009_SIMULATION_FAILED = "invalid_upto_evm_eip3009_simulation_failed"
 ERR_ERC20_APPROVAL_TX_FAILED = "erc20_approval_tx_failed"
 ERR_ERC20_APPROVAL_BROADCAST_FAILED = "erc20_approval_broadcast_failed"
 

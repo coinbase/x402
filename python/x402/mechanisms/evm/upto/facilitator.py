@@ -12,9 +12,14 @@ from ....schemas import (
     SettleResponse,
     VerifyResponse,
 )
-from ..constants import SCHEME_UPTO
+from ..constants import ERR_UPTO_INVALID_PAYLOAD, SCHEME_UPTO
 from ..signer import FacilitatorEvmSigner
-from ..types import is_upto_permit2_payload
+from ..types import (
+    UptoEIP3009Payload,
+    is_upto_eip3009_payload,
+    is_upto_permit2_payload,
+)
+from .eip3009_utils import settle_upto_eip3009, verify_upto_eip3009
 from .permit2_utils import settle_upto_permit2, verify_upto_permit2
 
 
@@ -23,6 +28,7 @@ class UptoEvmSchemeConfig:
     """Configuration for upto facilitator behavior."""
 
     simulate_in_settle: bool = False
+    """Simulate Permit2 settlement during settle. ERC-3009 always simulates the actual amount."""
 
 
 class UptoEvmScheme:
@@ -49,11 +55,12 @@ class UptoEvmScheme:
         )
 
     def get_extra(self, network: Network) -> dict[str, Any] | None:
-        """Return facilitatorAddress so clients can bind the witness to this facilitator."""
+        """Return one signer under both method-specific settlement address keys."""
         addresses = self._signer.get_addresses()
         if not addresses:
             return None
-        return {"facilitatorAddress": random.choice(addresses)}
+        address = random.choice(addresses)
+        return {"facilitatorAddress": address, "settlerAddress": address}
 
     def get_signers(self, network: Network) -> list[str]:
         return self._signer.get_addresses()
@@ -64,10 +71,13 @@ class UptoEvmScheme:
         requirements: PaymentRequirements,
         context=None,
     ) -> VerifyResponse:
-        if not is_upto_permit2_payload(payload.payload):
-            return VerifyResponse(
-                is_valid=False, invalid_reason="unsupported_payload_type", payer=""
+        if is_upto_eip3009_payload(payload.payload):
+            eip3009_payload = UptoEIP3009Payload.from_dict(payload.payload)
+            return verify_upto_eip3009(
+                self._signer, payload, requirements, eip3009_payload, simulate=True
             )
+        if not is_upto_permit2_payload(payload.payload):
+            return VerifyResponse(is_valid=False, invalid_reason=ERR_UPTO_INVALID_PAYLOAD, payer="")
         return verify_upto_permit2(self._signer, payload, requirements, context, simulate=True)
 
     def settle(
@@ -76,10 +86,20 @@ class UptoEvmScheme:
         requirements: PaymentRequirements,
         context=None,
     ) -> SettleResponse:
+        if is_upto_eip3009_payload(payload.payload):
+            eip3009_payload = UptoEIP3009Payload.from_dict(payload.payload)
+            return settle_upto_eip3009(
+                self._signer,
+                payload,
+                requirements,
+                eip3009_payload,
+                context,
+                pending_store=self._pending_store,
+            )
         if not is_upto_permit2_payload(payload.payload):
             return SettleResponse(
                 success=False,
-                error_reason="unsupported_payload_type",
+                error_reason=ERR_UPTO_INVALID_PAYLOAD,
                 network=str(payload.accepted.network),
                 payer="",
                 transaction="",

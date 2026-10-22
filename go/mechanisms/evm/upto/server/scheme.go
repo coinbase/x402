@@ -12,7 +12,6 @@ import (
 )
 
 // UptoEvmScheme implements the SchemeNetworkServer interface for EVM upto payments (V2).
-// Always uses Permit2 (no EIP-3009 path).
 type UptoEvmScheme struct {
 	moneyParsers []x402.MoneyParser
 }
@@ -35,6 +34,10 @@ func (s *UptoEvmScheme) DefaultAssetTransferMethod() string {
 // PaymentFlows returns ATM-keyed payment flow support for upto EVM.
 func (s *UptoEvmScheme) PaymentFlows() map[string]x402.PaymentFlowConfig {
 	return map[string]x402.PaymentFlowConfig{
+		string(evm.AssetTransferMethodEIP3009): {
+			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
+			Default:   x402.PaymentFlowAuthorization,
+		},
 		string(evm.AssetTransferMethodPermit2): {
 			Supported: []x402.PaymentFlowName{x402.PaymentFlowAuthorization},
 			Default:   x402.PaymentFlowAuthorization,
@@ -118,7 +121,7 @@ func (s *UptoEvmScheme) defaultMoneyConversion(amount string, network x402.Netwo
 	extra := map[string]interface{}{
 		"name":                assetInfo.Name,
 		"version":             assetInfo.Version,
-		"assetTransferMethod": "permit2",
+		"assetTransferMethod": string(evm.AssetTransferMethodPermit2),
 	}
 
 	return x402.AssetAmount{
@@ -164,19 +167,29 @@ func (s *UptoEvmScheme) EnhancePaymentRequirements(
 		requirements.Extra = make(map[string]interface{})
 	}
 
-	// Upto always includes name/version and always sets permit2
+	// Upto always includes name/version. Permit2 remains the default, while an
+	// explicitly selected EIP-3009 method is preserved.
 	if _, ok := requirements.Extra["name"]; !ok {
 		requirements.Extra["name"] = assetInfo.Name
 	}
 	if _, ok := requirements.Extra["version"]; !ok {
 		requirements.Extra["version"] = assetInfo.Version
 	}
-	requirements.Extra["assetTransferMethod"] = "permit2"
+	assetTransferMethod := evm.AssetTransferMethodPermit2
+	if method, ok := requirements.Extra["assetTransferMethod"].(string); ok {
+		assetTransferMethod = evm.AssetTransferMethod(method)
+	}
+	requirements.Extra["assetTransferMethod"] = string(assetTransferMethod)
 
-	// Copy facilitatorAddress from supportedKind.Extra if present
+	settlementAddressKey := "facilitatorAddress"
+	if assetTransferMethod == evm.AssetTransferMethodEIP3009 {
+		settlementAddressKey = "settlerAddress"
+	}
+
+	// Copy the method-specific settlement address from supportedKind.Extra.
 	if supportedKind.Extra != nil {
-		if facilitatorAddr, ok := supportedKind.Extra["facilitatorAddress"].(string); ok && facilitatorAddr != "" {
-			requirements.Extra["facilitatorAddress"] = evm.NormalizeAddress(facilitatorAddr)
+		if settlementAddress, ok := supportedKind.Extra[settlementAddressKey].(string); ok && settlementAddress != "" {
+			requirements.Extra[settlementAddressKey] = evm.NormalizeAddress(settlementAddress)
 		}
 	}
 

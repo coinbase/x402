@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { UptoEvmScheme } from "../../../src/upto/facilitator/scheme";
 import { verifyUptoPermit2, settleUptoPermit2 } from "../../../src/upto/facilitator/permit2";
+import { verifyUptoEIP3009 } from "../../../src/upto/facilitator/eip3009";
+import { createUptoEIP3009Nonce } from "../../../src/upto/client/eip3009";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
-import { x402UptoPermit2ProxyAddress } from "../../../src/constants";
+import {
+  InMemoryPendingSettlementStore,
+  type PendingSettlementStore,
+} from "@x402/core/facilitator";
+import { getAddress } from "viem";
+import { x402UptoErc3009ProxyAddress, x402UptoPermit2ProxyAddress } from "../../../src/constants";
 import {
   ErrPermit2AmountMismatch,
   ErrUptoAmountExceedsPermitted,
@@ -13,12 +20,22 @@ import {
   ErrUptoInvalidScheme,
   ErrUptoNetworkMismatch,
   ErrUptoTransactionFailed,
+  ErrUptoEip3009AmountMismatch,
+  ErrUptoEip3009InsufficientBalance,
+  ErrUptoEip3009NonceAlreadyUsed,
+  ErrUptoEip3009NonceMismatch,
+  ErrUptoEip3009ReceiverMismatch,
+  ErrUptoEip3009RecipientMismatch,
+  ErrUptoEip3009SettlerMismatch,
+  ErrUptoEip3009SimulationFailed,
+  ErrUptoInvalidPayload,
+  ErrUptoPendingMismatch,
 } from "../../../src/upto/facilitator/errors";
 import {
   ErrErc20ApprovalBroadcastFailed,
   ErrSettlementPending,
 } from "../../../src/exact/facilitator/errors";
-import type { UptoPermit2Payload } from "../../../src/types";
+import type { UptoEIP3009Payload, UptoPermit2Payload } from "../../../src/types";
 import { ERC20_APPROVAL_GAS_SPONSORING_KEY } from "../../../src/upto/extensions";
 import { resetAssetContractCache } from "../../../src/assetCache";
 
@@ -85,6 +102,64 @@ function makeRequirements(overrides?: Partial<PaymentRequirements>): PaymentRequ
   };
 }
 
+function makeEIP3009Requirements(overrides?: Partial<PaymentRequirements>): PaymentRequirements {
+  return makeRequirements({
+    extra: {
+      assetTransferMethod: "eip3009",
+      name: "USD Coin",
+      version: "2",
+      settlerAddress: FACILITATOR_ADDRESS,
+    },
+    ...overrides,
+  });
+}
+
+function makeEIP3009Payload(overrides?: Partial<UptoEIP3009Payload>): UptoEIP3009Payload {
+  const payTo = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as `0x${string}`;
+  const salt = ("0x" + "33".repeat(32)) as `0x${string}`;
+  const paymentInfo = {
+    payTo,
+    settler: FACILITATOR_ADDRESS,
+    salt,
+  };
+  const base: UptoEIP3009Payload = {
+    signature: ("0x" + "ab".repeat(65)) as `0x${string}`,
+    authorization: {
+      from: "0x1234567890123456789012345678901234567890",
+      to: x402UptoErc3009ProxyAddress,
+      value: "1000000",
+      validAfter: "0",
+      validBefore: (now() + 3600).toString(),
+      nonce: createUptoEIP3009Nonce(payTo, FACILITATOR_ADDRESS, salt),
+    },
+    paymentInfo,
+  };
+  return { ...base, ...overrides };
+}
+
+function makeEIP3009PaymentPayload(eip3009 = makeEIP3009Payload()): PaymentPayload {
+  return {
+    x402Version: 2,
+    accepted: { scheme: "upto", network: "eip155:8453" },
+    payload: eip3009,
+  } as PaymentPayload;
+}
+
+function makeFailingPendingStore(shouldFail: (key: string) => boolean) {
+  const entries = new Map<string, string>();
+  const store: PendingSettlementStore = {
+    get: async key => entries.get(key),
+    set: async (key, value) => {
+      if (shouldFail(key)) throw new Error("injected persistence failure");
+      entries.set(key, value);
+    },
+    delete: async key => {
+      entries.delete(key);
+    },
+  };
+  return { store, entries };
+}
+
 // Returns deployed-contract bytecode for the token/asset address, EOA ("0x") for everything else.
 // Used in payer-is-EOA tests where the token contract must still appear deployed.
 const mockGetCodeEOAPayer =
@@ -146,7 +221,642 @@ describe("UptoEvmScheme (Facilitator)", () => {
   describe("getExtra", () => {
     it("should return facilitatorAddress from signer", () => {
       const extra = scheme.getExtra("eip155:8453");
-      expect(extra).toEqual({ facilitatorAddress: FACILITATOR_ADDRESS });
+      expect(extra).toEqual({
+        facilitatorAddress: FACILITATOR_ADDRESS,
+        settlerAddress: FACILITATOR_ADDRESS,
+      });
+    });
+  });
+
+  describe("ERC-3009 verify", () => {
+    beforeEach(() => {
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return Promise.resolve(sigValid);
+        if (functionName === "balanceOf") return Promise.resolve(10_000_000n);
+        if (functionName === "authorizationState") return Promise.resolve(false);
+        if (functionName === "settle") return Promise.resolve(undefined);
+        return Promise.resolve(undefined);
+      });
+    });
+
+    it("verifies ReceiveWithAuthorization and simulates the proxy with the maximum", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const result = await verifyUptoEIP3009(
+        mockSigner,
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements(),
+        eip3009,
+      );
+
+      expect(result.isValid).toBe(true);
+      expect(mockSigner.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: x402UptoErc3009ProxyAddress,
+          functionName: "settle",
+          account: FACILITATOR_ADDRESS,
+          args: expect.arrayContaining([1_000_000n]),
+        }),
+      );
+      expect(mockSigner.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "isValidSignature" }),
+      );
+    });
+
+    it.each([
+      [
+        "canonical receiver",
+        (payload: UptoEIP3009Payload) => {
+          payload.authorization.to = "0x0000000000000000000000000000000000000001";
+        },
+        ErrUptoEip3009ReceiverMismatch,
+      ],
+      [
+        "maximum amount",
+        (payload: UptoEIP3009Payload) => {
+          payload.authorization.value = "999999";
+        },
+        ErrUptoEip3009AmountMismatch,
+      ],
+      [
+        "recipient",
+        (payload: UptoEIP3009Payload) => {
+          payload.paymentInfo.payTo = "0x0000000000000000000000000000000000000001";
+        },
+        ErrUptoEip3009RecipientMismatch,
+      ],
+      [
+        "nonce commitment",
+        (payload: UptoEIP3009Payload) => {
+          payload.authorization.nonce = ("0x" + "00".repeat(32)) as `0x${string}`;
+        },
+        ErrUptoEip3009NonceMismatch,
+      ],
+    ])("rejects an invalid %s", async (_name, mutate, expectedReason) => {
+      const eip3009 = makeEIP3009Payload();
+      mutate(eip3009);
+
+      const result = await scheme.verify(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements(),
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(expectedReason);
+    });
+
+    it("requires the bound settler to match requirements and signer membership", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const result = await scheme.verify(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({
+          extra: {
+            assetTransferMethod: "eip3009",
+            name: "USD Coin",
+            version: "2",
+            settlerAddress: "0x0000000000000000000000000000000000000001",
+          },
+        }),
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(ErrUptoEip3009SettlerMismatch);
+    });
+
+    it("rejects a bound settler that the facilitator signer does not own", async () => {
+      mockSigner.getAddresses = () => ["0x0000000000000000000000000000000000000001"];
+      const eip3009 = makeEIP3009Payload();
+
+      const result = await scheme.verify(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements(),
+      );
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe(ErrUptoEip3009SettlerMismatch);
+    });
+
+    it("requires the full maximum balance", async () => {
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return Promise.resolve(sigValid);
+        if (functionName === "balanceOf") return Promise.resolve(999_999n);
+        if (functionName === "authorizationState") return Promise.resolve(false);
+        return Promise.resolve(undefined);
+      });
+
+      const result = await scheme.verify(makeEIP3009PaymentPayload(), makeEIP3009Requirements());
+
+      expect(result.invalidReason).toBe(ErrUptoEip3009InsufficientBalance);
+    });
+
+    it("rejects an already-used authorization", async () => {
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return Promise.resolve(sigValid);
+        if (functionName === "balanceOf") return Promise.resolve(10_000_000n);
+        if (functionName === "authorizationState") return Promise.resolve(true);
+        return Promise.resolve(undefined);
+      });
+
+      const result = await scheme.verify(makeEIP3009PaymentPayload(), makeEIP3009Requirements());
+
+      expect(result.invalidReason).toBe(ErrUptoEip3009NonceAlreadyUsed);
+    });
+
+    it("strictly rejects a mixed ERC-3009 and Permit2 payload", async () => {
+      const mixed = {
+        ...makeEIP3009Payload(),
+        permit2Authorization: makePermit2Payload().permit2Authorization,
+      };
+
+      const result = await scheme.verify(
+        { ...makeEIP3009PaymentPayload(), payload: mixed } as PaymentPayload,
+        makeEIP3009Requirements(),
+      );
+
+      expect(result.invalidReason).toBe("unsupported_payload_type");
+    });
+
+    it.each([undefined, "permit2", "EIP3009"])(
+      "requires assetTransferMethod=eip3009 (received %s)",
+      async assetTransferMethod => {
+        const requirements = makeEIP3009Requirements();
+        if (assetTransferMethod === undefined) {
+          delete requirements.extra!.assetTransferMethod;
+        } else {
+          requirements.extra!.assetTransferMethod = assetTransferMethod;
+        }
+
+        const result = await scheme.verify(makeEIP3009PaymentPayload(), requirements);
+
+        expect(result).toEqual(
+          expect.objectContaining({
+            isValid: false,
+            invalidReason: ErrUptoInvalidPayload,
+          }),
+        );
+      },
+    );
+
+    it.each([
+      [
+        "payer address",
+        (payload: UptoEIP3009Payload, _requirements: PaymentRequirements) => {
+          payload.authorization.from = "not-an-address" as `0x${string}`;
+        },
+      ],
+      [
+        "authorization value",
+        (payload: UptoEIP3009Payload, _requirements: PaymentRequirements) => {
+          payload.authorization.value = "1.5";
+        },
+      ],
+      [
+        "validAfter",
+        (payload: UptoEIP3009Payload, _requirements: PaymentRequirements) => {
+          payload.authorization.validAfter = "not-an-integer";
+        },
+      ],
+      [
+        "payTo address",
+        (payload: UptoEIP3009Payload, _requirements: PaymentRequirements) => {
+          payload.paymentInfo.payTo = "not-an-address" as `0x${string}`;
+        },
+      ],
+      [
+        "settler address",
+        (payload: UptoEIP3009Payload, _requirements: PaymentRequirements) => {
+          payload.paymentInfo.settler = "not-an-address" as `0x${string}`;
+        },
+      ],
+      [
+        "asset address",
+        (_payload: UptoEIP3009Payload, requirements: PaymentRequirements) => {
+          requirements.asset = "not-an-address";
+        },
+      ],
+      [
+        "maximum amount",
+        (_payload: UptoEIP3009Payload, requirements: PaymentRequirements) => {
+          requirements.amount = "not-an-integer";
+        },
+      ],
+      [
+        "required settler address",
+        (_payload: UptoEIP3009Payload, requirements: PaymentRequirements) => {
+          requirements.extra!.settlerAddress = "not-an-address";
+        },
+      ],
+    ])("returns an invalid response for malformed %s", async (_name, mutate) => {
+      const eip3009 = makeEIP3009Payload();
+      const requirements = makeEIP3009Requirements();
+      mutate(eip3009, requirements);
+
+      const result = await scheme.verify(makeEIP3009PaymentPayload(eip3009), requirements);
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isValid: false,
+          invalidReason: ErrUptoInvalidPayload,
+        }),
+      );
+    });
+  });
+
+  describe("ERC-3009 settle", () => {
+    beforeEach(() => {
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return Promise.resolve(sigValid);
+        if (functionName === "balanceOf") return Promise.resolve(10_000_000n);
+        if (functionName === "authorizationState") return Promise.resolve(false);
+        if (functionName === "settle") return Promise.resolve(undefined);
+        return Promise.resolve(undefined);
+      });
+    });
+
+    it("re-verifies the maximum, simulates the actual amount, and writes the actual amount", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.amount).toBe("400000");
+      expect(mockSigner.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: x402UptoErc3009ProxyAddress,
+          functionName: "settle",
+          args: expect.arrayContaining([400_000n]),
+        }),
+      );
+      expect(mockSigner.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: x402UptoErc3009ProxyAddress,
+          functionName: "settle",
+          args: expect.arrayContaining([400_000n]),
+          account: getAddress(eip3009.paymentInfo.settler),
+        }),
+      );
+    });
+
+    it("rejects settlement when the actual-amount simulation fails", async () => {
+      const eip3009 = makeEIP3009Payload();
+      mockSigner.readContract = vi.fn().mockImplementation(({ functionName }) => {
+        if (functionName === "isValidSignature") return Promise.resolve(sigValid);
+        if (functionName === "balanceOf") return Promise.resolve(10_000_000n);
+        if (functionName === "authorizationState") return Promise.resolve(false);
+        if (functionName === "settle") return Promise.reject(new Error("refund blocked"));
+        return Promise.resolve(undefined);
+      });
+
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrUptoEip3009SimulationFailed);
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("returns an invalid response for a malformed settlement amount", async () => {
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(),
+        makeEIP3009Requirements({ amount: "not-an-integer" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoInvalidPayload,
+        }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("skips the transaction for a zero settlement", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "0" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({ success: true, transaction: "", amount: "0" }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("rejects an actual amount above the signed maximum", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "1000001" }),
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe(ErrUptoSettlementExceedsAmount);
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("rejects a multi-address signer without sender-selecting writes", async () => {
+      mockSigner.getAddresses = () => [
+        FACILITATOR_ADDRESS,
+        "0x0000000000000000000000000000000000000002",
+      ];
+
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoEip3009SettlerMismatch,
+        }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("selects the bound settler when multi-address writes are supported", async () => {
+      mockSigner.getAddresses = () => [
+        FACILITATOR_ADDRESS,
+        "0x0000000000000000000000000000000000000002",
+      ];
+      mockSigner.writeContractFrom = vi.fn().mockResolvedValue(MOCK_TX_HASH);
+
+      const result = await scheme.settle(
+        makeEIP3009PaymentPayload(),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSigner.writeContractFrom).toHaveBeenCalledWith(
+        FACILITATOR_ADDRESS,
+        expect.objectContaining({
+          address: x402UptoErc3009ProxyAddress,
+          functionName: "settle",
+        }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("stores one atomic record and preserves it while the receipt is pending", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const store = new InMemoryPendingSettlementStore();
+      const pendingScheme = new UptoEvmScheme(mockSigner, { pendingSettlementStore: store });
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("receipt timeout"));
+
+      const result = await pendingScheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result.errorReason).toBe(ErrSettlementPending);
+      expect(JSON.parse((await store.get(eip3009.signature))!)).toEqual({
+        txHash: MOCK_TX_HASH,
+        network: "eip155:8453",
+        acceptedNetwork: "eip155:8453",
+        amount: "400000",
+        payer: eip3009.authorization.from,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: getAddress(eip3009.paymentInfo.payTo),
+        requiredPayTo: getAddress(eip3009.paymentInfo.payTo),
+        nonce: eip3009.authorization.nonce,
+      });
+    });
+
+    it("does not broadcast when reading pending state fails", async () => {
+      const store: PendingSettlementStore = {
+        get: async () => {
+          throw new Error("injected read failure");
+        },
+        set: async () => undefined,
+        delete: async () => undefined,
+      };
+      const pendingScheme = new UptoEvmScheme(mockSigner, { pendingSettlementStore: store });
+
+      const result = await pendingScheme.settle(
+        makeEIP3009PaymentPayload(),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoTransactionFailed,
+          transaction: "",
+          errorMessage: expect.stringContaining("injected read failure"),
+        }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("does not broadcast when the atomic pending record is malformed", async () => {
+      const store = new InMemoryPendingSettlementStore();
+      const eip3009 = makeEIP3009Payload();
+      await store.set(eip3009.signature, "{not-json");
+      const pendingScheme = new UptoEvmScheme(mockSigner, { pendingSettlementStore: store });
+
+      const result = await pendingScheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoPendingMismatch,
+          transaction: "",
+        }),
+      );
+      expect(mockSigner.writeContract).not.toHaveBeenCalled();
+      expect(await store.get(eip3009.signature)).toBe("{not-json");
+    });
+
+    it("returns a non-retryable manual-reconciliation response when atomic persistence fails", async () => {
+      const eip3009 = makeEIP3009Payload();
+      const { store, entries } = makeFailingPendingStore(() => true);
+      const pendingScheme = new UptoEvmScheme(mockSigner, { pendingSettlementStore: store });
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValue(new Error("receipt timeout"));
+
+      const result = await pendingScheme.settle(
+        makeEIP3009PaymentPayload(eip3009),
+        makeEIP3009Requirements({ amount: "400000" }),
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoTransactionFailed,
+          errorMessage: expect.stringMatching(/settlement_pending.*manual reconciliation required/),
+          transaction: MOCK_TX_HASH,
+          network: "eip155:8453",
+          payer: eip3009.authorization.from,
+          amount: "400000",
+        }),
+      );
+      expect(entries.size).toBe(0);
+      expect(mockSigner.waitForTransactionReceipt).toHaveBeenCalledWith({ hash: MOCK_TX_HASH });
+    });
+
+    it.each([
+      [
+        "amount",
+        (_payload: PaymentPayload, requirements: PaymentRequirements) => {
+          requirements.amount = "300000";
+        },
+      ],
+      [
+        "network and accepted network",
+        (payload: PaymentPayload, requirements: PaymentRequirements) => {
+          payload.accepted.network = "eip155:1";
+          requirements.network = "eip155:1";
+        },
+      ],
+      [
+        "accepted network",
+        (payload: PaymentPayload) => {
+          payload.accepted.network = "eip155:1";
+        },
+      ],
+      [
+        "payer",
+        (payload: PaymentPayload) => {
+          (payload.payload as UptoEIP3009Payload).authorization.from =
+            "0x0000000000000000000000000000000000000004";
+        },
+      ],
+      [
+        "asset",
+        (_payload: PaymentPayload, requirements: PaymentRequirements) => {
+          requirements.asset = "0x0000000000000000000000000000000000000005";
+        },
+      ],
+      [
+        "payment recipient",
+        (payload: PaymentPayload, requirements: PaymentRequirements) => {
+          const changedPayTo = "0x0000000000000000000000000000000000000003";
+          (payload.payload as UptoEIP3009Payload).paymentInfo.payTo = changedPayTo;
+          requirements.payTo = changedPayTo;
+        },
+      ],
+      [
+        "required payment recipient",
+        (_payload: PaymentPayload, requirements: PaymentRequirements) => {
+          requirements.payTo = "0x0000000000000000000000000000000000000003";
+        },
+      ],
+      [
+        "payload payment recipient",
+        (payload: PaymentPayload) => {
+          (payload.payload as UptoEIP3009Payload).paymentInfo.payTo =
+            "0x0000000000000000000000000000000000000003";
+        },
+      ],
+      [
+        "nonce",
+        (payload: PaymentPayload) => {
+          (payload.payload as UptoEIP3009Payload).authorization.nonce = ("0x" +
+            "00".repeat(32)) as `0x${string}`;
+        },
+      ],
+    ])("preserves pending state when a retry changes %s", async (_name, mutate) => {
+      const store = new InMemoryPendingSettlementStore();
+      const pendingScheme = new UptoEvmScheme(mockSigner, { pendingSettlementStore: store });
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("receipt timeout"))
+        .mockResolvedValueOnce({ status: "success" });
+      const eip3009 = makeEIP3009Payload();
+      const payload = makeEIP3009PaymentPayload(eip3009);
+      const requirements = makeEIP3009Requirements({ amount: "400000" });
+      const originalAcceptedNetwork = payload.accepted.network;
+      const originalRequirements = { ...requirements };
+      const originalFrom = eip3009.authorization.from;
+      const originalNonce = eip3009.authorization.nonce;
+      const originalPayTo = eip3009.paymentInfo.payTo;
+
+      const first = await pendingScheme.settle(payload, requirements);
+      const changedRequirements = {
+        ...requirements,
+        extra: { ...requirements.extra },
+      };
+      mutate(payload, changedRequirements);
+      const mismatch = await pendingScheme.settle(payload, changedRequirements);
+
+      expect(first.errorReason).toBe(ErrSettlementPending);
+      expect(mismatch).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrUptoPendingMismatch,
+          transaction: MOCK_TX_HASH,
+          network: "eip155:8453",
+          payer: originalFrom,
+        }),
+      );
+      expect(JSON.parse((await store.get(eip3009.signature))!)).toEqual(
+        expect.objectContaining({
+          txHash: MOCK_TX_HASH,
+          amount: "400000",
+          network: "eip155:8453",
+          payTo: getAddress(originalPayTo),
+          nonce: originalNonce,
+        }),
+      );
+
+      payload.accepted.network = originalAcceptedNetwork;
+      requirements.network = originalRequirements.network;
+      requirements.asset = originalRequirements.asset;
+      requirements.payTo = originalRequirements.payTo;
+      eip3009.authorization.from = originalFrom;
+      eip3009.authorization.nonce = originalNonce;
+      eip3009.paymentInfo.payTo = originalPayTo;
+      const reconciled = await pendingScheme.settle(payload, requirements);
+      expect(reconciled).toEqual(
+        expect.objectContaining({
+          success: true,
+          transaction: MOCK_TX_HASH,
+          network: "eip155:8453",
+          amount: "400000",
+          payer: eip3009.authorization.from,
+        }),
+      );
+      expect(await store.get(eip3009.signature)).toBeUndefined();
+      expect(mockSigner.writeContract).toHaveBeenCalledTimes(1);
+    });
+
+    it("reconciles a pending proxy transaction without rebroadcasting", async () => {
+      mockSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("receipt timeout"))
+        .mockResolvedValueOnce({ status: "success" });
+      const eip3009 = makeEIP3009Payload();
+      const payload = makeEIP3009PaymentPayload(eip3009);
+      const requirements = makeEIP3009Requirements({ amount: "400000" });
+
+      const first = await scheme.settle(payload, requirements);
+      const retry = await scheme.settle(payload, requirements);
+
+      expect(first).toEqual(
+        expect.objectContaining({
+          success: false,
+          errorReason: ErrSettlementPending,
+          transaction: MOCK_TX_HASH,
+        }),
+      );
+      expect(retry).toEqual(
+        expect.objectContaining({
+          success: true,
+          transaction: MOCK_TX_HASH,
+          amount: "400000",
+        }),
+      );
+      expect(mockSigner.writeContract).toHaveBeenCalledTimes(1);
     });
   });
 

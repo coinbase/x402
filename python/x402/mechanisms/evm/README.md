@@ -1,6 +1,7 @@
 # x402 EVM Mechanism
 
-EVM implementation of the x402 payment protocol using the **Exact** payment scheme with EIP-3009 TransferWithAuthorization.
+EVM implementation of the x402 payment protocol. It supports **Exact** payments and
+**Upto** payments backed by Permit2 (default) or ERC-3009 ReceiveWithAuthorization.
 
 ## Installation
 
@@ -15,6 +16,9 @@ Three components for handling x402 payments on EVM-compatible blockchains:
 - **Client** (`ExactEvmClientScheme`) - Creates signed payment authorizations
 - **Server** (`ExactEvmServerScheme`) - Builds payment requirements, parses prices
 - **Facilitator** (`ExactEvmFacilitatorScheme`) - Verifies signatures, executes on-chain transfers
+
+The corresponding upto components are `UptoEvmClientScheme`, `UptoEvmServerScheme`, and
+`UptoEvmFacilitatorScheme` from `x402.mechanisms.evm.upto`.
 
 ## Quick Start
 
@@ -131,4 +135,22 @@ Automatic handling of:
 - Deployed smart wallets (ERC-1271 signature verification)
 - Undeployed smart wallets (ERC-6492 counterfactual verification)
 - EOA wallets (standard ECDSA)
+
+### Upto payments
+
+Permit2 remains the default asset transfer method. To explicitly select ERC-3009, include:
+
+```python
+extra = {
+    "assetTransferMethod": "eip3009",
+    "name": "USDC",
+    "version": "2",
+    "settlerAddress": "0x...",
+}
+```
+
+The client signs `ReceiveWithAuthorization` to the canonical
+`x402UptoERC3009Proxy` (`0x40203Fa50150e6ec970DE91F3330e82cDF640006`). The payload contains
+`signature`, `authorization`, and `paymentInfo`; the facilitator verifies the authorized maximum
+and can settle any non-negative amount up to that maximum.
 

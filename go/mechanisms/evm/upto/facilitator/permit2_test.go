@@ -22,6 +22,7 @@ type mockFacilitatorSigner struct {
 	addresses          []string
 	readContractResult interface{}
 	readContractError  error
+	readContractFunc   func(address string, functionName string, args ...interface{}) (interface{}, error)
 	writeContractTx    string
 	writeContractError error
 	getCodeResult      []byte
@@ -33,7 +34,16 @@ type mockFacilitatorSigner struct {
 	receiptError       error
 	// writeContractCalls counts WriteContract invocations, so pending-settlement
 	// reconciliation tests can assert the fast path never re-broadcasts.
-	writeContractCalls int
+	writeContractCalls  int
+	lastReadFrom        string
+	lastReadAddress     string
+	lastReadFunction    string
+	lastReadArgs        []interface{}
+	lastWriteFrom       string
+	lastWriteAddress    string
+	lastWriteFunction   string
+	lastWriteDataSuffix []byte
+	lastWriteArgs       []interface{}
 }
 
 func newMockSigner(addresses ...string) *mockFacilitatorSigner {
@@ -52,10 +62,21 @@ func newMockSigner(addresses ...string) *mockFacilitatorSigner {
 func (m *mockFacilitatorSigner) GetAddresses() []string { return m.addresses }
 
 func (m *mockFacilitatorSigner) ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error) {
+	m.lastReadAddress = address
+	m.lastReadFunction = functionName
+	m.lastReadArgs = args
+	if m.readContractFunc != nil {
+		return m.readContractFunc(address, functionName, args...)
+	}
 	if m.readContractError != nil {
 		return nil, m.readContractError
 	}
 	return m.readContractResult, nil
+}
+
+func (m *mockFacilitatorSigner) ReadContractFrom(ctx context.Context, from, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error) {
+	m.lastReadFrom = from
+	return m.ReadContract(ctx, address, abi, functionName, args...)
 }
 
 func (m *mockFacilitatorSigner) VerifyTypedData(ctx context.Context, address string, domain evm.TypedDataDomain, types map[string][]evm.TypedDataField, primaryType string, message map[string]interface{}, signature []byte) (bool, error) {
@@ -64,10 +85,19 @@ func (m *mockFacilitatorSigner) VerifyTypedData(ctx context.Context, address str
 
 func (m *mockFacilitatorSigner) WriteContract(ctx context.Context, address string, abi []byte, functionName string, dataSuffix []byte, args ...interface{}) (string, error) {
 	m.writeContractCalls++
+	m.lastWriteAddress = address
+	m.lastWriteFunction = functionName
+	m.lastWriteDataSuffix = append([]byte(nil), dataSuffix...)
+	m.lastWriteArgs = append([]interface{}(nil), args...)
 	if m.writeContractError != nil {
 		return "", m.writeContractError
 	}
 	return m.writeContractTx, nil
+}
+
+func (m *mockFacilitatorSigner) WriteContractFrom(ctx context.Context, from, address string, abi []byte, functionName string, dataSuffix []byte, args ...interface{}) (string, error) {
+	m.lastWriteFrom = from
+	return m.WriteContract(ctx, address, abi, functionName, dataSuffix, args...)
 }
 
 func (m *mockFacilitatorSigner) SendTransaction(ctx context.Context, to string, data []byte) (string, error) {
@@ -1062,6 +1092,9 @@ func TestUptoEvmScheme_GetExtra_ReturnsFacilitatorAddress(t *testing.T) {
 	}
 	if extra["facilitatorAddress"] != testFacilitatorAddr {
 		t.Errorf("expected facilitatorAddress=%s, got %v", testFacilitatorAddr, extra["facilitatorAddress"])
+	}
+	if extra["settlerAddress"] != extra["facilitatorAddress"] {
+		t.Errorf("expected both settlement fields to use one signer, got %v", extra)
 	}
 }
 

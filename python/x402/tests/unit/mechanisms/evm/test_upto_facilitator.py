@@ -19,6 +19,7 @@ from x402.mechanisms.evm.constants import (
     ERR_PERMIT2_TOKEN_MISMATCH,
     ERR_SETTLEMENT_PENDING,
     ERR_UPTO_FACILITATOR_MISMATCH,
+    ERR_UPTO_INVALID_PAYLOAD,
     ERR_UPTO_INVALID_SCHEME,
     ERR_UPTO_NETWORK_MISMATCH,
     ERR_UPTO_SETTLEMENT_EXCEEDS_AMOUNT,
@@ -421,7 +422,7 @@ class TestVerify:
         )
         result = facilitator.verify(payload, make_requirements())
         assert result.is_valid is False
-        assert result.invalid_reason == "unsupported_payload_type"
+        assert result.invalid_reason == ERR_UPTO_INVALID_PAYLOAD
 
     def test_rejects_eoa_asset(self):
         # When the token address has no bytecode, verify must reject with asset_not_deployed_contract.
@@ -805,7 +806,7 @@ class TestVerifyEdgeCases:
         payload = make_payment_payload(payload_dict=payload_dict)
         result = facilitator.verify(payload, make_requirements())
         assert result.is_valid is False
-        assert "signature" in result.invalid_reason
+        assert result.invalid_reason == ERR_UPTO_INVALID_PAYLOAD
 
     def test_rejects_invalid_signature(self):
         from unittest.mock import patch

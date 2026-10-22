@@ -84,6 +84,32 @@ func callContractAndDecode(
 	return outputs, nil
 }
 
+func readERC20Balance(
+	t *testing.T,
+	ctx context.Context,
+	ethClient *ethclient.Client,
+	tokenAddress string,
+	account string,
+) *big.Int {
+	t.Helper()
+	result, err := callContractAndDecode(
+		ctx,
+		ethClient,
+		tokenAddress,
+		evm.ERC20BalanceOfABI,
+		"balanceOf",
+		common.HexToAddress(account),
+	)
+	if err != nil {
+		t.Fatalf("Failed to read ERC-20 balance for %s: %v", account, err)
+	}
+	balance, ok := result.(*big.Int)
+	if !ok {
+		t.Fatalf("Unexpected ERC-20 balance type for %s: %T", account, result)
+	}
+	return new(big.Int).Set(balance)
+}
+
 // Real EVM facilitator signer
 type realFacilitatorEvmSigner struct {
 	privateKey *ecdsa.PrivateKey
@@ -2012,6 +2038,160 @@ func TestEVMIntegrationV2UptoPermit2(t *testing.T) {
 			t.Errorf("Expected settle amount '0', got '%s'", settleResponse.Amount)
 		}
 	})
+}
+
+func TestEVMIntegrationV2UptoEIP3009(t *testing.T) {
+	clientPrivateKey := os.Getenv("EVM_CLIENT_PRIVATE_KEY")
+	facilitatorPrivateKey := os.Getenv("EVM_FACILITATOR_PRIVATE_KEY")
+	resourceServerAddress := os.Getenv("EVM_RESOURCE_SERVER_ADDRESS")
+	if clientPrivateKey == "" || facilitatorPrivateKey == "" || resourceServerAddress == "" {
+		t.Skip("Skipping EVM upto EIP-3009 integration test: EVM_CLIENT_PRIVATE_KEY, EVM_FACILITATOR_PRIVATE_KEY, and EVM_RESOURCE_SERVER_ADDRESS must be set")
+	}
+
+	ctx := context.Background()
+	const (
+		network = "eip155:84532"
+		rpcURL  = "https://sepolia.base.org"
+		usdc    = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+	)
+	waitForPendingTransactions(t, ctx, facilitatorPrivateKey, rpcURL)
+
+	clientEthClient, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		t.Fatalf("Failed to connect to Base Sepolia: %v", err)
+	}
+	defer clientEthClient.Close()
+	clientSigner, err := evmsigners.NewClientSignerFromPrivateKeyWithClient(clientPrivateKey, clientEthClient)
+	if err != nil {
+		t.Fatalf("Failed to create client signer: %v", err)
+	}
+	facilitatorSigner, err := newRealFacilitatorEvmSigner(facilitatorPrivateKey, rpcURL)
+	if err != nil {
+		t.Fatalf("Failed to create facilitator signer: %v", err)
+	}
+
+	client := x402.Newx402Client()
+	client.Register(network, uptoevmclient.NewUptoEvmScheme(clientSigner, nil))
+
+	facilitator := x402.Newx402Facilitator()
+	facilitator.Register(
+		[]x402.Network{network},
+		uptoevmfacilitator.NewUptoEvmScheme(
+			facilitatorSigner,
+			&uptoevmfacilitator.UptoEvmSchemeConfig{SimulateInSettle: true},
+		),
+	)
+	server := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(&localEvmFacilitatorClient{facilitator: facilitator}),
+	)
+	server.Register(network, uptoevmserver.NewUptoEvmScheme())
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	accepts, err := server.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
+		Scheme:  evm.SchemeUpto,
+		Network: network,
+		PayTo:   resourceServerAddress,
+		Price: map[string]interface{}{
+			"amount": "1000",
+			"asset":  usdc,
+			"extra": map[string]interface{}{
+				"assetTransferMethod": string(evm.AssetTransferMethodEIP3009),
+				"name":                "USDC",
+				"version":             "2",
+			},
+		},
+		MaxTimeoutSeconds: 300,
+	})
+	if err != nil {
+		t.Fatalf("Failed to build EIP-3009 requirements: %v", err)
+	}
+	if accepts[0].Extra["assetTransferMethod"] != string(evm.AssetTransferMethodEIP3009) {
+		t.Fatalf("Expected EIP-3009 requirements, got extra=%v", accepts[0].Extra)
+	}
+	if accepts[0].Extra["settlerAddress"] == nil {
+		t.Fatal("Expected settlerAddress in payment requirements")
+	}
+
+	resource := &types.ResourceInfo{
+		URL:         "https://api.example.com/upto-eip3009",
+		Description: "Upto EIP-3009 API Access",
+		MimeType:    "application/json",
+	}
+	selected, err := client.SelectPaymentRequirements(accepts)
+	if err != nil {
+		t.Fatalf("Failed to select payment requirements: %v", err)
+	}
+	paymentPayload, err := client.CreatePaymentPayload(ctx, selected, resource, nil)
+	if err != nil {
+		t.Fatalf("Failed to create EIP-3009 payload: %v", err)
+	}
+	if !evm.IsUptoEIP3009Payload(paymentPayload.Payload) {
+		t.Fatalf("Expected upto EIP-3009 payload, got %#v", paymentPayload.Payload)
+	}
+	parsedPayload, err := evm.UptoEIP3009PayloadFromMap(paymentPayload.Payload)
+	if err != nil {
+		t.Fatalf("Failed to parse EIP-3009 payload: %v", err)
+	}
+	if !strings.EqualFold(parsedPayload.Authorization.To, evm.X402UptoEIP3009ProxyAddress) {
+		t.Fatalf("Unexpected authorization receiver: %s", parsedPayload.Authorization.To)
+	}
+
+	accepted := server.FindMatchingRequirements(accepts, paymentPayload)
+	if accepted == nil {
+		t.Fatal("No matching EIP-3009 requirements found")
+	}
+	verifyResponse, err := server.VerifyPayment(ctx, paymentPayload, *accepted)
+	if err != nil {
+		t.Fatalf("Failed to verify EIP-3009 payment: %v", err)
+	}
+	if !verifyResponse.IsValid {
+		t.Fatalf("EIP-3009 verification failed: %s", verifyResponse.InvalidReason)
+	}
+
+	if strings.EqualFold(parsedPayload.Authorization.From, parsedPayload.PaymentInfo.PayTo) {
+		t.Fatal("EIP-3009 integration requires distinct payer and recipient addresses")
+	}
+	payerBalanceBefore := readERC20Balance(
+		t, ctx, clientEthClient, usdc, parsedPayload.Authorization.From,
+	)
+	recipientBalanceBefore := readERC20Balance(
+		t, ctx, clientEthClient, usdc, parsedPayload.PaymentInfo.PayTo,
+	)
+
+	settleResponse, err := server.SettlePayment(
+		ctx, paymentPayload, *accepted, &x402.SettlementOverrides{Amount: "500"},
+	)
+	if err != nil {
+		t.Fatalf("Failed to settle EIP-3009 payment: %v", err)
+	}
+	if !settleResponse.Success || settleResponse.Transaction == "" || settleResponse.Amount != "500" {
+		t.Fatalf("Unexpected EIP-3009 settlement response: %+v", settleResponse)
+	}
+
+	payerBalanceAfter := readERC20Balance(
+		t, ctx, clientEthClient, usdc, parsedPayload.Authorization.From,
+	)
+	recipientBalanceAfter := readERC20Balance(
+		t, ctx, clientEthClient, usdc, parsedPayload.PaymentInfo.PayTo,
+	)
+	actualAmount := big.NewInt(500)
+	payerDelta := new(big.Int).Sub(payerBalanceBefore, payerBalanceAfter)
+	recipientDelta := new(big.Int).Sub(recipientBalanceAfter, recipientBalanceBefore)
+	if payerDelta.Cmp(actualAmount) != 0 {
+		t.Fatalf(
+			"Expected payer net debit %s after partial settle/refund, got %s",
+			actualAmount, payerDelta,
+		)
+	}
+	if recipientDelta.Cmp(actualAmount) != 0 {
+		t.Fatalf("Expected recipient credit %s, got %s", actualAmount, recipientDelta)
+	}
+	unspentMaximum := new(big.Int).Sub(big.NewInt(1000), actualAmount)
+	if payerDelta.Cmp(new(big.Int).Add(actualAmount, unspentMaximum)) == 0 {
+		t.Fatalf("Payer was charged the full authorization; expected %s refunded", unspentMaximum)
+	}
 }
 
 // forcedPendingReceiptSigner wraps a real FacilitatorEvmSigner and, while
