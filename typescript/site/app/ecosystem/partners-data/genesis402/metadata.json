@@ -1,0 +1,7 @@
+{
+  "name": "Genesis402",
+  "description": "360 pay-per-call APIs for AI agents over x402, settled in USDC on Base: wallet and token risk signals, sanctions-list screening, multi-chain reads, DeFi yields, SEC financials, web and domain intel, and AI text tools. No API key or account. Also ships an MCP server (npx genesis402-mcp) with a free catalog and quote-before-pay.",
+  "logoUrl": "/logos/genesis402.png",
+  "websiteUrl": "https://twin.unykorn.org",
+  "category": "Services/Endpoints"
+}
