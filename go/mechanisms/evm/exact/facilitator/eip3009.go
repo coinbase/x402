@@ -106,10 +106,10 @@ func (f *ExactEvmScheme) verifyEIP3009(
 
 	nonCanonical, err := IsPlainNonCanonicalECDSASignature(ctx, f.signer, evmPayload.Authorization.From, signatureBytes)
 	if err != nil {
-		return nil, x402.NewVerifyError(ErrFailedToVerifySignature, evmPayload.Authorization.From, err.Error())
+		return nil, nil, x402.NewVerifyError(ErrFailedToVerifySignature, evmPayload.Authorization.From, err.Error())
 	}
 	if nonCanonical {
-		return nil, x402.NewVerifyError(ErrInvalidSignatureS, evmPayload.Authorization.From, "invalid signature s")
+		return nil, nil, x402.NewVerifyError(ErrInvalidSignatureS, evmPayload.Authorization.From, "invalid signature s")
 	}
 
 	classification, err := ClassifyEIP3009Signature(
