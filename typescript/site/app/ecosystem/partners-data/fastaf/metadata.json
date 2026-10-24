@@ -1,0 +1,7 @@
+{
+  "name": "FastAF",
+  "description": "Web scrape, search and structured extraction API for AI agents. Pay per request in USDC via x402 on REST.",
+  "logoUrl": "/logos/fastaf.svg",
+  "websiteUrl": "https://fastaf.co",
+  "category": "Services/Endpoints"
+}
