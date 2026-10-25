@@ -1,0 +1,7 @@
+{
+  "name": "relay402",
+  "description": "Pay-per-call verification and data APIs for AI agents: package vulnerability checks (OSV), npm package risk signals, OFAC sanctions screening, robots.txt crawl permission, Wayback snapshots, Amazon product data, barcode product lookup, company job openings, and public holidays. From $0.005 USDC on Base via x402 v2, no signup, no API keys. Schema-validated JSON, free demo on every endpoint, discovery via /index.json, OpenAPI 3.1, llms.txt, and /.well-known/x402.json.",
+  "logoUrl": "/logos/relay402.png",
+  "websiteUrl": "https://relay402.georgespring.workers.dev",
+  "category": "Services/Endpoints"
+}
