@@ -1,0 +1,7 @@
+{
+  "name": "x402-seller",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/x402-seller.png",
+  "description": "Rug protection and decision-ready intelligence for autonomous trading agents. No signup, no API key, pay per call in USDC. /vet returns a single-token go/no-go by fusing contract security, a live buy/sell simulation, and a self-collected liquidity-drain time series; /alpha/launches discovers new pools and rug-screens them in one call. Every verdict is graded against real outcomes 6h later and published at /track-record, misses included.",
+  "websiteUrl": "https://x402-seller-m8nx.onrender.com"
+}
