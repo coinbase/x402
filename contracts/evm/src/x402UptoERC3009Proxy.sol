@@ -23,6 +23,9 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
     /// @notice Thrown when the settlement amount exceeds the signed authorization value.
     error AmountExceedsAuthorization();
 
+    /// @notice Thrown when a settlement leg does not change the recipient balance by the exact amount.
+    error ReceivedAmountMismatch();
+
     /// @notice Thrown when the ERC-3009 authorization does not name this proxy as its receiver.
     error InvalidAuthorizationReceiver();
 
@@ -75,6 +78,8 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
     /// @dev Reverts with `InvalidAmount` when `amount == 0`.
     /// @dev Reverts with `AmountExceedsAuthorization` when `amount > authorization.value`.
     /// @dev Reverts with `InvalidNonce` when the nonce does not commit to `paymentInfo`.
+    /// @dev Reverts with `ReceivedAmountMismatch` when the proxy, recipient, or payer does not
+    ///      receive the exact token amount for that leg.
     /// @dev Reverts with the token's reason when authorization receipt or either transfer fails.
     ///
     /// @param token ERC-3009 token to settle.
@@ -102,6 +107,9 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
             keccak256(abi.encode(NONCE_TYPEHASH, paymentInfo.payTo, paymentInfo.settler, paymentInfo.salt));
         if (authorization.nonce != expectedNonce) revert InvalidNonce();
 
+        IERC20 asset = IERC20(token);
+        uint256 balanceBefore = asset.balanceOf(address(this));
+
         IERC3009(token)
             .receiveWithAuthorization({
             from: authorization.from,
@@ -113,11 +121,23 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
             signature: signature
         });
 
-        IERC20 asset = IERC20(token);
+        uint256 balanceAfter = asset.balanceOf(address(this));
+        if (balanceAfter < balanceBefore || balanceAfter - balanceBefore != authorization.value) {
+            revert ReceivedAmountMismatch();
+        }
+
+        uint256 payToBefore = asset.balanceOf(paymentInfo.payTo);
         asset.safeTransfer(paymentInfo.payTo, amount);
+        uint256 payToAfter = asset.balanceOf(paymentInfo.payTo);
+        if (payToAfter < payToBefore || payToAfter - payToBefore != amount) revert ReceivedAmountMismatch();
 
         uint256 refundAmount = authorization.value - amount;
-        if (refundAmount != 0) asset.safeTransfer(authorization.from, refundAmount);
+        if (refundAmount != 0) {
+            uint256 payerBefore = asset.balanceOf(authorization.from);
+            asset.safeTransfer(authorization.from, refundAmount);
+            uint256 payerAfter = asset.balanceOf(authorization.from);
+            if (payerAfter < payerBefore || payerAfter - payerBefore != refundAmount) revert ReceivedAmountMismatch();
+        }
 
         emit Settled();
     }

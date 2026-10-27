@@ -38,6 +38,36 @@ to the token and transfer funds to the proxy without executing the payment and r
 
 ### Phase 1: `PAYMENT-SIGNATURE` Header Payload
 
+**Example PaymentRequired (402 Response):**
+
+```json
+{
+  "x402Version": 2,
+  "error": "PAYMENT-SIGNATURE header is required",
+  "resource": {
+    "url": "https://api.example.com/llm/generate",
+    "description": "LLM text generation endpoint",
+    "mimeType": "application/json"
+  },
+  "accepts": [
+    {
+      "scheme": "upto",
+      "network": "eip155:84532",
+      "amount": "5000000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "assetTransferMethod": "eip3009",
+        "name": "USDC",
+        "version": "2",
+        "settlerAddress": "0xSettlerAddress"
+      }
+    }
+  ]
+}
+```
+
 The payload contains:
 
 - `signature`: the client's `ReceiveWithAuthorization` signature;
@@ -85,7 +115,9 @@ authorization.nonce = keccak256(
 ```
 
 The nonce is a hash commitment. EIP-3009 has no witness or arbitrary-data field, so the client sends
-the commitment preimage in `paymentInfo` and the proxy recomputes it onchain.
+the commitment preimage in `paymentInfo` and the proxy recomputes it onchain. `authorization.to`
+binds the proxy. The token's EIP-712 domain binds the token and chain. Those values are signed in
+the authorization, so the nonce does not repeat them.
 
 `extra.settlerAddress` selects one address for each payment. A server settling directly uses an
 address it controls. A server delegating settlement uses an address advertised by its facilitator.
@@ -102,20 +134,31 @@ The verifier MUST:
 4. recompute the nonce commitment from `paymentInfo`;
 5. verify `validAfter`, `validBefore`, and that the authorization is unused;
 6. verify the client balance covers the full signed maximum; and
-7. simulate `x402UptoERC3009Proxy.settle` for the full maximum from the selected settler.
+7. simulate `x402UptoERC3009Proxy.settle` from the selected settler with `amount` equal to
+   `authorization.value`.
 
-The full-maximum simulation is required even when the resource server expects a lower charge. The
-client must still hold the entire maximum because the proxy receives it before refunding the unused
-portion.
+Step 7 checks that the signed maximum can be pulled and paid in full. It does not execute the refund
+transfer, because a full settlement leaves a zero refund. The client must still hold the entire
+maximum, since every settlement pulls `authorization.value` before paying and refunding. When the
+expected charge is already known and is below that maximum, the verifier SHOULD also simulate
+`settle` with that charge so the refund transfer is included. Simulating only the full maximum is
+not sufficient for a later partial settlement. Phase 3 requires that simulation before broadcast.
 
 ### Phase 3: Settlement Logic
 
 At settlement, `PaymentRequirements.amount` carries the actual amount selected by the resource
-server. The settler MUST:
+server. If that amount is zero, no transaction is submitted and the authorization expires unused.
+The onchain contract rejects zero-amount settlement.
+
+When the amount is non-zero, the settler MUST:
 
 1. re-verify the signature against `authorization.value`, not the settle-time amount;
-2. require `0 < PaymentRequirements.amount <= authorization.value`; and
-3. call:
+2. require `0 < PaymentRequirements.amount <= authorization.value`;
+3. simulate `x402UptoERC3009Proxy.settle` with `PaymentRequirements.amount` before broadcast. A
+   verify-time simulation of the full maximum never refunds, so it cannot show that the unused
+   amount can be transferred back to `authorization.from`. This simulation is required whenever the
+   transaction will be broadcast, including when the charge equals the signed maximum; and
+4. call:
 
 ```solidity
 x402UptoERC3009Proxy.settle(
@@ -129,18 +172,18 @@ x402UptoERC3009Proxy.settle(
 
 The transaction MUST be sent by `paymentInfo.settler`. The proxy receives the full
 `authorization.value`, transfers `requirements.amount` to `paymentInfo.payTo`, and refunds
-`authorization.value - requirements.amount` to `authorization.from`. Any failure reverts the
-entire transaction, including token receipt and nonce consumption.
-
-If the settled amount is zero, no transaction is submitted and the authorization expires unused.
-The onchain contract rejects zero-amount settlement.
+`authorization.value - requirements.amount` to `authorization.from`. Each of those three token
+movements must deliver the exact amount. Any failure reverts the entire transaction, including
+token receipt and nonce consumption.
 
 ### Token Compatibility
 
 This method requires the `bytes signature` form of `receiveWithAuthorization` used by current USDC
-deployments. Tokens that charge transfer fees, rebase during settlement, or otherwise fail to
-transfer exact requested amounts are unsupported. Smart-wallet signature support depends on the
-token's EIP-3009 implementation.
+deployments. The proxy reverts unless the pull, the merchant payment, and any refund each change
+the corresponding balance by the exact amount. Tokens that charge transfer fees, rebase during
+settlement, or otherwise fail to transfer exact requested amounts are unsupported. A settlement of
+those tokens cannot spend a balance that was already on the proxy. Smart-wallet signature support
+depends on the token's EIP-3009 implementation.
 
 ---
 
@@ -442,7 +485,7 @@ The Canonical Permit2 contract address can be found at [https://docs.uniswap.org
 ### Reference Implementation: `x402UptoERC3009Proxy`
 
 The EIP-3009 path uses `x402UptoERC3009Proxy` at
-`0x40208Cd083acD9559Ce44742c4BcD9Cf04850006`. The pre-audit contract is
+`0x4020D4E56DF3a18A3568E8a61b36883824Aa0006`. The pre-audit contract is
 deterministically deployable at this address with CREATE2 on supported EVM chains.
 
 ### Reference Implementation: `x402UptoPermit2Proxy`

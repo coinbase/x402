@@ -16,6 +16,9 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
     address public reentryTarget;
     bytes public reentryData;
     bool public reentrySucceeded;
+    uint256 public receiveShortfall;
+    address public outgoingFrom;
+    uint256 public outgoingShortfall;
 
     error AuthorizationExpired();
     error AuthorizationNotYetValid();
@@ -52,6 +55,22 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
         reentrySucceeded = false;
     }
 
+    /// @notice Makes `receiveWithAuthorization` deliver `shortfall` fewer tokens than `value`.
+    function setReceiveShortfall(
+        uint256 shortfall
+    ) external {
+        receiveShortfall = shortfall;
+    }
+
+    /// @notice Makes transfers from `from` deliver `shortfall` fewer tokens than requested.
+    function setOutgoingShortfall(
+        address from,
+        uint256 shortfall
+    ) external {
+        outgoingFrom = from;
+        outgoingShortfall = shortfall;
+    }
+
     function receiveWithAuthorization(
         address from,
         address to,
@@ -81,7 +100,9 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
             (reentrySucceeded,) = target.call(data);
         }
 
-        _transfer(from, to, value);
+        uint256 shortfall = receiveShortfall;
+        if (shortfall >= value) revert TransferFailed();
+        _transfer(from, to, value - shortfall);
     }
 
     function _update(
@@ -89,7 +110,11 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
         address to,
         uint256 value
     ) internal override {
-        if (from != address(0) && to == failedRecipient) revert TransferFailed();
+        if (from != address(0) && failedRecipient != address(0) && to == failedRecipient) revert TransferFailed();
+        if (outgoingShortfall != 0 && from == outgoingFrom && outgoingShortfall < value) {
+            super._update(from, to, value - outgoingShortfall);
+            return;
+        }
         super._update(from, to, value);
     }
 }

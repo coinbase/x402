@@ -4,7 +4,7 @@ Smart contracts for the x402 payment protocol on EVM chains.
 
 ## Overview
 
-The x402 Permit2 Proxy contracts enable trustless, gasless payments using [Permit2](https://github.com/Uniswap/permit2). There are two variants:
+These contracts enable trustless, gasless x402 payments. The Permit2 proxies cover generic ERC-20s through [Permit2](https://github.com/Uniswap/permit2). `x402UptoERC3009Proxy` covers tokens that can authorize a transfer with one signature, such as USDC.
 
 ### `x402ExactPermit2Proxy`
 Transfers the **exact** permitted amount (similar to EIP-3009's `transferWithAuthorization`). The facilitator cannot choose a different amount—it's always the full permitted amount.
@@ -32,7 +32,7 @@ commitment and also deploys deterministically via CREATE2.
 |----------|---------|
 | x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
 | x402UptoPermit2Proxy | `0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002` |
-| x402UptoERC3009Proxy | `0x40208Cd083acD9559Ce44742c4BcD9Cf04850006` (pre-audit) |
+| x402UptoERC3009Proxy | `0x4020D4E56DF3a18A3568E8a61b36883824Aa0006` (pre-audit) |
 
 **Batch settlement (CREATE2 vanity `0x4020…`)**
 
@@ -119,7 +119,7 @@ and `keccak256(initCode)`—not on who sends the transaction.
    You should see:
    - Exact → `0x402085c248EeA27D92E8b30b2C58ed07f9E20001`
    - Upto  → `0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002`
-   - Upto ERC-3009 → `0x40208Cd083acD9559Ce44742c4BcD9Cf04850006`
+   - Upto ERC-3009 → `0x4020D4E56DF3a18A3568E8a61b36883824Aa0006`
 
 3. **Check prerequisites on the target chain**
    - [Permit2](https://github.com/Uniswap/permit2) must be deployed at `0x000000000022D473030F116dDEE9F6B43aC78BA3` when deploying either Permit2 proxy
@@ -165,7 +165,7 @@ and `keccak256(initCode)`—not on who sends the transaction.
    The default `run()` entry point automatically:
    - Loads the pre-built initCode for Exact and compiler-derived initCode for both Upto proxies
    - Skips any contract already deployed at the expected address
-   - Verifies `PERMIT2()` returns the correct address after deployment
+   - Verifies `PERMIT2()` on the Permit2 proxies after deployment
 
 5. **Verify on Etherscan** (if `--verify` didn't work automatically)
    ```bash

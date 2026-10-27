@@ -20,7 +20,7 @@ contract DeployX402ProxiesTest is Test {
 
     address constant EXPECTED_EXACT_ADDRESS = 0x402085c248EeA27D92E8b30b2C58ed07f9E20001;
     address constant EXPECTED_UPTO_ADDRESS = 0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002;
-    address constant EXPECTED_UPTO_ERC3009_ADDRESS = 0x40208Cd083acD9559Ce44742c4BcD9Cf04850006;
+    address constant EXPECTED_UPTO_ERC3009_ADDRESS = 0x4020D4E56DF3a18A3568E8a61b36883824Aa0006;
 
     /// @dev Bytecode of Arachnid's deterministic CREATE2 deployer, same on every EVM chain.
     bytes constant CREATE2_DEPLOYER_CODE =
