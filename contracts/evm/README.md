@@ -15,7 +15,8 @@ Allows the facilitator to transfer **up to** the permitted amount. Useful for sc
 ### `x402UptoERC3009Proxy`
 Allows ERC-3009 tokens to use **up to** pricing without a Permit2 approval. It receives the signed
 maximum with `receiveWithAuthorization`, pays the actual amount, and refunds the remainder
-atomically.
+atomically. The proxy supports both the smart-wallet-compatible `bytes signature` overload and the
+normative `v, r, s` overload used by standards-only and older token implementations.
 
 The Permit2 contracts:
 - Use the **witness pattern** to cryptographically bind payment destinations
@@ -32,7 +33,7 @@ commitment and also deploys deterministically via CREATE2.
 |----------|---------|
 | x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
 | x402UptoPermit2Proxy | `0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002` |
-| x402UptoERC3009Proxy | `0x4020D4E56DF3a18A3568E8a61b36883824Aa0006` (pre-audit) |
+| x402UptoERC3009Proxy | `0x40203Fa50150e6ec970DE91F3330e82cDF640006` (pre-audit) |
 
 **Batch settlement (CREATE2 vanity `0x4020…`)**
 
@@ -119,7 +120,7 @@ and `keccak256(initCode)`—not on who sends the transaction.
    You should see:
    - Exact → `0x402085c248EeA27D92E8b30b2C58ed07f9E20001`
    - Upto  → `0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002`
-   - Upto ERC-3009 → `0x4020D4E56DF3a18A3568E8a61b36883824Aa0006`
+   - Upto ERC-3009 → `0x40203Fa50150e6ec970DE91F3330e82cDF640006`
 
 3. **Check prerequisites on the target chain**
    - [Permit2](https://github.com/Uniswap/permit2) must be deployed at `0x000000000022D473030F116dDEE9F6B43aC78BA3` when deploying either Permit2 proxy
@@ -351,7 +352,9 @@ src/
 ├── x402UptoPermit2Proxy.sol   # Flexible Permit2 transfers (up to permitted)
 ├── x402UptoERC3009Proxy.sol   # ERC-3009 maximum pull, payment, and refund
 └── interfaces/
-    └── ISignatureTransfer.sol # Permit2 SignatureTransfer interface
+    ├── IERC3009.sol            # ERC-3009 bytes-signature interface
+    ├── IERC3009VRS.sol         # Normative ERC-3009 split-signature interface
+    └── ISignatureTransfer.sol  # Permit2 SignatureTransfer interface
 
 script/
 ├── Deploy.s.sol                  # CREATE2 deployment for Permit2 proxy pair

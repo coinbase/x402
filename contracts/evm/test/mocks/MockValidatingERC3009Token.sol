@@ -19,13 +19,20 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
     uint256 public receiveShortfall;
     address public outgoingFrom;
     uint256 public outgoingShortfall;
+    bool public bytesAuthorizationEnabled = true;
+    bool public vrsAuthorizationEnabled = true;
+    bool public emptyVRSRevert;
+    uint256 public bytesAuthorizationCalls;
+    uint256 public vrsAuthorizationCalls;
 
     error AuthorizationExpired();
     error AuthorizationNotYetValid();
     error AuthorizationUsed();
+    error BytesAuthorizationUnsupported();
     error CallerMustBePayee();
     error InvalidSignature();
     error TransferFailed();
+    error VRSAuthorizationUnsupported();
 
     constructor() ERC20("Mock USD Coin", "mUSDC") EIP712("Mock USD Coin", "2") {}
 
@@ -71,6 +78,20 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
         outgoingShortfall = shortfall;
     }
 
+    function setAuthorizationInterfaces(
+        bool bytesEnabled,
+        bool vrsEnabled
+    ) external {
+        bytesAuthorizationEnabled = bytesEnabled;
+        vrsAuthorizationEnabled = vrsEnabled;
+    }
+
+    function setEmptyVRSRevert(
+        bool enabled
+    ) external {
+        emptyVRSRevert = enabled;
+    }
+
     function receiveWithAuthorization(
         address from,
         address to,
@@ -80,6 +101,37 @@ contract MockValidatingERC3009Token is ERC20, EIP712 {
         bytes32 nonce,
         bytes memory signature
     ) external {
+        if (!bytesAuthorizationEnabled) revert BytesAuthorizationUnsupported();
+        bytesAuthorizationCalls++;
+        _receiveWithAuthorization(from, to, value, validAfter, validBefore, nonce, signature);
+    }
+
+    function receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        if (!vrsAuthorizationEnabled) revert VRSAuthorizationUnsupported();
+        if (emptyVRSRevert) revert();
+        vrsAuthorizationCalls++;
+        _receiveWithAuthorization(from, to, value, validAfter, validBefore, nonce, abi.encodePacked(r, s, v));
+    }
+
+    function _receiveWithAuthorization(
+        address from,
+        address to,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes memory signature
+    ) private {
         if (msg.sender != to) revert CallerMustBePayee();
         if (block.timestamp <= validAfter) revert AuthorizationNotYetValid();
         if (block.timestamp >= validBefore) revert AuthorizationExpired();

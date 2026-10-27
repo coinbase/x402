@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IERC3009} from "./interfaces/IERC3009.sol";
+import {IERC3009VRS} from "./interfaces/IERC3009VRS.sol";
 
 /// @title x402UptoERC3009Proxy
 /// @notice Settles usage-based ERC-3009 payments and refunds the unused authorization amount.
@@ -110,16 +111,7 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
         IERC20 asset = IERC20(token);
         uint256 balanceBefore = asset.balanceOf(address(this));
 
-        IERC3009(token)
-            .receiveWithAuthorization({
-            from: authorization.from,
-            to: authorization.to,
-            value: authorization.value,
-            validAfter: authorization.validAfter,
-            validBefore: authorization.validBefore,
-            nonce: authorization.nonce,
-            signature: signature
-        });
+        _receiveWithAuthorization(token, authorization, signature);
 
         uint256 balanceAfter = asset.balanceOf(address(this));
         if (balanceAfter < balanceBefore || balanceAfter - balanceBefore != authorization.value) {
@@ -140,5 +132,65 @@ contract x402UptoERC3009Proxy is ReentrancyGuard {
         }
 
         emit Settled();
+    }
+
+    /// @dev Uses the smart-wallet-compatible bytes overload when available, then falls back to
+    ///      the normative ERC-3009 split-signature overload for 65-byte ECDSA signatures.
+    function _receiveWithAuthorization(
+        address token,
+        Authorization calldata authorization,
+        bytes calldata signature
+    ) private {
+        try IERC3009(token)
+            .receiveWithAuthorization({
+            from: authorization.from,
+            to: authorization.to,
+            value: authorization.value,
+            validAfter: authorization.validAfter,
+            validBefore: authorization.validBefore,
+            nonce: authorization.nonce,
+            signature: signature
+        }) {}
+        catch (bytes memory bytesReason) {
+            if (signature.length != 65) {
+                _revertWithReason(bytesReason);
+            }
+
+            (uint8 v, bytes32 r, bytes32 s) = _splitSignature(signature);
+            try IERC3009VRS(token)
+                .receiveWithAuthorization({
+                from: authorization.from,
+                to: authorization.to,
+                value: authorization.value,
+                validAfter: authorization.validAfter,
+                validBefore: authorization.validBefore,
+                nonce: authorization.nonce,
+                v: v,
+                r: r,
+                s: s
+            }) {}
+            catch (bytes memory vrsReason) {
+                _revertWithReason(vrsReason.length == 0 ? bytesReason : vrsReason);
+            }
+        }
+    }
+
+    /// @dev Splits an `r || s || v` ECDSA signature and accepts either `0/1` or `27/28` for `v`.
+    function _splitSignature(
+        bytes calldata signature
+    ) private pure returns (uint8 v, bytes32 r, bytes32 s) {
+        r = bytes32(signature[:32]);
+        s = bytes32(signature[32:64]);
+        v = uint8(signature[64]);
+        if (v < 27) v += 27;
+    }
+
+    /// @dev Reverts with the original token return data without adding a proxy error to the ABI.
+    function _revertWithReason(
+        bytes memory reason
+    ) private pure {
+        assembly ("memory-safe") {
+            revert(add(reason, 0x20), mload(reason))
+        }
     }
 }

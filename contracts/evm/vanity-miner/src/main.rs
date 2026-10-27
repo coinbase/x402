@@ -44,7 +44,7 @@ const UPTO_INIT_CODE_HASH: [u8; 32] =
     hex_literal::hex!("74f7a29cbc3c55f87cdef7f7c551643189e8bb62eed9de67753aebc402b83797");
 // x402UptoERC3009Proxy (deterministic build, no constructor arguments)
 const UPTO_ERC3009_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("26d15ef9e3e9c6e5ce88636df67561f874ea8ce8201125ca31051d3784ca5423");
+    hex_literal::hex!("f58e989274e849865b38511b1420136fc8ee69e89ddf67bc95290fb91bf382a3");
 // x402BatchSettlement — keccak256(type(x402BatchSettlement).creationCode) after `forge build`
 const BATCH_INIT_CODE_HASH: [u8; 32] =
     hex_literal::hex!("ed07c0a1aeb6bd4b8e28932959d66e9f2c1a2f6ebb1fd3dc5f3fbcf8135850f6");

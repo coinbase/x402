@@ -70,7 +70,8 @@ to the token and transfer funds to the proxy without executing the payment and r
 
 The payload contains:
 
-- `signature`: the client's `ReceiveWithAuthorization` signature;
+- `signature`: the client's `ReceiveWithAuthorization` signature. EOA signatures use the
+  65-byte `r || s || v` encoding; contract-wallet signatures use the token-specific bytes encoding;
 - `authorization`: the standard EIP-3009 authorization;
 - `paymentInfo`: the recipient, selected settler, and random salt committed through the nonce.
 
@@ -178,12 +179,18 @@ token receipt and nonce consumption.
 
 ### Token Compatibility
 
-This method requires the `bytes signature` form of `receiveWithAuthorization` used by current USDC
-deployments. The proxy reverts unless the pull, the merchant payment, and any refund each change
-the corresponding balance by the exact amount. Tokens that charge transfer fees, rebase during
-settlement, or otherwise fail to transfer exact requested amounts are unsupported. A settlement of
-those tokens cannot spend a balance that was already on the proxy. Smart-wallet signature support
-depends on the token's EIP-3009 implementation.
+The proxy supports both common `receiveWithAuthorization` interfaces. It first calls the
+`bytes signature` overload used by modern tokens with contract-wallet support. If that call reverts
+and the supplied signature is exactly 65 bytes, the proxy interprets it as `r || s || v`, normalizes
+`v` from `0/1` to `27/28` when necessary, and retries the normative ERC-3009 `v, r, s` overload.
+This fallback supports standards-only and older token implementations without changing the payment
+payload. Contract-wallet signatures require a token that implements the bytes overload and validates
+the wallet through ERC-1271 or an equivalent mechanism.
+
+The proxy reverts unless the pull, the merchant payment, and any refund each change the corresponding
+balance by the exact amount. Tokens that charge transfer fees, rebase during settlement, or otherwise
+fail to transfer exact requested amounts are unsupported. A settlement of those tokens cannot spend
+a balance that was already on the proxy.
 
 ---
 
@@ -485,7 +492,7 @@ The Canonical Permit2 contract address can be found at [https://docs.uniswap.org
 ### Reference Implementation: `x402UptoERC3009Proxy`
 
 The EIP-3009 path uses `x402UptoERC3009Proxy` at
-`0x4020D4E56DF3a18A3568E8a61b36883824Aa0006`. The pre-audit contract is
+`0x40203Fa50150e6ec970DE91F3330e82cDF640006`. The pre-audit contract is
 deterministically deployable at this address with CREATE2 on supported EVM chains.
 
 ### Reference Implementation: `x402UptoPermit2Proxy`
