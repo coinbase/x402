@@ -51,6 +51,12 @@ contract ComputeAddress is Script {
     /// @dev Vanity mined for address 0x40203Fa50150e6ec970DE91F3330e82cDF640006
     bytes32 constant DEFAULT_UPTO_ERC3009_SALT = 0x00000000000000000000000000000000000000000000000038000000202ec4a9;
 
+    /// @notice Canonical x402UptoERC3009Proxy address.
+    address constant UPTO_ERC3009_ADDRESS = 0x40203Fa50150e6ec970DE91F3330e82cDF640006;
+
+    /// @notice Expected x402UptoERC3009Proxy creation bytecode hash.
+    bytes32 constant UPTO_ERC3009_INIT_CODE_HASH = 0xf58e989274e849865b38511b1420136fc8ee69e89ddf67bc95290fb91bf382a3;
+
     /// @notice Expected initCodeHash for x402ExactPermit2Proxy (pre-built, includes CBOR metadata)
     bytes32 constant EXACT_INIT_CODE_HASH = 0xe774d1d5a07218946ab54efe010b300481478b86861bb17d69c98a57f68a604c;
 
@@ -72,6 +78,10 @@ contract ComputeAddress is Script {
         bytes memory initCode = type(x402UptoERC3009Proxy).creationCode;
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(salt, initCodeHash, CREATE2_DEPLOYER);
+        require(initCodeHash == UPTO_ERC3009_INIT_CODE_HASH, "Upto ERC3009 init code hash mismatch");
+        if (salt == DEFAULT_UPTO_ERC3009_SALT) {
+            require(expectedAddress == UPTO_ERC3009_ADDRESS, "Upto ERC3009 address mismatch");
+        }
 
         console2.log("");
         console2.log("------------------------------------------------------------");

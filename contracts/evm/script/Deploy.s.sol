@@ -41,6 +41,9 @@ contract DeployX402Proxies is Script {
     /// @notice Arachnid's deterministic CREATE2 deployer (same on all EVM chains)
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
+    /// @notice Runtime code hash of Arachnid's deterministic CREATE2 deployer.
+    bytes32 constant CREATE2_DEPLOYER_CODE_HASH = 0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989;
+
     /// @notice Salt for x402ExactPermit2Proxy deterministic deployment
     /// @dev Vanity mined for address 0x402085c248eea27d92e8b30b2c58ed07f9e20001
     bytes32 constant EXACT_SALT = 0x0000000000000000000000000000000000000000000000003000000007263b0e;
@@ -52,6 +55,16 @@ contract DeployX402Proxies is Script {
     /// @notice Salt for x402UptoERC3009Proxy deterministic deployment
     /// @dev Vanity mined for address 0x40203Fa50150e6ec970DE91F3330e82cDF640006
     bytes32 constant UPTO_ERC3009_SALT = 0x00000000000000000000000000000000000000000000000038000000202ec4a9;
+
+    /// @notice Canonical x402UptoERC3009Proxy address.
+    address constant UPTO_ERC3009_ADDRESS = 0x40203Fa50150e6ec970DE91F3330e82cDF640006;
+
+    /// @notice Expected x402UptoERC3009Proxy creation bytecode hash.
+    bytes32 constant UPTO_ERC3009_INIT_CODE_HASH = 0xf58e989274e849865b38511b1420136fc8ee69e89ddf67bc95290fb91bf382a3;
+
+    /// @notice Expected x402UptoERC3009Proxy runtime bytecode hash.
+    bytes32 constant UPTO_ERC3009_RUNTIME_CODE_HASH =
+        0xf73db9eae81b2748946c6fe2530da2ba8f933d1a08357bd43760c7d9b102feb9;
 
     /// @notice Expected initCodeHash for x402ExactPermit2Proxy (pre-built, includes CBOR metadata)
     bytes32 constant EXACT_INIT_CODE_HASH = 0xe774d1d5a07218946ab54efe010b300481478b86861bb17d69c98a57f68a604c;
@@ -74,7 +87,7 @@ contract DeployX402Proxies is Script {
             require(permit2.code.length > 0, "Permit2 not found on this network");
             console2.log("Permit2 verified");
 
-            require(CREATE2_DEPLOYER.code.length > 0, "CREATE2 deployer not found on this network");
+            _requireCreate2Deployer();
             console2.log("CREATE2 deployer verified");
         }
 
@@ -95,7 +108,7 @@ contract DeployX402Proxies is Script {
             require(permit2.code.length > 0, "Permit2 not found on this network");
             console2.log("Permit2 verified");
 
-            require(CREATE2_DEPLOYER.code.length > 0, "CREATE2 deployer not found on this network");
+            _requireCreate2Deployer();
             console2.log("CREATE2 deployer verified");
         }
 
@@ -105,7 +118,7 @@ contract DeployX402Proxies is Script {
     /// @notice Deploys only x402UptoERC3009Proxy.
     function runUptoERC3009() public {
         if (block.chainid != 31_337 && block.chainid != 1337) {
-            require(CREATE2_DEPLOYER.code.length > 0, "CREATE2 deployer not found on this network");
+            _requireCreate2Deployer();
             console2.log("CREATE2 deployer verified");
         }
 
@@ -226,12 +239,15 @@ contract DeployX402Proxies is Script {
         bytes memory initCode = type(x402UptoERC3009Proxy).creationCode;
         bytes32 initCodeHash = keccak256(initCode);
         address expectedAddress = _computeCreate2Addr(UPTO_ERC3009_SALT, initCodeHash, CREATE2_DEPLOYER);
+        require(initCodeHash == UPTO_ERC3009_INIT_CODE_HASH, "Upto ERC3009 init code hash mismatch");
+        require(expectedAddress == UPTO_ERC3009_ADDRESS, "Upto ERC3009 address mismatch");
 
         console2.log("Salt:", vm.toString(UPTO_ERC3009_SALT));
         console2.log("Expected address:", expectedAddress);
         console2.log("Init code hash:", vm.toString(initCodeHash));
 
         if (expectedAddress.code.length > 0) {
+            require(expectedAddress.codehash == UPTO_ERC3009_RUNTIME_CODE_HASH, "Upto ERC3009 runtime hash mismatch");
             console2.log("Contract already deployed at", expectedAddress);
             return;
         }
@@ -252,7 +268,12 @@ contract DeployX402Proxies is Script {
 
         vm.stopBroadcast();
 
+        require(deployedAddress.codehash == UPTO_ERC3009_RUNTIME_CODE_HASH, "Upto ERC3009 runtime hash mismatch");
         console2.log("Deployed to:", deployedAddress);
+    }
+
+    function _requireCreate2Deployer() internal view {
+        require(CREATE2_DEPLOYER.codehash == CREATE2_DEPLOYER_CODE_HASH, "CREATE2 deployer code hash mismatch");
     }
 
     function _computeCreate2Addr(

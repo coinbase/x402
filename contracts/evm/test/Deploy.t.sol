@@ -21,6 +21,8 @@ contract DeployX402ProxiesTest is Test {
     address constant EXPECTED_EXACT_ADDRESS = 0x402085c248EeA27D92E8b30b2C58ed07f9E20001;
     address constant EXPECTED_UPTO_ADDRESS = 0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002;
     address constant EXPECTED_UPTO_ERC3009_ADDRESS = 0x40203Fa50150e6ec970DE91F3330e82cDF640006;
+    bytes32 constant EXPECTED_UPTO_ERC3009_RUNTIME_HASH =
+        0xf73db9eae81b2748946c6fe2530da2ba8f933d1a08357bd43760c7d9b102feb9;
 
     /// @dev Bytecode of Arachnid's deterministic CREATE2 deployer, same on every EVM chain.
     bytes constant CREATE2_DEPLOYER_CODE =
@@ -41,6 +43,7 @@ contract DeployX402ProxiesTest is Test {
         assertGt(EXPECTED_EXACT_ADDRESS.code.length, 0, "no code at canonical Exact address");
         assertGt(EXPECTED_UPTO_ADDRESS.code.length, 0, "no code at canonical Upto address");
         assertGt(EXPECTED_UPTO_ERC3009_ADDRESS.code.length, 0, "no code at canonical Upto ERC3009 address");
+        assertEq(EXPECTED_UPTO_ERC3009_ADDRESS.codehash, EXPECTED_UPTO_ERC3009_RUNTIME_HASH);
 
         assertEq(
             address(x402ExactPermit2Proxy(EXPECTED_EXACT_ADDRESS).PERMIT2()),
@@ -111,7 +114,28 @@ contract DeployX402ProxiesTest is Test {
         deployer.runUptoERC3009();
 
         assertGt(EXPECTED_UPTO_ERC3009_ADDRESS.code.length, 0, "no code at canonical Upto ERC3009 address");
+        assertEq(EXPECTED_UPTO_ERC3009_ADDRESS.codehash, EXPECTED_UPTO_ERC3009_RUNTIME_HASH);
         assertEq(EXPECTED_EXACT_ADDRESS.code.length, 0, "Exact should not be deployed");
         assertEq(EXPECTED_UPTO_ADDRESS.code.length, 0, "Upto Permit2 should not be deployed");
+    }
+
+    function test_runUptoERC3009RevertsForWrongCreate2Deployer() public {
+        vm.chainId(8453);
+        vm.etch(CREATE2_DEPLOYER, hex"60006000fd");
+
+        DeployX402Proxies deployer = new DeployX402Proxies();
+
+        vm.expectRevert(bytes("CREATE2 deployer code hash mismatch"));
+        deployer.runUptoERC3009();
+    }
+
+    function test_runUptoERC3009RevertsForWrongExistingRuntime() public {
+        _simulateRealChain();
+        vm.etch(EXPECTED_UPTO_ERC3009_ADDRESS, hex"60006000fd");
+
+        DeployX402Proxies deployer = new DeployX402Proxies();
+
+        vm.expectRevert(bytes("Upto ERC3009 runtime hash mismatch"));
+        deployer.runUptoERC3009();
     }
 }
