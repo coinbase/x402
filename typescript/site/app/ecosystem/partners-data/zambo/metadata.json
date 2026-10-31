@@ -1,0 +1,7 @@
+{
+  "name": "Zambo",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/zambo-logo.png",
+  "description": "AI infrastructure that gives any agent hands: 120 native MCP tools over one zero-auth endpoint, with x402 USDC micropayments on Base via zambo_pay ($1.49 Day Pass). Free 20 calls/tool/day, no account.",
+  "websiteUrl": "https://zambo.dev"
+}
