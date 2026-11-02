@@ -68,3 +68,21 @@ pnpm start
 ## Next Steps
 
 See [Advanced Examples](../advanced/) for builder pattern registration, payment lifecycle hooks, network preferences, and spend controls.
+
+## Optional: preflight before paying
+
+`wrapFetchWithPayment` will settle against whatever the seller asks for. If you want a trust check first (stable `payTo`, price history, `ok|caution|avoid`), compose an outer fetch that calls a preflight service, then pass that into `wrapFetchWithPayment`.
+
+Example with the community [`x402check-client`](https://www.npmjs.com/package/x402check-client) helper (opt-in; that call is paid to x402check at $0.01 after one free check per wallet):
+
+```typescript
+import { wrapFetch } from "x402check-client";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+
+const checkedFetch = wrapFetch(fetch, {
+  // paymentHeaders: headers that settle the x402check request itself
+});
+const fetchWithPayment = wrapFetchWithPayment(checkedFetch, client);
+```
+
+Skip this for local/demo sellers you already trust. Deny or escalate when the verdict is `avoid` / `caution`.
