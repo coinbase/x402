@@ -8,6 +8,14 @@ const FACILITATOR_ADDRESS = "0xFAC11174700123456789012345678901234aBCDe";
 describe("UptoEvmScheme (Server)", () => {
   const server = new UptoEvmScheme();
 
+  it("advertises Permit2 and ERC-3009 authorization flows", () => {
+    expect(server.defaultAssetTransferMethod).toBe("permit2");
+    expect(server.paymentFlows).toEqual({
+      eip3009: { supported: ["authorization"], default: "authorization" },
+      permit2: { supported: ["authorization"], default: "authorization" },
+    });
+  });
+
   describe("parsePrice", () => {
     describe("Base Sepolia network", () => {
       const network = "eip155:84532";
@@ -191,6 +199,29 @@ describe("UptoEvmScheme (Server)", () => {
       );
 
       expect(result.extra?.facilitatorAddress).toBe(FACILITATOR_ADDRESS);
+    });
+
+    it("preserves explicit eip3009 and injects settlerAddress", async () => {
+      const result = await server.enhancePaymentRequirements(
+        {
+          ...baseRequirements,
+          extra: { ...baseRequirements.extra, assetTransferMethod: "eip3009" },
+        },
+        {
+          x402Version: 2,
+          scheme: "upto",
+          network: "eip155:8453",
+          extra: {
+            facilitatorAddress: FACILITATOR_ADDRESS,
+            settlerAddress: FACILITATOR_ADDRESS,
+          },
+        },
+        [],
+      );
+
+      expect(result.extra?.assetTransferMethod).toBe("eip3009");
+      expect(result.extra?.settlerAddress).toBe(FACILITATOR_ADDRESS);
+      expect(result.extra?.facilitatorAddress).toBeUndefined();
     });
 
     it("should preserve existing extra fields", async () => {

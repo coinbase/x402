@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isUptoPermit2Payload } from "../../../src/types";
+import { isUptoEIP3009Payload, isUptoPermit2Payload } from "../../../src/types";
 import { buildUptoPermit2SettleArgs } from "../../../src/shared/permit2";
 import type { UptoPermit2Payload } from "../../../src/types";
 import { getAddress } from "viem";
+import { createUptoEIP3009Nonce } from "../../../src/upto/client/eip3009";
+import { x402UptoErc3009ProxyAddress } from "../../../src/constants";
 
 const VALID_PAYLOAD = {
   signature: "0xmocksig" as `0x${string}`,
@@ -22,6 +24,10 @@ const VALID_PAYLOAD = {
     },
   },
 };
+
+it("pins the canonical upto ERC-3009 proxy address", () => {
+  expect(x402UptoErc3009ProxyAddress).toBe("0x40203Fa50150e6ec970DE91F3330e82cDF640006");
+});
 
 describe("isUptoPermit2Payload", () => {
   it("should return true for a valid payload", () => {
@@ -171,6 +177,61 @@ describe("isUptoPermit2Payload", () => {
       },
     };
     expect(isUptoPermit2Payload(exactPayload as Record<string, unknown>)).toBe(false);
+  });
+
+  it("rejects a payload containing both Permit2 and ERC-3009 fields", () => {
+    expect(
+      isUptoPermit2Payload({
+        ...VALID_PAYLOAD,
+        authorization: {},
+        paymentInfo: {},
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("isUptoEIP3009Payload", () => {
+  const payload = {
+    signature: "0x1234",
+    authorization: {
+      from: "0x0000000000000000000000000000000000000011",
+      to: "0x40203Fa50150e6ec970DE91F3330e82cDF640006",
+      value: "100",
+      validAfter: "0",
+      validBefore: "2000000000",
+      nonce: "0x" + "44".repeat(32),
+    },
+    paymentInfo: {
+      payTo: "0x0000000000000000000000000000000000000011",
+      settler: "0x0000000000000000000000000000000000000022",
+      salt: "0x" + "33".repeat(32),
+    },
+  };
+
+  it("accepts the explicit ERC-3009 payload shape", () => {
+    expect(isUptoEIP3009Payload(payload)).toBe(true);
+  });
+
+  it("rejects incomplete payment info", () => {
+    expect(
+      isUptoEIP3009Payload({ ...payload, paymentInfo: { payTo: payload.paymentInfo.payTo } }),
+    ).toBe(false);
+  });
+
+  it("rejects a payload containing both ERC-3009 and Permit2 fields", () => {
+    expect(isUptoEIP3009Payload({ ...payload, permit2Authorization: {} })).toBe(false);
+  });
+});
+
+describe("createUptoEIP3009Nonce", () => {
+  it("matches the canonical ABI-encoded golden vector", () => {
+    expect(
+      createUptoEIP3009Nonce(
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+        "0x3333333333333333333333333333333333333333333333333333333333333333",
+      ),
+    ).toBe("0xbb2cf01051588e1c1c809cf1357c11cf9132a08bb4cff35b57dc1a38f28ca0fa");
   });
 });
 

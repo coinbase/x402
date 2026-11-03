@@ -23,6 +23,7 @@ import { FacilitatorManager } from './src/facilitators/facilitator-manager';
 import { waitForHealth } from './src/health';
 import { probeMcpReady } from './src/mcpHealth';
 import { createPortAllocator } from './src/ports';
+import { validateSettlementOverrideAmount } from './src/settlement';
 import { base58 } from '@scure/base';
 import { createKeyPairSignerFromBytes } from '@solana/kit';
 
@@ -992,20 +993,33 @@ async function runTest() {
         s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'),
     );
 
-    const hasUpto = evmScenarios.some(s => endpointPaymentScheme(s.endpoint) === 'upto');
-    const hasUptoDirect = evmScenarios.some(
-      s =>
-        endpointPaymentScheme(s.endpoint) === 'upto' && s.endpoint.schemeOptions?.permit2Direct === true,
-    );
-    const hasUptoEip2612 = evmScenarios.some(
+    const hasUptoEip3009 = evmScenarios.some(
       s =>
         endpointPaymentScheme(s.endpoint) === 'upto' &&
+        endpointAssetTransferMethod(s.endpoint) === 'eip3009',
+    );
+    const hasUptoPermit2 = evmScenarios.some(
+      s =>
+        endpointPaymentScheme(s.endpoint) === 'upto' &&
+        endpointAssetTransferMethod(s.endpoint) === 'permit2',
+    );
+    const hasUptoPermit2Direct = evmScenarios.some(
+      s =>
+        endpointPaymentScheme(s.endpoint) === 'upto' &&
+        endpointAssetTransferMethod(s.endpoint) === 'permit2' &&
+        s.endpoint.schemeOptions?.permit2Direct === true,
+    );
+    const hasUptoPermit2Eip2612 = evmScenarios.some(
+      s =>
+        endpointPaymentScheme(s.endpoint) === 'upto' &&
+        endpointAssetTransferMethod(s.endpoint) === 'permit2' &&
         !s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring') &&
         s.endpoint.schemeOptions?.permit2Direct !== true,
     );
-    const hasUptoErc20 = evmScenarios.some(
+    const hasUptoPermit2Erc20 = evmScenarios.some(
       s =>
         endpointPaymentScheme(s.endpoint) === 'upto' &&
+        endpointAssetTransferMethod(s.endpoint) === 'permit2' &&
         s.endpoint.extensions?.includes('erc20ApprovalGasSponsoring'),
     );
 
@@ -1045,10 +1059,11 @@ async function runTest() {
     log(`   Exact Permit2+direct settle:   ${hasPermit2Direct ? '✅' : '⚠️  not found'}`);
     log(`   Exact Permit2+EIP2612 route:   ${hasPermit2Eip2612 ? '✅' : '⚠️  not found (may be covered by permit2 route if eip2612 extension enabled)'}`);
     log(`   Exact Permit2+ERC20 route:     ${hasPermit2Erc20 ? '✅' : '⚠️  not found'}`);
-    log(`   Upto route:                    ${hasUpto ? '✅' : '⚠️  not found'}`);
-    log(`   Upto+direct settle:            ${hasUptoDirect ? '✅' : '⚠️  not found'}`);
-    log(`   Upto+EIP2612 route:            ${hasUptoEip2612 ? '✅' : '⚠️  not found'}`);
-    log(`   Upto+ERC20 route:              ${hasUptoErc20 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto EIP-3009 route:           ${hasUptoEip3009 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto Permit2 route:            ${hasUptoPermit2 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto Permit2+direct settle:    ${hasUptoPermit2Direct ? '✅' : '⚠️  not found'}`);
+    log(`   Upto Permit2+EIP2612 route:    ${hasUptoPermit2Eip2612 ? '✅' : '⚠️  not found'}`);
+    log(`   Upto Permit2+ERC20 route:      ${hasUptoPermit2Erc20 ? '✅' : '⚠️  not found'}`);
     log(`   Batch-settlement EIP-3009:     ${hasBatchSettlementEip3009 ? '✅' : '⚠️  not found'}`);
     log(`   Batch-settlement Permit2:      ${hasBatchSettlementPermit2 ? '✅' : '⚠️  not found'}`);
     log(`   Batch-settlement+direct:       ${hasBatchSettlementPermit2Direct ? '✅' : '⚠️  not found'}`);
@@ -1072,7 +1087,7 @@ async function runTest() {
     log('');
   }
 
-  // Auto-detect Permit2 scenarios (upto uses Permit2 under the hood)
+  // Auto-detect scenarios that explicitly use Permit2.
   const hasPermit2Scenarios = filteredScenarios.some(s => endpointAssetTransferMethod(s.endpoint) === 'permit2');
 
   if (hasPermit2Scenarios) {
@@ -1566,9 +1581,16 @@ async function runTest() {
 
       const result = await runClientTest(scenario.client.proxy, baseClientConfig);
 
+      const settlementOverrideError = result.success
+        ? validateSettlementOverrideAmount(scenario.endpoint, result.payment_response)
+        : undefined;
       let deferredCaptureError: string | undefined;
       let captureTransaction: string | undefined;
-      if (result.success && endpointAuthCaptureNeedsDeferredCapture(scenario.endpoint)) {
+      if (
+        result.success &&
+        !settlementOverrideError &&
+        endpointAuthCaptureNeedsDeferredCapture(scenario.endpoint)
+      ) {
         try {
           const captureResponse = await fetch(
             `http://localhost:${port}${AUTH_CAPTURE_E2E_CAPTURE_PATH}`,
@@ -1602,7 +1624,7 @@ async function runTest() {
         }
       }
 
-      const passed = result.success && !deferredCaptureError;
+      const passed = result.success && !settlementOverrideError && !deferredCaptureError;
       const detailedResult: DetailedTestResult = {
         testNumber: localTestNumber,
         client: scenario.client.name,
@@ -1612,7 +1634,7 @@ async function runTest() {
         protocolFamily: scenario.protocolFamily,
         ...scenarioDimensions(scenario),
         passed,
-        error: deferredCaptureError || result.error,
+        error: settlementOverrideError || deferredCaptureError || result.error,
         transaction: captureTransaction || result.payment_response?.transaction,
         network: result.payment_response?.network,
       };

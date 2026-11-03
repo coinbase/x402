@@ -61,6 +61,7 @@ This page tracks which features are implemented in each SDK (TypeScript, Go, Pyt
 | exact | cardano | `default` | ✅ | ❌ | ❌ |
 | exact | cardano | `masumi` | ✅ | ❌ | ❌ |
 | exact | cardano | `script` | ✅ | ❌ | ❌ |
+| upto | evm | `eip3009` | ✅ | ✅ | ✅ |
 | upto | evm | `permit2` | ✅ | ✅ | ✅ |
 | upto | svm | - | ✅ | ✅ | ❌ |
 | batch-settlement | evm | `eip3009` | ✅ | ✅ | ✅ |

@@ -157,7 +157,7 @@ class TestEnhancePaymentRequirements:
         assert result.extra is not None
         assert result.extra["erc20ApprovalGasSponsoring"] == {"version": "1"}
 
-    def test_should_fail_without_facilitator_address(self):
+    def test_should_leave_method_address_absent_when_not_advertised(self):
         server = UptoEvmServerScheme()
         network = "eip155:8453"
         requirements = PaymentRequirements(
@@ -176,8 +176,39 @@ class TestEnhancePaymentRequirements:
             extra={},
         )
 
-        with pytest.raises(ValueError, match="facilitatorAddress"):
-            server.enhance_payment_requirements(requirements, supported_kind, [])
+        result = server.enhance_payment_requirements(requirements, supported_kind, [])
+        assert result.extra is not None
+        assert result.extra["assetTransferMethod"] == "permit2"
+        assert "facilitatorAddress" not in result.extra
+
+    def test_should_preserve_explicit_eip3009_and_copy_only_settler(self):
+        server = UptoEvmServerScheme()
+        network = "eip155:8453"
+        requirements = PaymentRequirements(
+            scheme="upto",
+            network=network,
+            asset=get_default_asset(network)["asset"],
+            amount="100000",
+            pay_to="0x1234567890123456789012345678901234567890",
+            max_timeout_seconds=3600,
+            extra={"assetTransferMethod": "eip3009"},
+        )
+        supported_kind = SupportedKind(
+            x402_version=2,
+            scheme="upto",
+            network=network,
+            extra={
+                "facilitatorAddress": FACILITATOR,
+                "settlerAddress": "0x2222222222222222222222222222222222222222",
+            },
+        )
+
+        result = server.enhance_payment_requirements(requirements, supported_kind, [])
+
+        assert result.extra is not None
+        assert result.extra["assetTransferMethod"] == "eip3009"
+        assert result.extra["settlerAddress"] == supported_kind.extra["settlerAddress"]
+        assert "facilitatorAddress" not in result.extra
 
 
 class TestRegisterMoneyParser:

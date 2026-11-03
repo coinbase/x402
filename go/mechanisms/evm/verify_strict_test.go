@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"math/big"
@@ -15,13 +16,15 @@ type mockStrictSigner struct {
 	codeErr          error
 	isValidSigResult [4]byte
 	isValidSigErr    bool
+	lastReadArgs     []interface{}
 }
 
 func (m *mockStrictSigner) GetCode(_ context.Context, _ string) ([]byte, error) {
 	return m.code, m.codeErr
 }
-func (m *mockStrictSigner) ReadContract(_ context.Context, _ string, _ []byte, fn string, _ ...interface{}) (interface{}, error) {
+func (m *mockStrictSigner) ReadContract(_ context.Context, _ string, _ []byte, fn string, args ...interface{}) (interface{}, error) {
 	if fn == "isValidSignature" {
+		m.lastReadArgs = args
 		if m.isValidSigErr {
 			return nil, errors.New("revert")
 		}
@@ -93,12 +96,20 @@ func TestVerifySignatureStrict_Contract_1271AcceptsReturnsTrue(t *testing.T) {
 		isValidSigResult: [4]byte{0x16, 0x26, 0xba, 0x7e}, // magic value — delegate accepts
 	}
 	var hash32 [32]byte
-	valid, err := VerifySignatureStrict(context.Background(), mock, "0x1234567890123456789012345678901234567890", hash32, make([]byte, 65))
+	hash32[0] = 0x42
+	signature := bytes.Repeat([]byte{0x7a}, 65)
+	valid, err := VerifySignatureStrict(context.Background(), mock, "0x1234567890123456789012345678901234567890", hash32, signature)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !valid {
 		t.Error("expected valid when 1271 returns magic")
+	}
+	if len(mock.lastReadArgs) != 2 || mock.lastReadArgs[0] != hash32 {
+		t.Fatalf("unexpected EIP-1271 hash args: %#v", mock.lastReadArgs)
+	}
+	if got, ok := mock.lastReadArgs[1].([]byte); !ok || !bytes.Equal(got, signature) {
+		t.Fatalf("unexpected EIP-1271 signature arg: %#v", mock.lastReadArgs[1])
 	}
 }
 

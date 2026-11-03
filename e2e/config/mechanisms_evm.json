@@ -257,6 +257,25 @@
         "erc20ApprovalGasSponsoring"
       ]
     },
+    "/upto/evm/eip3009": {
+      "scheme": "upto",
+      "assetTransferMethod": "eip3009",
+      "sdks": [
+        "typescript",
+        "go",
+        "python"
+      ],
+      "price": {
+        "usd": "$0.002",
+        "declareAssetTransferMethod": true
+      },
+      "extensions": [
+        "bazaar"
+      ],
+      "settlementOverride": {
+        "amount": "1000"
+      }
+    },
     "/upto/evm/permit2": {
       "scheme": "upto",
       "assetTransferMethod": "permit2",

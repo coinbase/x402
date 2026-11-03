@@ -13,4 +13,5 @@ export {
   getPermit2AllowanceReadParams,
   type Permit2AllowanceParams,
 } from "./permit2";
+export { createUptoEIP3009Nonce, createUptoEIP3009Payload } from "./eip3009";
 export { erc20AllowanceAbi } from "../../constants";

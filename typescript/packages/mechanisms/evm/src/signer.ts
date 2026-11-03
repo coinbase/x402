@@ -90,6 +90,20 @@ export type FacilitatorEvmSigner = {
     gas?: bigint;
     dataSuffix?: `0x${string}`;
   }): Promise<`0x${string}`>;
+  /**
+   * Optional sender-selecting contract write for multi-address facilitators.
+   */
+  writeContractFrom?(
+    account: `0x${string}`,
+    args: {
+      address: `0x${string}`;
+      abi: readonly unknown[];
+      functionName: string;
+      args: readonly unknown[];
+      gas?: bigint;
+      dataSuffix?: `0x${string}`;
+    },
+  ): Promise<`0x${string}`>;
   sendTransaction(args: { to: `0x${string}`; data: `0x${string}` }): Promise<`0x${string}`>;
   waitForTransactionReceipt(args: {
     hash: `0x${string}`;

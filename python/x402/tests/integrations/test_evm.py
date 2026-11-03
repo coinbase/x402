@@ -20,6 +20,7 @@ from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
 from x402.mechanisms.evm import (
     SCHEME_EXACT,
     SCHEME_UPTO,
+    X402_UPTO_EIP3009_PROXY_ADDRESS,
     TypedDataDomain,
     TypedDataField,
 )
@@ -720,6 +721,29 @@ def build_upto_payment_requirements(
     )
 
 
+def build_upto_eip3009_payment_requirements(
+    pay_to: str,
+    amount: str,
+    settler_address: str,
+    network: str = "eip155:84532",
+) -> PaymentRequirements:
+    """Build explicit upto ERC-3009 requirements for Base Sepolia."""
+    return PaymentRequirements(
+        scheme=SCHEME_UPTO,
+        network=network,
+        asset=USDC_ADDRESS,
+        amount=amount,
+        pay_to=pay_to,
+        max_timeout_seconds=3600,
+        extra={
+            "assetTransferMethod": "eip3009",
+            "settlerAddress": settler_address,
+            "name": "USDC",
+            "version": "2",
+        },
+    )
+
+
 # Advertise EIP-2612 gas sponsoring so the client signs a token permit when
 # Permit2 allowance is insufficient (matches Go integration tests).
 UPTO_EIP2612_SERVER_EXTENSIONS = {
@@ -840,6 +864,63 @@ class TestEvmUptoIntegrationV2:
         assert settle_response.transaction != ""
         assert settle_response.payer.lower() == self.client_address.lower()
 
+    def test_server_should_verify_and_settle_upto_eip3009_payment(self) -> None:
+        """Full upto ERC-3009 flow with a partial proxy settlement."""
+        if not self.facilitator_signer.get_code(X402_UPTO_EIP3009_PROXY_ADDRESS):
+            pytest.skip("canonical upto ERC-3009 proxy is not deployed on the integration network")
+
+        recipient = self.facilitator_address
+        accepts = [
+            build_upto_eip3009_payment_requirements(
+                recipient,
+                "1000",
+                self.facilitator_address,
+            )
+        ]
+        payment_required = self.server.create_payment_required_response(
+            accepts,
+            ResourceInfo(
+                url="https://api.example.com/llm/generate-eip3009",
+                description="LLM text generation via ERC-3009",
+                mime_type="application/json",
+            ),
+        )
+
+        payment_payload = self.client.create_payment_payload(payment_required)
+        assert payment_payload.accepted.extra["assetTransferMethod"] == "eip3009"
+        assert "authorization" in payment_payload.payload
+        assert "paymentInfo" in payment_payload.payload
+        assert "permit2Authorization" not in payment_payload.payload
+        assert (
+            payment_payload.payload["authorization"]["to"].lower()
+            == X402_UPTO_EIP3009_PROXY_ADDRESS.lower()
+        )
+
+        accepted = self.server.find_matching_requirements(accepts, payment_payload)
+        assert accepted is not None
+        verify_response = self.server.verify_payment(payment_payload, accepted)
+        assert verify_response.is_valid is True
+
+        payer_balance_before = self.facilitator_signer.get_balance(
+            self.client_address, USDC_ADDRESS
+        )
+        recipient_balance_before = self.facilitator_signer.get_balance(recipient, USDC_ADDRESS)
+        settle_response = self.server.settle_payment(
+            payment_payload,
+            build_upto_eip3009_payment_requirements(
+                recipient,
+                "500",
+                self.facilitator_address,
+            ),
+        )
+        assert settle_response.success is True
+        assert settle_response.amount == "500"
+        assert settle_response.transaction != ""
+        payer_balance_after = self.facilitator_signer.get_balance(self.client_address, USDC_ADDRESS)
+        recipient_balance_after = self.facilitator_signer.get_balance(recipient, USDC_ADDRESS)
+        assert payer_balance_before - payer_balance_after == 500
+        assert recipient_balance_after - recipient_balance_before == 500
+
     def test_facilitator_get_supported_includes_upto(self) -> None:
         supported = self.facilitator.get_supported()
 
@@ -853,6 +934,7 @@ class TestEvmUptoIntegrationV2:
         assert upto_support.x402_version == 2
         assert upto_support.extra is not None
         assert "facilitatorAddress" in upto_support.extra
+        assert "settlerAddress" in upto_support.extra
 
     def test_client_creates_valid_upto_payload(self) -> None:
         accepts = [

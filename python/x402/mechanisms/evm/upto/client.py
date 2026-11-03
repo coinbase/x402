@@ -30,6 +30,7 @@ from ..utils import (
     get_evm_chain_id,
     normalize_address,
 )
+from .eip3009_utils import create_upto_eip3009_payload
 
 
 def _wrap_if_local_account(signer: Any) -> ClientEvmSigner:
@@ -49,7 +50,7 @@ def _wrap_if_local_account(signer: Any) -> ClientEvmSigner:
 class UptoEvmScheme:
     """EVM client implementation for the Upto payment scheme.
 
-    Always uses Permit2 with an upto-specific witness that includes a facilitator field.
+    Uses Permit2 by default and supports an explicitly selected ERC-3009 flow.
 
     Attributes:
         scheme: The scheme identifier ("upto").
@@ -66,10 +67,11 @@ class UptoEvmScheme:
         requirements: PaymentRequirements,
         extensions: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create signed upto Permit2 payment payload.
+        """Create a signed upto payload for the selected asset transfer method."""
+        extra = requirements.extra or {}
+        if extra.get("assetTransferMethod") == "eip3009":
+            return create_upto_eip3009_payload(self._signer, requirements)
 
-        Requires requirements.extra to contain 'facilitatorAddress'.
-        """
         result = _create_upto_permit2_payload(self._signer, requirements)
 
         if extensions:

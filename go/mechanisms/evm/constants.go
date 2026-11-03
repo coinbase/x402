@@ -58,6 +58,12 @@ const (
 	// Vanity address: 0x4020...0002 for easy recognition.
 	X402UptoPermit2ProxyAddress = "0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002"
 
+	// X402UptoEIP3009ProxyAddress is the canonical upto ERC-3009 proxy.
+	X402UptoEIP3009ProxyAddress = "0x40203Fa50150e6ec970DE91F3330e82cDF640006"
+
+	// UptoEIP3009NonceTypehash commits the recipient, settler, and random salt.
+	UptoEIP3009NonceTypehash = "0x792d454a3715baed5e67a6e950f30dcab7decc913c4c9b03efe1e00bdd81f03e"
+
 	// Permit2DeadlineBuffer is the time buffer (in seconds) added when checking
 	// deadline expiration to account for block propagation time.
 	Permit2DeadlineBuffer = 6
@@ -164,6 +170,42 @@ var (
 			"outputs": [{"name": "", "type": "bool"}],
 			"stateMutability": "view",
 			"type": "function"
+		}
+	]`)
+
+	// X402UptoEIP3009ProxySettleABI is the minimal ABI for upto ERC-3009 settlement.
+	X402UptoEIP3009ProxySettleABI = []byte(`[
+		{
+			"type": "function",
+			"name": "settle",
+			"inputs": [
+				{"name": "token", "type": "address"},
+				{"name": "amount", "type": "uint256"},
+				{
+					"name": "authorization",
+					"type": "tuple",
+					"components": [
+						{"name": "from", "type": "address"},
+						{"name": "to", "type": "address"},
+						{"name": "value", "type": "uint256"},
+						{"name": "validAfter", "type": "uint256"},
+						{"name": "validBefore", "type": "uint256"},
+						{"name": "nonce", "type": "bytes32"}
+					]
+				},
+				{
+					"name": "paymentInfo",
+					"type": "tuple",
+					"components": [
+						{"name": "payTo", "type": "address"},
+						{"name": "settler", "type": "address"},
+						{"name": "salt", "type": "bytes32"}
+					]
+				},
+				{"name": "signature", "type": "bytes"}
+			],
+			"outputs": [],
+			"stateMutability": "nonpayable"
 		}
 	]`)
 
@@ -546,6 +588,26 @@ var EIP712DomainTypesWithVersion = []TypedDataField{
 	{Name: "version", Type: "string"},
 	{Name: "chainId", Type: "uint256"},
 	{Name: "verifyingContract", Type: "address"},
+}
+
+// ReceiveAuthorizationTypes defines EIP-3009 ReceiveWithAuthorization.
+var ReceiveAuthorizationTypes = map[string][]TypedDataField{
+	"ReceiveWithAuthorization": {
+		{Name: "from", Type: "address"},
+		{Name: "to", Type: "address"},
+		{Name: "value", Type: "uint256"},
+		{Name: "validAfter", Type: "uint256"},
+		{Name: "validBefore", Type: "uint256"},
+		{Name: "nonce", Type: "bytes32"},
+	},
+}
+
+// GetReceiveAuthorizationEIP712Types returns the shared ReceiveWithAuthorization types.
+func GetReceiveAuthorizationEIP712Types() map[string][]TypedDataField {
+	return map[string][]TypedDataField{
+		"EIP712Domain":             EIP712DomainTypesWithVersion,
+		"ReceiveWithAuthorization": ReceiveAuthorizationTypes["ReceiveWithAuthorization"],
+	}
 }
 
 // GetEIP2612EIP712Types returns the complete EIP-712 types map for EIP-2612 signing.

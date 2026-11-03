@@ -193,6 +193,7 @@ type EndpointLike = {
   assetTransferMethod?: AssetTransferMethod;
   paymentFlow?: PaymentFlow;
   schemeOptions?: Record<string, boolean>;
+  settlementOverride?: { amount: string };
   extensions?: string[];
   schemeExtra?: Record<string, string | number | boolean>;
   health?: boolean;
@@ -407,6 +408,7 @@ export function sdkRouteToEndpoint(route: SdkRoute, transport: RouteTransport = 
       assetTransferMethod: route.assetTransferMethod,
       paymentFlow: route.paymentFlow,
       schemeOptions: route.schemeOptions,
+      settlementOverride: route.settlementOverride,
       extensions: route.extensions,
       ...(route.schemeExtra ? { schemeExtra: route.schemeExtra } : {}),
     };
@@ -422,6 +424,7 @@ export function sdkRouteToEndpoint(route: SdkRoute, transport: RouteTransport = 
     assetTransferMethod: route.assetTransferMethod,
     paymentFlow: route.paymentFlow,
     schemeOptions: route.schemeOptions,
+    settlementOverride: route.settlementOverride,
     extensions: route.extensions,
     ...(route.schemeExtra ? { schemeExtra: route.schemeExtra } : {}),
   };
@@ -1092,7 +1095,7 @@ export function routeDiscoveryOutput(): {
   return { example, schema: { properties, required: Object.keys(example) } };
 }
 
-const HARNESS_PAYMENT_SCHEMES = ['exact', 'upto', 'batch-settlement'] as const;
+const HARNESS_PAYMENT_SCHEMES = ['exact', 'upto', 'batch-settlement', 'auth-capture'] as const;
 
 /** Merge component-level and run-level route exclusions (union of exclude lists). */
 export function mergeRouteFilters(...filters: (RouteFilter | undefined)[]): RouteFilter {
