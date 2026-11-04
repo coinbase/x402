@@ -1,0 +1,7 @@
+{
+  "name": "FiatDock",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/fiatdock.png",
+  "description": "Pay-per-call agent tools and an MCP marketplace over x402 on Base: web page to clean text, email checks, token safety and Base chain reads with no account or API key, plus MCP services from other sellers. Each marketplace call settles directly buyer-wallet to seller-wallet (commission currently waived), never custodial. Also a non-custodial USDC<->bank on/off-ramp. Remote MCP + npm package (fiatdock-mcp).",
+  "websiteUrl": "https://fiatdock.com"
+}
