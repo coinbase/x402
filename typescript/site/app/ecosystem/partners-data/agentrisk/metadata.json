@@ -1,0 +1,7 @@
+{
+  "name": "AgentRisk M2M",
+  "description": "Pre-trade risk scoring API for Base tokens: honeypot detection, deployer wallet freshness, on-chain LP-lock verification, brand impersonation checks, and live sell simulation via Uniswap V3 and Aerodrome. Paid per call via x402, 0.15 USDC.",
+  "logoUrl": "/logos/agentrisk.svg",
+  "websiteUrl": "https://agentrisk.dev",
+  "category": "Services/Endpoints"
+}
