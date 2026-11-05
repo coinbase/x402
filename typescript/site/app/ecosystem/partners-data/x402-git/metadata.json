@@ -1,0 +1,7 @@
+{
+  "name": "X402 Git",
+  "description": "Paid access to private git repositories (agent skills, harnesses, libraries) over x402, USDC on Base. The manifest is public before anyone pays; the code is private until settlement. Every listing is its own x402 resource, with a headless creator API and a buy-side MCP server.",
+  "logoUrl": "/logos/x402-git.svg",
+  "websiteUrl": "https://x402git.com/how-it-works#x402",
+  "category": "Services/Endpoints"
+}
