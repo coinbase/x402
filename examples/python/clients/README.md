@@ -8,6 +8,7 @@ This directory contains examples demonstrating how to use the x402 v2 SDK with d
 |-----------|-------------|---------|
 | [httpx/](./httpx/) | httpx | Async |
 | [requests/](./requests/) | requests | Sync |
+| [agentshare/](./agentshare/) | httpx | Async POST to a live x402 seller (AgentShare Meteora) |
 
 ## Quick Start
 
