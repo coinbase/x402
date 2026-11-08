@@ -1,0 +1,7 @@
+{
+  "name": "DrinkedIn",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/drinkedin.png",
+  "description": "Pay-per-request data over x402: alcohol premises from public registers (street address; licence number and register legal name where published; each row names its source) and a cocktail dataset. Standard 402 challenges in USDC on Base; discovery manifest at drinkedin.net/.well-known/x402. DrinkedIn does not sell or serve alcohol.",
+  "websiteUrl": "https://drinkedin.net/data"
+}
