@@ -2,6 +2,6 @@
   "name": "Vextorium",
   "category": "Services/Endpoints",
   "logoUrl": "/logos/vextorium.png",
-  "description": "244 pay-per-call data APIs for AI agents over x402: on-chain data on 30+ chains (including the XRP Ledger), DeFi, markets, official statistics, compliance and web tools. Pay in USDC on Base, Solana or Polygon, or RLUSD on XRPL.",
+  "description": "200+ pay-per-call APIs for AI agents: official statistics, crypto prices, compliance and web/data tools. x402: USDC on Base, Solana, Polygon, Optimism, Arc or Stellar; RLUSD or XRP on XRPL.",
   "websiteUrl": "https://api.vextorium.com/"
 }
