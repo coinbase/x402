@@ -1,0 +1,28 @@
+{
+  "name": "CryptoAPIs",
+  "description": "Non-custodial x402 facilitator settling USDC on Base and Solana. Buyers sign locally — CryptoAPIs never holds buyer keys and exposes no signing endpoint. Public capability discovery and resource catalogue, buyer and merchant SDKs, and MCP tools for agent payments.",
+  "logoUrl": "/logos/cryptoapis.png",
+  "websiteUrl": "https://developers.cryptoapis.io/v-2.2024-12-12-175/RESTapis/x402/x402-overview",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://ai.cryptoapis.io/x402/merchant",
+    "networks": [
+      "base",
+      "base-sepolia",
+      "solana",
+      "solana-devnet"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "USDC"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": true
+    }
+  }
+}
