@@ -1,0 +1,7 @@
+{
+  "name": "DeFi Signal API",
+  "description": "Live DeFi intelligence for AI agents — PoolTogether draw data, Morpho/Aave liquidation signals, cross-protocol yield comparisons, and funding-rate arbitrage radar. Pay per call in USDC on Base.",
+  "logoUrl": "/logos/defi-signal-api.png",
+  "websiteUrl": "https://wazir-x402.duckdns.org",
+  "category": "Services/Endpoints"
+}
