@@ -1,0 +1,7 @@
+{
+  "name": "Bug Bounty Intelligence",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/bug-bounty-intelligence.png",
+  "description": "Automated smart contract security analysis trained on 27,681 real audit findings. $5 USDC per scan on Base. Cheapest AI security scan available. Submit a GitHub repo, receive a full vulnerability report within 24h. Powered by Al-Mizaan v3 -- 7-gate analysis (reachability, threat model, invariant breach, formal proof). Source code deleted after analysis. AI agents can pay autonomously via x402.",
+  "websiteUrl": "https://wazir-x402.duckdns.org/api/bug-intel"
+}
