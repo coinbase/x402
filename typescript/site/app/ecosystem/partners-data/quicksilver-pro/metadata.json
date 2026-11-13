@@ -1,0 +1,7 @@
+{
+  "name": "QuickSilver Pro",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/quicksilver-pro.png",
+  "description": "Pay-per-use USDC top-up for OpenAI-compatible LLM inference — fund a prepaid API key over x402, no account or card.",
+  "websiteUrl": "https://quicksilverpro.io/docs/x402/"
+}
