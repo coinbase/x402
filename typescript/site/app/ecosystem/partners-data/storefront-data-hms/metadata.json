@@ -1,0 +1,7 @@
+{
+  "name": "HMS Storefront Data",
+  "description": "HMS Storefront Data: commerce datasets over x402 — verified daily Columbus car-rental rates ($0.03), HOS-aware 72ft-trailer-filtered truck sleep stops near interstates ($0.05), and weekly US average retail diesel from the EIA update ($0.02). Honesty-gated pricing (endpoints only priced with real dated records). OpenAI-class challenge with 6-network accepts (Base + 4 EVM + Solana), payment-identifier idempotency, payer telemetry. USDC on Base, x402 v2, public /.well-known/x402 manifest.",
+  "logoUrl": "/logos/storefront-data-hms.png",
+  "websiteUrl": "https://storefront-data-hms.ares-hms.workers.dev",
+  "category": "Services/Endpoints"
+}

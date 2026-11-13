@@ -1,0 +1,7 @@
+{
+  "name": "RE Data Refinery",
+  "description": "Re Data Refinery: scored off-market Ohio real-estate datasets over x402 — property listings by city ($0.03), verified cash-buyer leads ($0.50), property detail + price history ($0.01–$0.03), preforeclosure leads by county ($0.05). County-auditor- and MLS-derived records with dated provenance. USDC on Base, x402 v2, self-facilitated CDP; tokenless MCP wrapper at hms-mcp.ares-hms.workers.dev.",
+  "logoUrl": "/logos/re-data-refinery.png",
+  "websiteUrl": "https://re-data-refinery.ares-hms.workers.dev",
+  "category": "Services/Endpoints"
+}
