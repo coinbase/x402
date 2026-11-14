@@ -1,0 +1,7 @@
+{
+  "name": "SVG Bar Chart Renderer",
+  "description": "Deterministic, pay-per-render SVG bar chart generator for LLM agents. Identical input always yields byte-identical output.",
+  "logoUrl": "/logos/svg-bar-chart-renderer.svg",
+  "websiteUrl": "https://svg-bar-chart-renderer.jannioura.workers.dev",
+  "category": "Services/Endpoints"
+}
