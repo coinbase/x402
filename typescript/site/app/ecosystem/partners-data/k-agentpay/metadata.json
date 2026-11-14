@@ -1,0 +1,7 @@
+{
+  "name": "K-AgentPay",
+  "description": "Korea travel and K-pop live data for AI agents, paid per call over x402: K-pop concert search and Seoul concert trip packs, Seoul crowd and weather for 121 places, next subway trains and Incheon Airport wait times, in Japanese, English or Korean. Accepts USDC on Base and JPYC or USDT on Kaia; open-source Kaia facilitator and MCP tools.",
+  "logoUrl": "/logos/k-agentpay.png",
+  "websiteUrl": "https://api.k-agentpay.com",
+  "category": "Services/Endpoints"
+}
