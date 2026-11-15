@@ -1,0 +1,7 @@
+{
+  "name": "Graph Advocate",
+  "description": "x402-paid routing agent for onchain data. /route maps any data question to the canonical Graph subgraph; derived signals for Polymarket (sharp/retail classification, ghost-fill risk), Hyperliquid (trader skill_score, vault evaluator), and Kalshi (consensus trend) sold at $0.01-0.10 USDC per call on Base.",
+  "logoUrl": "/logos/graphadvocate.png",
+  "websiteUrl": "https://graphadvocate.com",
+  "category": "Services/Endpoints"
+}
