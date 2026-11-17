@@ -1,0 +1,7 @@
+{
+  "name": "A.GRID Security Gate",
+  "description": "Sub-5ms deterministic AST & prompt-injection firewall, spend-policy guardrails, and x402 Universal Escrow truth oracle on Base Mainnet (ERC-8004 #1203885), Polygon (#707), Arbitrum (#1679), and Solana ($0.002 USDC per audit).",
+  "logoUrl": "/logos/agrid-security-gate.svg",
+  "websiteUrl": "https://agent-security-gate-x402-212942243360.asia-northeast3.run.app/hub/",
+  "category": "Services/Endpoints"
+}
