@@ -1,0 +1,7 @@
+{
+  "name": "Tereno",
+  "description": "Pre-action onchain verification and shared-cache economy for autonomous agents on Base (USDC / x402 v2): simulated buy/sell exit checks (token.launch.guard), top-10 holder and deployer funding cluster detection (token.holders.guard), 0-RPC bytecode and EIP-1967 proxy inspection (contract.guard), token metadata, Base gas snapshots, and prediction market oracle dispute auditing with EIP-712 VerdictProof receipts and 20% cache reuse dividends.",
+  "logoUrl": "/logos/tereno.svg",
+  "websiteUrl": "https://www.tereno.xyz",
+  "category": "Services/Endpoints"
+}
