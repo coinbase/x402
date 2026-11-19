@@ -1,0 +1,7 @@
+{
+  "name": "AtlasData",
+  "description": "Agent-native crypto market data API paid per call via x402 and Lightning L402: live BTC/ETH/SOL prices, mempool fees, whale-flow watch, token verdicts, and research reports. Also publishes a recurring 33k-row x402 market census of the whole ecosystem.",
+  "logoUrl": "/logos/atlasdata.svg",
+  "websiteUrl": "https://x402atlas.xyz",
+  "category": "Services/Endpoints"
+}
