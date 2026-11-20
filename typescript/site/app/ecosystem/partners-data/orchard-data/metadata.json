@@ -1,0 +1,7 @@
+{
+  "name": "orchard-data",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/orchard-data.png",
+  "description": "Pay-per-call market data for AI agents: live US quotes, index ETFs, Treasury yields, VIX, commodities, crypto spot and social sentiment, plus ML market-regime forecasts whose accuracy is recorded before the outcome and scored server-side against what actually happened. 22 endpoints from $0.001, USDC on Base, no API keys or accounts.",
+  "websiteUrl": "https://orchard-data.letom1176.workers.dev"
+}

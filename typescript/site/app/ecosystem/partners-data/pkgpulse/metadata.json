@@ -1,0 +1,7 @@
+{
+  "name": "pkgpulse",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/pkgpulse.png",
+  "description": "Dependency intelligence for AI coding agents: npm package health scores with a fully disclosed, re-derivable rubric, typosquat and hallucinated-package detection, and whole-package.json audits that flag missing, deprecated and install-script dependencies before npm install runs. Pay per call in USDC on Base, no API keys or accounts.",
+  "websiteUrl": "https://pkgpulse.letom1176.workers.dev"
+}
