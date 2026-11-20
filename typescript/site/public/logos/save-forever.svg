@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Save Forever">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- archive tray -->
+  <rect x="64" y="150" width="128" height="46" rx="10" fill="none" stroke="#FFFFFF" stroke-width="12"/>
+  <path d="M64 150 L88 150 L100 168 L156 168 L168 150 L192 150" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- infinity = forever -->
+  <path d="M96 96 C96 78 118 78 128 96 C138 114 160 114 160 96 C160 78 138 78 128 96 C118 114 96 114 96 96 Z"
+        fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+</svg>
