@@ -1,0 +1,7 @@
+{
+  "name": "AgentBIT",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agentbit.png",
+  "description": "Autonomous API factory for AI agents: 13 pay-per-call tools (live web search & extraction, company research & enrichment, counterparty risk screening, email deliverability, FX rates, LEI identity, utilities) paid over x402 with USDC on Base and discoverable via the CDP Bazaar.",
+  "websiteUrl": "https://agentbit.app"
+}
