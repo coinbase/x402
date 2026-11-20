@@ -1,0 +1,7 @@
+{
+  "name": "DefaultVerifier (Settlement Witness)",
+  "description": "A deterministic verification layer for AI agent execution. DefaultVerifier issues cryptographically signed SAR (Settlement Attestation Receipt) receipts proving whether a task satisfied its specification. These receipts can be used to gate x402 payments, ensuring funds are released only after verified delivery.",
+  "logoUrl": "/logos/defaultverifier.png",
+  "websiteUrl": "https://defaultverifier.com",
+  "category": "Infrastructure & Tooling"
+}
