@@ -1,0 +1,7 @@
+{
+  "name": "Second Opinion",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/second-opinion.png",
+  "description": "Adversarial verification for AI agents: an independent skeptic attempts to refute a claim before the agent acts on it, returning a structured verdict with calibrated confidence and citations. Pay-per-verdict in USDC via x402 on Algorand, Base, and Solana — no accounts, no API keys — plus a zero-install hosted MCP connector.",
+  "websiteUrl": "https://secondopinionx402.com"
+}
