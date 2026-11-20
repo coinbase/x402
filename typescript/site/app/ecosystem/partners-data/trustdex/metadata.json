@@ -1,0 +1,7 @@
+{
+  "name": "TrustDex Token Risk API",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/trustdex.png",
+  "description": "Machine-payable token-safety intelligence for AI agents: A+–F token risk verdicts across 4 chains, pre-graduation Solana signals, wallet portfolio audits, rug/collapse datasets, and provider-risk grades that let agents vet x402 sellers before paying them. Pay per call in USDC on Solana, Base, Polygon, Arbitrum or Avalanche (x402 v1+v2, charge-on-success only); MCP endpoint and one-payment API keys included.",
+  "websiteUrl": "https://trustdex.app/docs/api/"
+}
