@@ -1,0 +1,7 @@
+{
+  "name": "Machine Inbox",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/machine-inbox.svg",
+  "description": "Task-scoped, self-expiring email inboxes for AI agents. One x402 payment buys a replyable address with parsed MIME and attachments; replies only reach authenticated inbound senders, and mail deletes itself at expiry.",
+  "websiteUrl": "https://machineinbox.com"
+}
