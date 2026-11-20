@@ -1,0 +1,7 @@
+{
+  "name": "The Data Collector",
+  "description": "Web scraping APIs for Bluesky, Substack, and Hacker News search. Supports x402 micropayments at $0.05 USDC per call on Base network. Includes MCP server integration for AI agent access.",
+  "logoUrl": "/logos/data-collector.png",
+  "websiteUrl": "https://frog03-20494.wykr.es",
+  "category": "Services/Endpoints"
+}
