@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Agent At Work x402 revenue lookup">
+  <rect width="128" height="128" rx="26" fill="#0b0d11"/>
+  <circle cx="64" cy="64" r="40" fill="none" stroke="#3b82f6" stroke-width="6"/>
+  <text x="64" y="59" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="30" font-weight="700" fill="#e6edf3">402</text>
+  <text x="64" y="86" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="15" font-weight="600" fill="#3b82f6" letter-spacing="1">USDC</text>
+</svg>
