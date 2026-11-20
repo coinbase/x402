@@ -1,0 +1,7 @@
+{
+  "name": "x402 Link Safety",
+  "description": "URL safety and redirect chain analyzer for AI agents. Unshortens URLs, follows redirect chains, detects phishing patterns, brand impersonation, suspicious TLDs, and non-ASCII domains. Returns safety verdict with risk score. $0.01 USDC on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-link-safety.fly.dev",
+  "category": "Services/Endpoints"
+}

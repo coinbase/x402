@@ -1,0 +1,7 @@
+{
+  "name": "x402 Readability",
+  "description": "Text readability analyzer for AI agents. Calculates Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog, Coleman-Liau, ARI, and SMOG indices. Returns grade level, reading time, vocabulary richness, and word statistics. $0.01 USDC on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-readability.fly.dev",
+  "category": "Services/Endpoints"
+}

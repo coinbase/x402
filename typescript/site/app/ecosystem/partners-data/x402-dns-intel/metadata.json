@@ -1,0 +1,7 @@
+{
+  "name": "x402 DNS Intel",
+  "description": "DNS security and email deliverability intelligence for AI agents. Analyzes SPF, DKIM, DMARC, MX, DNSSEC, BIMI, MTA-STS, and TLS-RPT records. Returns a security score (0-100) with grade and detailed findings. $0.01 USDC per analysis on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-dns-intel.fly.dev",
+  "category": "Services/Endpoints"
+}

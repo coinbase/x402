@@ -1,0 +1,7 @@
+{
+  "name": "x402 Perf Check",
+  "description": "HTTP performance measurement for AI agents. Measures TTFB, download time, redirect latency, compression, caching headers, CDN detection, and security headers. Returns performance score and grade. $0.01 USDC on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://x402-perf-check.fly.dev",
+  "category": "Services/Endpoints"
+}
