@@ -1,0 +1,7 @@
+{
+  "name": "Grant Search",
+  "description": "Paid API for agents to search and scan official U.S. federal grant data through x402 payments on Base mainnet.",
+  "logoUrl": "/logos/grant-search.svg",
+  "websiteUrl": "https://grant-search.46-224-157-88.sslip.io",
+  "category": "Services/Endpoints"
+}
