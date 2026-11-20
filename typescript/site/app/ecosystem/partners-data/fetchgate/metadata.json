@@ -1,0 +1,7 @@
+{
+  "name": "Fetchgate",
+  "description": "Agent-facing storefront and web-reader API on Cloudflare Workers. Pay-per-call web content extraction ($0.001-$0.002 USDC/call) plus a digital-goods storefront (x402 registries, MCP registry snapshot, eval-harness and prompt-injection test/defense kits, $7-$39) ending in a signed download, no account or API key required.",
+  "logoUrl": "/logos/fetchgate.png",
+  "websiteUrl": "https://fetchgate.dev",
+  "category": "Services/Endpoints"
+}
