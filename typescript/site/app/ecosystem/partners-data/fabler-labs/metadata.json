@@ -1,0 +1,7 @@
+{
+  "name": "Fabler Labs",
+  "description": "Fabler Labs runs a machine-payable x402 storefront where AI agents pay per call in USDC on Base for utility APIs (secret scanning, agent-config and code-diff security auditing, Open Graph image rendering) and digital-product downloads, with no account or API key. Free machine-readable catalog at GET https://x402.fablerlabs.com/.",
+  "logoUrl": "/logos/fabler-labs.png",
+  "websiteUrl": "https://fablerlabs.com/x402/",
+  "category": "Services/Endpoints"
+}
