@@ -1,0 +1,7 @@
+{
+  "name": "Hexanon",
+  "description": "A family of eight pay-per-call x402 APIs for autonomous agents — no signup, no keys, USDC on Base: Vindex (US/Canada vehicle & VIN intelligence), Demandex (e-commerce demand signals), OrcaTrace (Polymarket whale intelligence), gitBeacon (GitHub trend digests), Signalis (narrative intelligence), Moltalyzer (Moltbook community digests), x402lint (x402 seller conformance scanner), and Isocast (Polymarket weather-market signals). Every origin serves /skill.md, /.well-known/x402 and /.well-known/x402-resources.json.",
+  "logoUrl": "/logos/hexanon.png",
+  "websiteUrl": "https://hexanon.dev",
+  "category": "Services/Endpoints"
+}
