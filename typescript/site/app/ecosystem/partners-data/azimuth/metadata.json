@@ -1,0 +1,7 @@
+{
+  "name": "Azimuth",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/azimuth.png",
+  "description": "Azimuth is a radio-frequency positioning DePIN with live x402 endpoints on Solana and Base (USDC, x402 v2): pay-per-call positioning estimated from cellular observations, plus receiver-node registration and status. Machine-readable discovery (/.well-known/x402) and a Bazaar catalog; no API keys.",
+  "websiteUrl": "https://azimuth.day"
+}
