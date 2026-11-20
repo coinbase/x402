@@ -1,0 +1,7 @@
+{
+  "name": "webcap",
+  "description": "Pay-per-call web capture over x402: screenshot any URL (POST /v1/x402/capture, $0.001), batch-extract structured text/JSON ($0.01), audit, map and video capture — paid per call in USDC on Base, no API keys.",
+  "logoUrl": "/logos/webcap.png",
+  "websiteUrl": "https://nickname-trident-driveway.ngrok-free.dev",
+  "category": "Services/Endpoints"
+}
