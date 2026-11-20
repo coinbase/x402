@@ -1,0 +1,7 @@
+{
+  "name": "Global Law Research",
+  "description": "x402-powered cross-border legal research API. Search legislation across Japan, United States, United Kingdom, and EU for $0.01 USDC per query on Base.",
+  "logoUrl": "/logos/global_law_research_logo.jpg",
+  "websiteUrl": "https://law-mcp.toulaw.workers.dev",
+  "category": "Services/Endpoints"
+}
