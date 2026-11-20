@@ -1,0 +1,7 @@
+{
+  "name": "OnChain Token Safety (wick.pics)",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/onchain-wickpics.png",
+  "description": "Multi-chain token-safety API for agents: rug/honeypot verdicts (0-100 + evidence), live sell-simulation, ownership/privilege checks, size-aware exit-safety, and wallet drainer-approval scans across PulseChain, Monad, Base & BSC \u2014 pay-per-call via x402.",
+  "websiteUrl": "https://onchain.wick.pics"
+}
