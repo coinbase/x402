@@ -1,0 +1,7 @@
+{
+  "name": "x402-spendguard",
+  "description": "Control layer for AI agent wallets on x402: velocity freeze stops runaway loops, approval queues hold big payments for human sign-off, per-mission budgets cap long-running agents. Pure decide() before money moves, hash-chained audit trail. Zero dependencies, MIT.",
+  "logoUrl": "/logos/x402-spendguard-logo.png",
+  "websiteUrl": "https://github.com/baby-zack-agent/x402-spendguard",
+  "category": "Infrastructure & Tooling"
+}
