@@ -1,0 +1,7 @@
+{
+  "name": "AgentUtility",
+  "description": "Pay-per-call action layer for AI agents: X/Twitter lookup and search, web + news search, image generation, translation, weather, FX, and multi-step composite workflows behind single x402 calls. $0.001-$0.10 USDC on Base and Solana mainnet via the Coinbase facilitator, with Bazaar discovery on every 402. OpenAPI, llms.txt, MCP servers, and an npx CLI included.",
+  "logoUrl": "/logos/agentutility.png",
+  "websiteUrl": "https://agentutility.ai",
+  "category": "Services/Endpoints"
+}
