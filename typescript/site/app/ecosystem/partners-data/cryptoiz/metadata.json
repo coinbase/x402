@@ -1,0 +1,7 @@
+{
+  "name": "CryptoIZ",
+  "description": "AI-powered Solana DEX smart money signals via MCP. 4 paid tools ($0.01–$0.05 USDC): Alpha Scanner (whale/dolphin accumulation), Divergence Scanner (hidden/breakout signals), Accumulation Dashboard (4D token scoring), BTC Regime Monitor (macro + technicals). 2 free tools. Pay-per-call on Solana via Dexter facilitator. npm install cryptoiz-mcp.",
+  "logoUrl": "/logos/cryptoiz.png",
+  "websiteUrl": "https://cryptoiz.org/McpLanding",
+  "category": "Services/Endpoints"
+}
