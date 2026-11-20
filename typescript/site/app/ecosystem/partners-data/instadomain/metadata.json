@@ -1,0 +1,7 @@
+{
+  "name": "InstaDomain",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/instadomain.png",
+  "description": "Domain registration for AI agents. Check availability, get pricing, and register domains via x402 — USDC payment on Base, no browser required. Includes Cloudflare DNS setup and full ownership transfer.",
+  "websiteUrl": "https://instadomain.fly.dev/mcp/"
+}
