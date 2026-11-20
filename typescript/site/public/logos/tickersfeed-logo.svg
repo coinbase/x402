@@ -1,0 +1,10 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>TickersFeed</title>
+<!-- Green bullish candle -->
+<line x1="60" y1="15" x2="60" y2="105" stroke="#00963c" stroke-width="3" stroke-linecap="round"/>
+<rect x="44" y="28" width="32" height="60" rx="3" fill="#00963c"/>
+<!-- Blue ascending line -->
+<polyline points="18,90 38,70 60,52 82,34 102,18"
+  fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="102" cy="18" r="5" fill="#3b82f6"/>
+</svg>
