@@ -1,0 +1,7 @@
+{
+  "name": "RugGuard",
+  "description": "Pre-trade rug-check API for AI agents. 14 deterministic heuristics on Base + 5 on Solana, returns a weighted risk score 0-100 with structured red flags. $0.01 per scan in USDC via x402.",
+  "logoUrl": "/logos/rugguard.png",
+  "websiteUrl": "https://rugguard.redfleet.fr",
+  "category": "Services/Endpoints"
+}
