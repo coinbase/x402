@@ -1,0 +1,6 @@
+{
+  "name": "Onyx Actions",
+  "description": "13 paid agent tools over x402 USDC on Base mainnet — captcha OCR, real-SIM SMS OTP, HLR, URL text, DNS, WHOIS, email validation, IP geo, FX, and more. Bundle endpoint for one-call signup pre-flight. Built on the open-source `onyx-paid-mcp` Python framework that lets anyone ship a paid MCP in 5 lines.",
+  "websiteUrl": "https://onyx-actions.onrender.com",
+  "category": "Services/Endpoints"
+}
