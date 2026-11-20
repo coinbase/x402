@@ -1,0 +1,7 @@
+{
+  "name": "AIRadar",
+  "description": "AIRadar is an AI model gateway and provider directory that lets agents call any LLM with no accounts, no API keys, and no subscriptions — just pay per request in Lightning (L402) or USDC (x402). It aggregates 300+ models from OpenRouter and decentralized providers like Routstr, routing to the best available option. Fully OpenAI-compatible API.",
+  "logoUrl": "/logos/airadar.svg",
+  "websiteUrl": "https://airadar.fyi",
+  "category": "Services/Endpoints"
+}
