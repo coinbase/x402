@@ -3,6 +3,8 @@ import { z } from "zod";
 export const NetworkSchema = z.enum([
   "abstract",
   "abstract-testnet",
+  "arbitrum",
+  "arbitrum-sepolia",
   "base-sepolia",
   "base",
   "avalanche-fuji",
@@ -26,6 +28,8 @@ export const SupportedEVMNetworks: Network[] = [
   "abstract",
   "abstract-testnet",
   "base-sepolia",
+  "arbitrum",
+  "arbitrum-sepolia",
   "base",
   "avalanche-fuji",
   "avalanche",
@@ -42,6 +46,8 @@ export const SupportedEVMNetworks: Network[] = [
 export const EvmNetworkToChainId = new Map<Network, number>([
   ["abstract", 2741],
   ["abstract-testnet", 11124],
+  ["arbitrum", 42161],
+  ["arbitrum-sepolia", 421614],
   ["base-sepolia", 84532],
   ["base", 8453],
   ["avalanche-fuji", 43113],
