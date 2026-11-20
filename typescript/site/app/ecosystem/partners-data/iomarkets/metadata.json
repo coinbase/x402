@@ -1,0 +1,7 @@
+{
+  "name": "IoMarkets.app",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/iomarkets.png",
+  "description": "Real-world checkout for AI agents on Algorand: travel eSIMs in 200+ destinations and mobile top-ups in 150+ countries, paid per order in USDC via x402. Settles before goods are bought, refunds failed deliveries on-chain automatically, and signs every receipt.",
+  "websiteUrl": "https://iomarkets.app"
+}
