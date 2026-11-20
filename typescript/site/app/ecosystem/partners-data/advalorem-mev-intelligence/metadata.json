@@ -1,0 +1,7 @@
+{
+  "name": "MEV Intelligence",
+  "description": "Real-time MEV intelligence APIs for AI agents and quant systems: liquidation-wave forecasting (oracle deltas + borrower health-factor distribution), searcher leaderboard, builder routing recommendations, and a risk-enriched MEV opportunity feed. Built on top of an L1+L2 (Ethereum + Base) liquidation infrastructure with sub-100ms seen→priced latency. Paid via x402 USDC on Base ($0.10–$0.50 per call), with free preview endpoints for evaluation.",
+  "logoUrl": "/logos/advalorem.png",
+  "websiteUrl": "https://mev.advalorem.io/intelligence/openapi",
+  "category": "Services/Endpoints"
+}
