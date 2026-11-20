@@ -1,0 +1,7 @@
+{
+  "name": "kcolbchain",
+  "description": "Open-source blockchain research collective building agent payment tooling. Switchboard implements x402 payment flows alongside MPP, AP2, and escrow protocols, giving AI agents a unified interface to negotiate and settle payments across multiple schemes.",
+  "logoUrl": "/logos/kcolbchain.svg",
+  "websiteUrl": "https://kcolbchain.com",
+  "category": "Infrastructure & Tooling"
+}
