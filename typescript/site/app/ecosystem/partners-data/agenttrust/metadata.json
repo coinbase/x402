@@ -1,0 +1,7 @@
+{
+  "name": "AgentTrust",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/agenttrust-logo.png",
+  "description": "Reputation scores for AI agents, sold per-call via x402 on Base mainnet. 31,697 on-chain agents scored — $0.01 per score query, no signup, no API keys.",
+  "websiteUrl": "https://api.atatrust.xyz"
+}
