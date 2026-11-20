@@ -89,6 +89,14 @@ Integrate the payment middleware into your application. You will need to provide
 
 * The Facilitator URL or facilitator client. For testing, use `https://x402.org/facilitator` which works on Base Sepolia and Solana devnet.
   * For mainnet setup, see [Running on Mainnet](#running-on-mainnet)
+
+  <Warning>
+    **Using the public facilitator on Base Mainnet causes a `500` error, not `402`.**
+
+    `https://x402.org/facilitator` only supports testnet networks (Base Sepolia `eip155:84532`, Solana Devnet). Pointing it at Base Mainnet (`eip155:8453`) causes the middleware to propagate an unhandled `"Route Configuration Errors"` response from the facilitator, surfacing as a `500 Internal Server Error` to the caller — not `402 Payment Required`.
+
+    For production, configure a self-hosted or CDP-backed facilitator. See [Running on Mainnet](#running-on-mainnet).
+  </Warning>
 * The routes you want to protect.
 * Your receiving wallet address.
 
