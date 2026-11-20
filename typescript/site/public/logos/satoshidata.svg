@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#4D94FF"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect x="18" y="28" width="72" height="72" rx="16" fill="#B8C4D0" opacity="0.6"/>
+  <rect x="110" y="100" width="72" height="72" rx="16" fill="#B8C4D0" opacity="0.6"/>
+  <rect x="48" y="48" width="104" height="104" rx="22" fill="url(#blue-grad)" filter="url(#shadow)"/>
+  <rect x="62" y="50" width="76" height="2.5" rx="1.2" fill="#fff" opacity="0.15"/>
+  <text x="100" y="122" font-family="Inter, -apple-system, sans-serif" font-size="62" font-weight="800" fill="#fff" text-anchor="middle" letter-spacing="-1">AI</text>
+</svg>
