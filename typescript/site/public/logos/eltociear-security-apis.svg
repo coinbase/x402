@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="eltociear Security APIs">
+  <rect width="256" height="256" rx="48" fill="#0B1020"/>
+  <path d="M128 40 L196 68 V128 C196 172 166 200 128 216 C90 200 60 172 60 128 V68 Z"
+        fill="none" stroke="#3DD68C" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M100 130 L120 150 L160 104" fill="none" stroke="#3DD68C" stroke-width="12"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="128" y="244" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-size="26" font-weight="700" fill="#E6EDF3">eltociear</text>
+</svg>

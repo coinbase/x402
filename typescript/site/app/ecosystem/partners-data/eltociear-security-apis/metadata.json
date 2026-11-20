@@ -1,0 +1,7 @@
+{
+  "name": "eltociear Security APIs",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/eltociear-security-apis.svg",
+  "description": "Three pay-per-call security endpoints for the agent economy, settled in USDC on Base via x402 (no signup — your agent's wallet pays per call). skill-audit: scans AI agent skills, plugins, and prompts for malicious patterns. tokenguard: heuristic ERC-20 rug/safety check over public RPC, flagging mint/blacklist/tax/proxy powers a token owner can use. contract-guard: pre-interaction risk signals for any EVM contract or token address. Deterministic checks, machine-readable JSON responses.",
+  "websiteUrl": "https://eltociear-tokenguard.hf.space"
+}
