@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256" role="img" aria-label="stipend.sh">
+  <title>stipend.sh</title>
+  <desc>Square brackets enclosing a ring: the zero of HTTP 402, bounded.</desc>
+  <path d="M22 8H10v48h12" fill="none" stroke="#16a34a" stroke-width="8" stroke-linecap="square"/>
+  <circle cx="32" cy="32" r="13" fill="none" stroke="#16a34a" stroke-width="8"/>
+  <path d="M42 8h12v48H42" fill="none" stroke="#16a34a" stroke-width="8" stroke-linecap="square"/>
+</svg>

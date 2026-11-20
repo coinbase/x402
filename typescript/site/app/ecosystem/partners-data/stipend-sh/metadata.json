@@ -1,0 +1,7 @@
+{
+  "name": "stipend.sh",
+  "description": "A non-custodial USDC wallet on Base that an AI agent installs by itself, with spending limits enforced in the signing path rather than in a prompt.",
+  "logoUrl": "/logos/stipend-sh.svg",
+  "websiteUrl": "https://stipend.sh",
+  "category": "Client-Side Integrations"
+}
