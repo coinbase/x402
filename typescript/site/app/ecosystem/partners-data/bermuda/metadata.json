@@ -1,0 +1,7 @@
+{
+  "name": "Bermuda",
+  "description": "ZK-private HTTP payments for x402. Uses Noir zero-knowledge proofs to add sender privacy to the x402 payment flow on Base, letting AI agents and API consumers pay without exposing wallet balances or transaction history.",
+  "logoUrl": "/logos/bermuda.png",
+  "websiteUrl": "https://www.bermudabay.xyz",
+  "category": "Infrastructure & Tooling"
+}
