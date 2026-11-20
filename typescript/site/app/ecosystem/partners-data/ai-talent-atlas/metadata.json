@@ -1,0 +1,8 @@
+{
+  "name": "AI Talent Atlas",
+  "category": "Services/Endpoints",
+  "typeLabel": "Data",
+  "logoUrl": "/logos/ai-talent-atlas.png",
+  "description": "Pay-per-request API for AI researcher intelligence. 643 researchers across 14 major labs with h-index, citations, co-author networks, talent flow, and departure tracking.",
+  "websiteUrl": "https://www.agentrift.tech"
+}
