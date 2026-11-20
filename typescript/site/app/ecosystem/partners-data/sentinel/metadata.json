@@ -1,0 +1,7 @@
+{
+  "name": "Sentinel",
+  "description": "Independent AI agent reputation provider. Trust grades (A-F), success rates, buyer diversity, and Nansen-enriched on-chain intelligence for 239+ agents on the ACP marketplace. $0.10 USDC per query on Base.",
+  "logoUrl": "/logos/sentinel.png",
+  "websiteUrl": "https://sentineltrust.xyz",
+  "category": "Services/Endpoints"
+}
