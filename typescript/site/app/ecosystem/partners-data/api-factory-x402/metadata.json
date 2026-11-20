@@ -1,0 +1,7 @@
+{
+  "name": "klymax402",
+  "category": "Services/Endpoints",
+  "description": "x402 API marketplace: 100 monetized APIs spanning email/SEO/web scraping, DEX aggregation, NFT/ENS, Hyperliquid, and crypto utility — accessible via USDC micropayments on Base L2 with no signup or API keys. Public catalog at /llms.txt; every endpoint also exposes /mcp for MCP SSE clients.",
+  "logoUrl": "",
+  "websiteUrl": "https://klymax402.com"
+}
