@@ -1,0 +1,7 @@
+{
+  "name": "Haldir",
+  "description": "Cryptographic trust layer for AI agents. x402-gated endpoints for RFC 6962 inclusion proofs ($0.01), Ed25519-signed tree heads ($0.001), and signed audit-prep evidence packs ($0.10). Every settled payment becomes a leaf in Haldir's own Merkle tree — the audit layer attests to its own revenue. USDC on Base.",
+  "logoUrl": "/logos/haldir.svg",
+  "websiteUrl": "https://haldir.xyz",
+  "category": "Services/Endpoints"
+}
