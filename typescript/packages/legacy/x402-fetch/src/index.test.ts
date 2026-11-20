@@ -61,7 +61,11 @@ describe("fetchWithPayment()", () => {
     const result = await wrappedFetch("https://api.example.com");
 
     expect(result).toBe(successResponse);
-    expect(mockFetch).toHaveBeenCalledWith("https://api.example.com", undefined);
+    // The request is now issued as a Request so its body can be cloned for the
+    // paid retry; assert on that rather than the old (input, init) pair.
+    const [sent] = mockFetch.mock.calls[0];
+    expect(sent).toBeInstanceOf(Request);
+    expect((sent as Request).url).toBe("https://api.example.com/");
   });
 
   it("should handle 402 errors and retry with payment header", async () => {
@@ -97,15 +101,52 @@ describe("fetchWithPayment()", () => {
       undefined,
     );
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenLastCalledWith("https://api.example.com", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+    const [retried] = mockFetch.mock.calls[1] as [Request];
+    expect(retried).toBeInstanceOf(Request);
+    expect(retried.url).toBe("https://api.example.com/");
+    expect(retried.method).toBe("GET");
+    expect(retried.headers.get("Content-Type")).toBe("application/json");
+    expect(retried.headers.get("X-PAYMENT")).toBe(paymentHeader);
+    expect(retried.headers.get("Access-Control-Expose-Headers")).toBe("X-PAYMENT-RESPONSE");
+  });
+
+  it("should pay for a streamed request body", async () => {
+    // A ReadableStream body is consumed by the unpaid attempt. Rebuilding the
+    // retry from the original `init` re-used that spent stream, so the paid
+    // attempt threw "Response body object should not be disturbed or locked"
+    // before it was sent and the payment could never be made. Cloning the
+    // Request tees the body so both attempts have their own copy.
+    const paymentHeader = "payment-header-value";
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
+    (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
+      (requirements, _) => requirements[0],
+    );
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, { accepts: validPaymentRequirements, x402Version: 1 }),
+      )
+      .mockResolvedValueOnce(createResponse(200, { data: "success" }));
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
       },
-      __is402Retry: true,
-    } as RequestInitWithRetry);
+    });
+
+    await wrappedFetch("https://api.example.com", {
+      method: "POST",
+      body,
+      duplex: "half",
+    } as RequestInit);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [paid] = mockFetch.mock.calls[1] as [Request];
+    expect(paid.headers.get("X-PAYMENT")).toBe(paymentHeader);
+    // The retry must still carry the payload, not an emptied stream.
+    expect(paid.bodyUsed).toBe(false);
+    expect(new Uint8Array(await paid.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
   });
 
   it("should not retry if already retried", async () => {

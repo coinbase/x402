@@ -60,7 +60,24 @@ export function wrapFetchWithPayment(
   config?: X402Config,
 ) {
   return async (input: RequestInfo, init?: RequestInit) => {
-    const response = await fetch(input, init);
+    /*
+      Clone before sending, and retry with the clone.
+
+      The retry used to be built by spreading `init`, which carries the body
+      over verbatim. A body is not reusable: the first attempt disturbs a
+      `ReadableStream`, so the paid retry threw
+
+        TypeError: Response body object should not be disturbed or locked
+
+      before it was sent, and the payment could never be made. Any caller
+      streaming a request body — an upload, say — could not pay at all.
+      `Request.clone()` tees the body so both attempts have their own copy,
+      matching what @x402/fetch v2 already does.
+    */
+    const request = new Request(input, init);
+    const retryRequest = request.clone();
+
+    const response = await fetch(request);
 
     if (response.status !== 402) {
       return response;
@@ -101,17 +118,10 @@ export function wrapFetchWithPayment(
       throw new Error("Payment already attempted");
     }
 
-    const newInit = {
-      ...init,
-      headers: {
-        ...(init?.headers || {}),
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-      },
-      __is402Retry: true,
-    };
+    retryRequest.headers.set("X-PAYMENT", paymentHeader);
+    retryRequest.headers.set("Access-Control-Expose-Headers", "X-PAYMENT-RESPONSE");
 
-    const secondResponse = await fetch(input, newInit);
+    const secondResponse = await fetch(retryRequest);
     return secondResponse;
   };
 }
