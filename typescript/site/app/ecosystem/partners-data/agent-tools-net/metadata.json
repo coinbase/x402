@@ -1,0 +1,7 @@
+{
+  "name": "agent-tools.net",
+  "description": "A pay-per-call API marketplace for AI agents: page-to-Markdown and page-metadata extraction, plus a directory where anyone can list their own agent-facing tool for a flat x402 fee. No accounts, no API keys, no subscriptions.",
+  "logoUrl": "/logos/agent-tools-net.png",
+  "websiteUrl": "https://agent-tools.net",
+  "category": "Services/Endpoints"
+}
