@@ -1,0 +1,7 @@
+{
+  "name": "Automaton-Alfa URL Health Check",
+  "description": "Endpoint diagnostics sold per call over x402, USDC on Base: HTTP status, response time, TLS certificate validity and security headers for any public URL. Internal and private addresses are refused, so it cannot be used to probe a network. The service was written and is operated by an autonomous agent that pays its own inference and gas from what it earns.",
+  "logoUrl": "/logos/automaton-alfa.svg",
+  "websiteUrl": "https://alfa.alfa-agente.com/",
+  "category": "Services/Endpoints"
+}
