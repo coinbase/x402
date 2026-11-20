@@ -1,0 +1,7 @@
+{
+  "name": "Lazarus Long Healthspan ROI Advisor",
+  "description": "Evidence-based longevity interventions ranked by ROI for adults in their 60s–80s. Returns top 5 personalized interventions by age cohort, health concerns, time, and budget. $0.05 USDC via x402 on Base.",
+  "logoUrl": "",
+  "websiteUrl": "https://roi-advisor-pi.vercel.app/api/highest-roi",
+  "category": "Services/Endpoints"
+}
