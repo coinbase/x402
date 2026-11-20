@@ -1,0 +1,14 @@
+{
+  "name": "Minara AI",
+  "description": "AI-powered virtual CFO for Web3 trading. Minara provides trading copilot, autopilot, deep research reports, and agentic workflows with x402 payment support via its Agent API.",
+  "logoUrl": "/logos/minara.png",
+  "websiteUrl": "https://minara.ai",
+  "category": "Services/Endpoints",
+  "facilitator": {
+    "baseUrl": "https://x402.minara.ai",
+    "networks": ["base", "solana", "polygon"],
+    "schemes": ["exact"],
+    "assets": ["USDC"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
